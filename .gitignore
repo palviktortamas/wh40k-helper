@@ -33,8 +33,9 @@ pnpm-debug.log*
 # test / coverage
 coverage/
 
-# GAME DATA — never commit GW/community datafiles (see spec 4.2)
-data/
+# GAME DATA — never commit GW/community datafiles (see spec 4.2).
+# Anchored to the repo root so it never swallows source dirs like src/data/.
+/data/
 *.cat
 *.catz
 *.gst
