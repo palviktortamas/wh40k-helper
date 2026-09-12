@@ -1,0 +1,50 @@
+.settings h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.settings p {
+  margin: 0 0 0.75rem;
+}
+
+.settings__group {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.settings__group legend {
+  padding: 0 0.375rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.settings__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings__choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.settings__choice input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+.settings__fineprint {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}

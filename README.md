@@ -6,6 +6,24 @@ tracking, per-ability reminders).
 
 Personal project. Unofficial and unaffiliated with Games Workshop. Not for distribution.
 
+**Live app:** https://palviktortamas.github.io/wh40k-helper/
+
+## Running it
+
+Requires **Node 20.11+** (the build toolchain needs it; Node 18 fails at the service-worker step).
+
+```sh
+npm install
+npm run dev        # http://localhost:5173
+npm run dev:host   # also reachable from your phone on the same Wi-Fi
+npm run build      # production bundle into dist/
+npm run typecheck
+npm run check:data # asserts no game data is in the repo or the bundle
+```
+
+Pushing to `main` redeploys to GitHub Pages in about a minute. An installed PWA shows a
+"new version available — reload" prompt on next open rather than reloading mid-game.
+
 ## Status
 
 Bootstrapping. See [docs/spec.md](docs/spec.md) for the full specification and the phase plan.
@@ -13,6 +31,7 @@ Bootstrapping. See [docs/spec.md](docs/spec.md) for the full specification and t
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Source verification | done (spec Appendix A) |
+| — | PWA scaffold + Pages deploy | done |
 | 1 | Data layer + datasheet browser | not started |
 | 2 | List Builder + validation | not started |
 | 3 | Play Mode core | not started |
@@ -28,8 +47,9 @@ Army/rules data is **never committed here**. The app downloads it on-device on f
 - [BSData/wh40k-11e-mfm](https://github.com/BSData/wh40k-11e-mfm) — official Munitorum Field Manual points (YAML)
 - [Wahapedia data export](https://wahapedia.ru/wh40k11ed/the-rules/data-export/) — rules text and the mission deck (needs a user-owned CORS proxy or manual file import)
 
-`.gitignore` blocks the usual datafile names. A fresh clone must contain no unit names, ability
-text or points values.
+`.gitignore` blocks the usual datafile names, and `npm run check:data` (also a CI step) fails the
+build if anything with the shape of a catalogue, CSV export or MFM dump appears in the repo or in
+`dist/`. A fresh clone must contain no unit names, ability text or points values.
 
 ## Attribution
 
