@@ -75,7 +75,9 @@ export function mergeMfm(catalogue: ParsedCatalogue, mfm: MfmCatalogue): MergeRe
     const key = normaliseName(sheet.name)
     const match = mfmUnits.get(key)
     if (!match) {
-      unmatched.push({ kind: 'datasheet', name: sheet.name, presentIn: ['bsdata'] })
+      // A datasheet imported from a linked library (Legends fortifications, a
+      // shared library's other factions) is not in this faction's mirror by design.
+      if (!sheet.library) unmatched.push({ kind: 'datasheet', name: sheet.name, presentIn: ['bsdata'] })
       continue
     }
     usedUnits.add(key)
@@ -96,7 +98,7 @@ export function mergeMfm(catalogue: ParsedCatalogue, mfm: MfmCatalogue): MergeRe
     const key = normaliseName(detachment.name)
     const match = mfmDetachments.get(key)
     if (!match) {
-      unmatched.push({ kind: 'detachment', name: detachment.name, presentIn: ['bsdata'] })
+      if (!detachment.library) unmatched.push({ kind: 'detachment', name: detachment.name, presentIn: ['bsdata'] })
       continue
     }
     usedDetachments.add(key)

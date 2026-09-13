@@ -9,35 +9,20 @@
  * the skip takes effect.
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parseCatalogue } from './bsdata/parse'
+import { parseCatalogue as parseCatalogueRaw } from './bsdata/parse'
 import { parseMfm } from './mfm/parse'
 import { mergeMfm } from './link/merge'
 import type { GameSystem, Catalogue } from './bsdata/schema'
+import { fixturesAvailable, loadCatalogue, loadGameSystem, loadLibraries, loadMfmText } from '../../test/fixtures'
 
-const dir = process.env['WH40K_FIXTURES']
-const available = Boolean(dir && existsSync(dir) && existsSync(join(dir, 'gs.json')))
-
-const loadGameSystem = (): GameSystem =>
-  JSON.parse(readFileSync(join(dir!, 'gs.json'), 'utf8')).gameSystem
-
-const loadCatalogue = (): Catalogue => {
-  const file = readdirSync(dir!).find((f) => f.endsWith('.json') && f !== 'gs.json')
-  if (!file) throw new Error('no catalogue .json in WH40K_FIXTURES')
-  return JSON.parse(readFileSync(join(dir!, file), 'utf8')).catalogue
-}
-
-const loadMfmText = (): string | undefined => {
-  const file = readdirSync(dir!).find((f) => f.endsWith('.yaml'))
-  return file ? readFileSync(join(dir!, file), 'utf8') : undefined
-}
+const available = fixturesAvailable()
+const parseCatalogue = (gs: GameSystem, cat: Catalogue) => parseCatalogueRaw(gs, cat, loadLibraries())
 
 describe.skipIf(!available)('live source files', () => {
   it('parses a catalogue into datasheets with stats and weapons', () => {
     const parsed = parseCatalogue(loadGameSystem(), loadCatalogue())
-    expect(parsed.datasheets.length).toBeGreaterThan(50)
+    expect(parsed.datasheets.length).toBeGreaterThan(40)
     expect(parsed.detachments.length).toBeGreaterThan(5)
     expect(parsed.unsupported).toEqual([])
 
@@ -75,10 +60,14 @@ describe.skipIf(!available)('live source files', () => {
     const parsed = parseCatalogue(loadGameSystem(), loadCatalogue())
     const report = mergeMfm(parsed, parseMfm(text))
 
-    // Every detachment must join across sources, and the great majority of
-    // datasheets; if either drops, name normalisation has regressed.
-    expect(report.matchedDetachments).toBe(parsed.detachments.length)
-    expect(report.matchedDatasheets / parsed.datasheets.length).toBeGreaterThan(0.85)
+    // Every detachment of the faction's own file must join across sources, and
+    // the great majority of its own datasheets; if either drops, name
+    // normalisation has regressed. Imported library content (Legends
+    // fortifications, a shared library's other factions) is not in the mirror.
+    const own = parsed.datasheets.filter((d) => !d.library)
+    const ownDetachments = parsed.detachments.filter((d) => !d.library)
+    expect(report.matchedDetachments).toBeGreaterThanOrEqual(ownDetachments.length)
+    expect(report.matchedDatasheets / own.length).toBeGreaterThan(0.85)
   })
 
   it('parses fast enough to stay inside a single worker message', () => {

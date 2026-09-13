@@ -5,7 +5,7 @@
 
 import { db } from '@/data/db'
 import type { CatalogueRecord } from '@/data/db'
-import { buildGraph, childOptions, type CatalogueGraph, type ResolvedEntry } from './resolve'
+import { buildGraph, childOptions, type CatalogueGraph, type ResolvedEntry, type ResolvedGroup } from './resolve'
 import { analyseRoster, type Analysis } from './evaluate'
 import { coreChecks } from './coreChecks'
 import { bareSelection, cloneSelection, newSelectionId } from './defaults'
@@ -98,7 +98,10 @@ export function graphFor(record: CatalogueRecord): CatalogueGraph {
   if (cached) return cached
   const gameSystem = (JSON.parse(record.raw.gameSystem) as { gameSystem: GameSystem }).gameSystem
   const catalogue = (JSON.parse(record.raw.catalogue) as { catalogue: Catalogue }).catalogue
-  const graph = buildGraph(gameSystem, catalogue)
+  const libraries = Object.values(record.raw.libraries ?? {}).map(
+    (text) => (JSON.parse(text) as { catalogue: Catalogue }).catalogue,
+  )
+  const graph = buildGraph(gameSystem, catalogue, libraries)
   graphs.clear()
   graphs.set(key, graph)
   return graph
@@ -185,10 +188,15 @@ export function withToggle(roster: Roster, graph: CatalogueGraph, entryId: strin
 }
 
 /** Detachment options: every entry in the configuration tree that costs Detachment Points. */
-export function detachmentOptions(
-  graph: CatalogueGraph,
-): { entry: ResolvedEntry; groupId?: string; configEntryId: string }[] {
-  const out: { entry: ResolvedEntry; groupId?: string; configEntryId: string }[] = []
+export type DetachmentOption = {
+  entry: ResolvedEntry
+  group?: ResolvedGroup
+  groupId?: string
+  configEntryId: string
+}
+
+export function detachmentOptions(graph: CatalogueGraph): DetachmentOption[] {
+  const out: DetachmentOption[] = []
   for (const id of graph.configurationEntryIds) {
     const entry = graph.resolve(id)
     if (!entry) continue
@@ -196,12 +204,31 @@ export function detachmentOptions(
       if ((option.entry.costs[COST_TYPE.detachmentPoints] ?? 0) > 0)
         out.push({
           entry: option.entry,
-          ...(option.group ? { groupId: option.group.id } : {}),
+          ...(option.group ? { group: option.group, groupId: option.group.id } : {}),
           configEntryId: id,
         })
     }
   }
   return out.sort((a, b) => a.entry.name.localeCompare(b.entry.name))
+}
+
+/**
+ * The detachments this roster may actually pick: the data hides the ones that
+ * belong to another faction sharing the same library (`instanceOf
+ * primary-catalogue` gates), so the evaluator is asked per option. The one
+ * already chosen stays listed even if a later data update hid it.
+ */
+export function availableDetachmentOptions(
+  roster: Roster,
+  graph: CatalogueGraph,
+  analysis: Pick<Analysis, 'isEntryAvailable'>,
+): DetachmentOption[] {
+  const chosen = new Set(roster.configuration.flatMap((c) => c.selections.map((s) => s.entryId)))
+  return detachmentOptions(graph).filter((option) => {
+    if (chosen.has(option.entry.id)) return true
+    const config = roster.configuration.find((c) => c.entryId === option.configEntryId)
+    return !config || analysis.isEntryAvailable(config.id, option.entry, option.group)
+  })
 }
 
 /** Replaces the chosen detachment (or clears it when `entryId` is undefined). */

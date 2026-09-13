@@ -107,6 +107,8 @@ export type Datasheet = {
   /** Units this one may lead / support, by name, where the source says so. */
   leaderTo?: string[]
   supportTo?: string[]
+  /** Name of the linked library catalogue this came from, when not the faction's own file. */
+  library?: string
   /** Leader/Support attachment rules as encoded by BSData. */
   associations: Association[]
   /** Kept faithfully for the Phase 2 constraint evaluator — never lossy. */
@@ -129,6 +131,8 @@ export type Detachment = {
   enhancements: Enhancement[]
   /** The detachment's own rules, as BSData attaches them to the entry. Absent on catalogues parsed before Phase 5. */
   rules?: Ability[]
+  /** Name of the linked library catalogue this came from, when not the faction's own file. */
+  library?: string
   sources: SourceId[]
 }
 

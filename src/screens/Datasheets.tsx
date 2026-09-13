@@ -87,6 +87,7 @@ export function Datasheets() {
                 <span className="sheets__name">
                   {sheet.name}
                   {sheet.variant && <span className="sheets__variant">{sheet.variant}</span>}
+                  {sheet.library && <span className="sheets__variant" title={`From ${sheet.library}`}>linked</span>}
                 </span>
                 <span className="sheets__points">{points === undefined ? '—' : `${points} pts`}</span>
               </Link>

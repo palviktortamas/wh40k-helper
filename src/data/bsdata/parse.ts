@@ -38,8 +38,10 @@ const PROFILE_MELEE = 'melee weapons'
  * with an older number are re-parsed from their stored raw text at app start.
  * 2: datasheet abilities no longer follow group links (Crusade tree), detachment
  *    rules and enhancement texts added (Phase 5).
+ * 3: linked library catalogues are indexed; datasheets are discovered through the
+ *    catalogue's root entry links (Phase 6, second-faction test).
  */
-export const PARSER_VERSION = 2
+export const PARSER_VERSION = 3
 
 const PROFILE_ABILITIES = 'abilities'
 const PROFILE_TRANSPORT = 'transport'
@@ -73,7 +75,7 @@ const splitKeywords = (raw: string | undefined): string[] =>
         .map((k) => k.trim())
         .filter(Boolean)
 
-function buildIndex(gs: GameSystem, cat: Catalogue): Index {
+function buildIndex(gs: GameSystem, cat: Catalogue, libraries: Catalogue[]): Index {
   const index: Index = {
     entries: new Map(),
     groups: new Map(),
@@ -82,9 +84,11 @@ function buildIndex(gs: GameSystem, cat: Catalogue): Index {
     categories: new Map(),
   }
 
-  // Shared nodes are addressed by id from anywhere in either file, so index both
-  // and let the catalogue win on collision (it is the more specific source).
-  for (const source of [gs, cat]) {
+  // Shared nodes are addressed by id from anywhere in these files, so index them
+  // all and let the catalogue win on collision (it is the most specific source).
+  // Libraries are the catalogues this one imports through `catalogueLinks` -
+  // some factions keep every datasheet there and the catalogue is only links.
+  for (const source of [gs, ...libraries, cat]) {
     for (const e of source.sharedSelectionEntries ?? []) indexEntry(e, index)
     for (const g of source.sharedSelectionEntryGroups ?? []) indexGroup(g, index)
     for (const p of source.sharedProfiles ?? []) index.profiles.set(p.id, p)
@@ -384,20 +388,70 @@ function collectEnhancements(cat: Catalogue, index: Index): Ability[] {
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function parseCatalogue(gs: GameSystem, cat: Catalogue): ParsedCatalogue {
-  const index = buildIndex(gs, cat)
+/**
+ * The entries a catalogue offers at the root of a roster: the targets of its
+ * root `entryLinks` (a catalogue that keeps its units in a library has nothing
+ * else), the root links of libraries imported with `importRootEntries`, and -
+ * as a fallback for older catalogues - its own shared entries with a primary
+ * category. Order: link order, then the catalogue's own.
+ */
+export function rootEntries(
+  cat: Catalogue,
+  libraries: Catalogue[],
+  entries: Map<string, SelectionEntry>,
+): SelectionEntry[] {
+  const seen = new Set<string>()
+  const out: SelectionEntry[] = []
+  const add = (e: SelectionEntry | undefined) => {
+    if (e && !seen.has(e.id)) {
+      seen.add(e.id)
+      out.push(e)
+    }
+  }
+  const linkedRoots = (source: Catalogue) => {
+    for (const link of source.entryLinks ?? []) {
+      if (link.type !== 'selectionEntry' || link.hidden) continue
+      add(entries.get(link.targetId))
+    }
+  }
+  linkedRoots(cat)
+  const imported = new Set(
+    (cat.catalogueLinks ?? []).filter((l) => l.importRootEntries).map((l) => l.targetId),
+  )
+  for (const lib of libraries) if (imported.has(lib.id)) linkedRoots(lib)
+  for (const e of cat.sharedSelectionEntries ?? []) add(e)
+  return out
+}
+
+export function parseCatalogue(gs: GameSystem, cat: Catalogue, libraries: Catalogue[] = []): ParsedCatalogue {
+  const index = buildIndex(gs, cat, libraries)
   const unsupported: string[] = []
 
-  // A datasheet is a shared entry with a primary category link — that link is
+  // A datasheet is a root entry with a primary category link - that link is
   // the battlefield role, and only real datasheets carry one. Configuration is
   // the roster's own setup entry (the detachment picker), not a unit.
-  const datasheets = (cat.sharedSelectionEntries ?? [])
+  // Which library an entry came from, so screens and the source check can tell
+  // the faction's own units from imported ones (e.g. Legends fortifications).
+  const libraryOf = new Map<string, string>()
+  for (const lib of libraries) {
+    for (const e of lib.sharedSelectionEntries ?? []) libraryOf.set(e.id, lib.name)
+  }
+  const datasheets = rootEntries(cat, libraries, index.entries)
     .filter((e) => (e.categoryLinks ?? []).some((l) => l.primary) && !e.hidden)
-    .map((e) => toDatasheet(e, index))
+    .map((e) => {
+      const sheet = toDatasheet(e, index)
+      const library = libraryOf.get(e.id)
+      return library ? { ...sheet, library } : sheet
+    })
     .filter((d) => d.role !== CONFIGURATION_ROLE)
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  const detachments = collectDetachments(cat, index).sort((a, b) => a.name.localeCompare(b.name))
+  const detachments = [cat, ...libraries]
+    .flatMap((source) =>
+      collectDetachments(source, index).map((d) => (source === cat ? d : { ...d, library: source.name })),
+    )
+    .filter((d, i, all) => all.findIndex((o) => o.id === d.id) === i)
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   const rules: Ability[] = [...index.rules.values()].map((r) => ({
     id: r.id,
@@ -418,7 +472,9 @@ export function parseCatalogue(gs: GameSystem, cat: Catalogue): ParsedCatalogue 
     datasheets,
     detachments,
     rules,
-    enhancements: collectEnhancements(cat, index),
+    enhancements: [cat, ...libraries]
+      .flatMap((source) => collectEnhancements(source, index))
+      .filter((e, i, all) => all.findIndex((o) => o.id === e.id) === i),
     unsupported,
   }
 }

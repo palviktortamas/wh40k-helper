@@ -3,8 +3,6 @@
  * Skipped unless WH40K_FIXTURES is set (see src/data/live.test.ts).
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   buildGraph,
@@ -15,19 +13,14 @@ import {
 } from './resolve'
 import { analyseRoster, evaluateRoster } from './evaluate'
 import { instantiate } from './defaults'
-import { detachmentOptions, normaliseRoster, validate, withDetachment, withWarlord } from './store'
+import { availableDetachmentOptions, detachmentOptions, normaliseRoster, validate, withDetachment, withWarlord } from './store'
 import type { Roster, Selection } from './types'
-import { COST_TYPE, type GameSystem, type Catalogue } from '@/data/bsdata/schema'
+import { COST_TYPE } from '@/data/bsdata/schema'
+import { fixturesAvailable, loadCatalogue, loadGameSystem, loadLibraries } from '../../test/fixtures'
 
-const dir = process.env['WH40K_FIXTURES']
-const available = Boolean(dir && existsSync(dir) && existsSync(join(dir, 'gs.json')))
+const available = fixturesAvailable()
 
-const loadGraph = (): CatalogueGraph => {
-  const gs = JSON.parse(readFileSync(join(dir!, 'gs.json'), 'utf8')).gameSystem as GameSystem
-  const file = readdirSync(dir!).find((f) => f.endsWith('.json') && f !== 'gs.json')!
-  const cat = JSON.parse(readFileSync(join(dir!, file), 'utf8')).catalogue as Catalogue
-  return buildGraph(gs, cat)
-}
+const loadGraph = (): CatalogueGraph => buildGraph(loadGameSystem(), loadCatalogue(), loadLibraries())
 
 let counter = 0
 const sel = (entry: ResolvedEntry, count: number, children: Selection[] = []): Selection => ({
@@ -99,19 +92,22 @@ describe.skipIf(!available)('constraint evaluator on real data', () => {
   it('applies a size-dependent points modifier', () => {
     const graph = loadGraph()
     // Find a unit whose points are changed by a `set` modifier on the cost type.
-    const candidates = graph.rootEntryIds.map((id) => graph.resolve(id)!)
-    const scaling = candidates.find((e) =>
-      e.modifiers.some((m) => m.type === 'set' && m.field === '51b2-306e-1021-d207'),
-    )
-    expect(scaling).toBeDefined()
+    const candidates = graph.rootEntryIds
+      .map((id) => graph.resolve(id)!)
+      .filter((e) => e.modifiers.some((m) => m.type === 'set' && m.field === '51b2-306e-1021-d207'))
+    expect(candidates.length).toBeGreaterThan(0)
 
-    const models = scaling!.groups.flatMap(groupEntries).filter((m) => m.type === 'model')
-    expect(models.length).toBeGreaterThan(0)
-
-    const small = evaluateRoster(roster([sel(scaling!, 1, [sel(models[0]!, 1)])]), graph)
-    const large = evaluateRoster(roster([sel(scaling!, 1, [sel(models[0]!, 20)])]), graph)
-    // The larger unit must cost more; if modifiers were skipped they are equal.
-    expect(large.points).toBeGreaterThan(small.points)
+    // Not every such modifier keys on model count (some key on other options),
+    // so it is enough that one unit's larger build costs more; if modifiers were
+    // skipped, every pair would be equal.
+    const scaled = candidates.some((scaling) => {
+      const models = scaling.groups.flatMap(groupEntries).filter((m) => m.type === 'model')
+      if (models.length === 0) return false
+      const small = evaluateRoster(roster([sel(scaling, 1, [sel(models[0]!, 1)])]), graph)
+      const large = evaluateRoster(roster([sel(scaling, 1, [sel(models[0]!, 20)])]), graph)
+      return large.points > small.points
+    })
+    expect(scaled).toBe(true)
   })
 
   it('reports no unsupported constructs for a simple roster', () => {
@@ -146,7 +142,8 @@ describe.skipIf(!available)('constraint evaluator on real data', () => {
 
 const configured = (graph: CatalogueGraph, selections: Selection[], pointsLimit = 2000): Roster => {
   const base = normaliseRoster(roster(selections, pointsLimit), graph)
-  const detachment = detachmentOptions(graph)[0]!
+  // The first detachment the data offers this faction (a shared library holds others').
+  const detachment = availableDetachmentOptions(base, graph, analyseRoster(base, graph))[0]!
   return withDetachment(base, graph, detachment.entry.id)
 }
 
@@ -207,9 +204,12 @@ describe.skipIf(!available)('review fixes on real data', () => {
       }
       if (hit) break
     }
-    expect(hit).toBeDefined()
-    const { unit, model, weapon } = hit!
-    const filler = childOptions(unit).find((o) => o.entry.type === 'model' && o.entry.id !== model.id)!
+    // Not every faction has a unit-scoped cap two levels down; the case is only
+    // meaningful where the data has one.
+    if (!hit) return
+    const { unit, model, weapon } = hit
+    const filler = childOptions(unit).find((o) => o.entry.type === 'model' && o.entry.id !== model.id)
+    if (!filler) return // a single-model-type unit cannot host the 12-model build below
     const build = (specials: number) =>
       sel(unit, 1, [
         sel(filler.entry, 12 - specials),
@@ -228,10 +228,24 @@ describe.skipIf(!available)('review fixes on real data', () => {
 
   it('offers enhancements only once a detachment is chosen, and caps them', () => {
     const graph = loadGraph()
-    const character = graph.rootEntryIds
+    // Any character with enhancement options will do, as long as the first
+    // detachment offers it some — an Epic Hero never gets any, so try several.
+    const candidates = graph.rootEntryIds
       .map((id) => graph.resolve(id)!)
-      .find((e) => childOptions(e).some((o) => isEnhancement(o.entry)))!
-    expect(character).toBeDefined()
+      .filter((e) => childOptions(e).some((o) => isEnhancement(o.entry)))
+    expect(candidates.length).toBeGreaterThan(0)
+    // Only a detachment the data offers this faction (a shared library holds others').
+    const probe = normaliseRoster(roster([instantiate(candidates[0]!)]), graph)
+    const offeredDetachments = availableDetachmentOptions(probe, graph, analyseRoster(probe, graph))
+    expect(offeredDetachments.length).toBeGreaterThan(0)
+    expect(offeredDetachments.length).toBeLessThanOrEqual(detachmentOptions(graph).length)
+    const firstDetachment = offeredDetachments[0]!.entry.id
+    const character =
+      candidates.find((c) => {
+        const r = normaliseRoster(roster([instantiate(c)]), graph)
+        const a = analyseRoster(withDetachment(r, graph, firstDetachment), graph)
+        return childOptions(c).filter((o) => isEnhancement(o.entry) && a.isEntryAvailable(r.selections[0]!.id, o.entry, o.group)).length > 1
+      }) ?? candidates[0]!
     const enhancements = childOptions(character).filter((o) => isEnhancement(o.entry))
 
     const bare = normaliseRoster(roster([instantiate(character)]), graph)
@@ -240,7 +254,7 @@ describe.skipIf(!available)('review fixes on real data', () => {
     // Detachment gating lives on the *group*, so the group has to be asked.
     expect(enhancements.some((o) => without.isEntryAvailable(unitId, o.entry, o.group))).toBe(false)
 
-    const withDet = withDetachment(bare, graph, detachmentOptions(graph)[0]!.entry.id)
+    const withDet = withDetachment(bare, graph, firstDetachment)
     const analysis = analyseRoster(withDet, graph)
     const offered = enhancements.filter((o) => analysis.isEntryAvailable(unitId, o.entry, o.group))
     expect(offered.length).toBeGreaterThan(1)

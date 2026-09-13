@@ -13,6 +13,14 @@ available" toast on open; tap Reload first.
       datasheets, detachments, revision, and "sources agree" or a discrepancy count.
 - [ ] **Browse datasheets** and open one: stats, weapons, abilities, pricing bands look right.
 - [ ] Turn Wi-Fi/data off: the app still opens, the faction is still there. (Offline-first.)
+- [ ] **Update all** (next to "Installed") re-downloads every installed faction; each card then
+      says "Updated — N rosters unchanged" or lists the rosters whose points or legality changed,
+      with links. The card also says "with N linked libraries" after a fresh install.
+- [ ] **Second faction**: install any other faction — one whose units come from a library file
+      works too (the card counts "+N from linked libraries", the browser marks them "linked").
+      New roster with it → the Detachment select lists only that faction's detachments → add a
+      Character → its Enhancements are offered once a detachment is chosen. Nothing Ork-specific
+      breaks: datasheets, editor, Play Mode, reminders all work for it.
 - [ ] **Mission deck → Import saved page**: on the PC, open the Wahapedia mission-deck page, save it
       as HTML, import the file. Expect "Imported 25 primary, 18 secondary missions".
 - [ ] **Browse cards**: Primary tab grouped by disposition, Secondary tab shows 4 "Fixed-eligible"

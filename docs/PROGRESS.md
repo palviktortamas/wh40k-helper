@@ -18,7 +18,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 3 | Play Mode core | **built 2026-09-13** — needs a session on the owner's phone |
 | 4 | Missions (CA 2026-27) | **built 2026-09-13** — import, browser, setup wizard, scoring, Tactical deck, card editor, card-state trackers; WHEN DRAWN unit picks and twist automation remain |
 | 5 | Reminders | **built 2026-09-13 (late night)** — heuristics, per-rule overrides, in-game phase panel; needs a real game to tune the defaults |
-| 6 | Polish + second-faction test | not started |
+| 6 | Polish + second-faction test | **built 2026-09-13 (late night)** — linked library catalogues, two more factions pass every suite, Update all + roster diff |
 
 ---
 
@@ -238,6 +238,55 @@ what was learned that the spec could not have predicted, and what comes next.
 - Walked through in headless Chrome (driver #5): settings list (90 groups for the test faction),
   search, enable a passive rule with a new trigger and text → survives reload; game panel per
   phase on both turns, tick, undo, silence; no console errors.
+
+### Phase 6 - Polish and the second-faction test
+
+The point of the phase (spec §8): install another catalogue and prove nothing is faction-specific.
+Done with **two** others, chosen as tests only (the owner has not picked the next factions):
+a self-contained one and one whose every datasheet lives in a shared library. Both exposed
+generality gaps, all fixed:
+
+- **Linked library catalogues.** Every BSData catalogue imports others through `catalogueLinks`:
+  all import `Unaligned Forces` (`importRootEntries: true` — Legends fortifications), and some
+  keep their content in a `Library - …` / `… Library` file — the faction file is then nothing but
+  ~100 root `entryLinks`, with 0 shared entries. The install pipeline now follows the links
+  (`fetchLibraries`: the link's *name* is the file name, recursive, a missing library is a
+  warning), keeps the texts in `record.raw.libraries`, and the parser and the evaluator graph
+  index `[gs, ...libraries, cat]` with the catalogue winning on collision. `PARSER_VERSION` is 3,
+  so installed factions re-parse at start; they will lack libraries until re-installed (the raw
+  text of a library was never downloaded) — the Data screen says "with N linked libraries" once
+  it has them.
+- **Datasheet discovery is by root entry link**, not by "shared entry with a primary category":
+  `rootEntries()` = the catalogue's root links, plus the root links of `importRootEntries`
+  libraries, plus its own shared roots as a fallback. Roots resolve *with* their root link
+  (`resolve()` remembers `rootLinks`) so link-carried categories/costs apply — for the test
+  factions the root links carry nothing, so numbers did not move. Imported datasheets and
+  detachments carry `library: <name>`; the datasheet browser shows a "linked" badge, the Data
+  card counts them apart, and the MFM match-rate test excludes them.
+- **Roster setup entries come from the catalogue's own links/entries only** (the library's
+  only when the catalogue has none). Otherwise Unaligned Forces' own Detachment picker sat next
+  to the faction's and every roster showed two "Detachment: at least 1" errors.
+- **A shared library holds several factions' detachments** (24 for the test file, 15 legal for
+  the faction). The data hides the others with `instanceOf primary-catalogue` gates, so
+  `availableDetachmentOptions(roster, graph, analysis)` asks the evaluator per option; the
+  roster editor and the live tests use it. The one already chosen stays listed.
+- **Evaluator fix: a group's owner is its first `ancestor`.** The library's Enhancements group is
+  hidden with `ancestor notInstanceOf Character`. A group is not a selection, so its conditions
+  are evaluated against the owning selection — and `ancestors(owner)` skipped the owner, hiding
+  enhancements for every Character of that faction. `Context.groupOwner` is set while a group's
+  own modifiers run and `countInstances` includes the owner then. Orks never tripped it because
+  their gates are worded differently. Test: `src/roster/libraries.test.ts` (invented library +
+  group).
+- **Live tests are faction-agnostic now**: `test/fixtures.ts` loads `gs.json`, one catalogue,
+  optional `.yaml`, and `lib-*.json` libraries; the flagship and enhancement cases skip or search
+  where a faction lacks the structure; the heuristics threshold is 50% (the second faction's
+  rules text is less phase-worded). All three fixture sets pass every suite (83 / 78 / 78 tests).
+- **Update all** (Data screen, next to "Installed") and the **data-update diff**: updating an
+  installed faction re-validates its rosters before and after (`rosterStates`: points and error
+  count) and lists the ones that changed with links, or "N rosters unchanged".
+- Walked through in headless Chrome: the library-only faction installs from the live index
+  (1 + 102 datasheets, 2 linked libraries, 24 detachments of which 15 offered), datasheet with
+  6 abilities, roster → detachment → unit → editor, 128 reminder groups; no console errors.
 
 ### Constraint evaluator - semantics (the things that are easy to get wrong)
 
@@ -489,10 +538,21 @@ Built (see "Phase 5 - Reminders"). What a real game will tell:
 Wahapedia sends no CORS headers, so its rules text and the mission deck need the small user-owned
 Cloudflare Worker (spec 4.2) or the manual file-import flow. Not started.
 
+### Step 5 - Phase 6 leftovers
+
+- **Re-install the owner's faction once** after this update so its linked library (Legends
+  fortifications) is downloaded; until then the re-parsed record simply lacks them.
+- A shared library's other factions still appear in Settings → Reminders (detachment groups)
+  and as "linked" datasheets in the browser; gating them by the evaluator's availability there
+  is possible but was not needed for play.
+- Legends fortifications from Unaligned Forces are datasheets now; the roster picker hides them
+  behind the data's own "Show Legends" toggle as before.
+- PWA offline hardening was reviewed, not changed: hash routing, `registerType: 'prompt'`,
+  Workbox precaches the build, data lives in IndexedDB. Confirm on the phone with the checklist.
+
 ### Not yet built from Phase 1/2's own scope
 
-- "Update all" button.
-- Re-validating an existing roster after a data update and showing a diff.
+- ~~"Update all" button~~ and ~~re-validating rosters after a data update~~ — done in Phase 6.
 - Per-item overrides on the Data Health screen, still unwired.
 - The alias table for names normalisation cannot join.
 

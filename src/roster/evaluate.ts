@@ -293,6 +293,13 @@ type Context = {
   forceId: string | undefined
   /** Army-wide constraints already reported, so seven copies give one message. */
   emitted: Set<string>
+  /**
+   * Set while a group's own modifiers are evaluated against the selection that
+   * owns the group. A group is not a selection, so for its conditions the owner
+   * is the first `ancestor` — BattleScribe hides "Enhancements" with
+   * `ancestor notInstanceOf Character`, which must see the Character itself.
+   */
+  groupOwner?: Node
 }
 
 // --- building the tree --------------------------------------------------------
@@ -719,8 +726,11 @@ function testCondition(node: Node, condition: Condition, context: Context): bool
 function countInstances(node: Node, condition: Condition, context: Context): number {
   if (condition.scope === 'primary-catalogue' && condition.childId === context.graph.catalogueId)
     return 1
-  if (condition.scope === 'ancestor' && !node.virtual)
-    return ancestors(node).filter((n) => matches(n, condition.childId)).length
+  if (condition.scope === 'ancestor' && !node.virtual) {
+    // For a group's own conditions the owning selection is the first ancestor.
+    const chain = context.groupOwner === node ? [node, ...ancestors(node)] : ancestors(node)
+    return chain.filter((n) => matches(n, condition.childId)).length
+  }
   const target = resolveScope(node, condition.scope, context)
   if (target === undefined) return 0
   const nodes =
@@ -1052,8 +1062,15 @@ const nestedGroupIds = (group: ResolvedGroup): Set<string> => {
 }
 
 function applyGroupModifiers(node: Node, ctx: GroupContext, context: Context): void {
-  for (const modifier of ctx.group.modifiers) applyModifierTo(node, ctx, modifier, context)
-  for (const group of ctx.group.modifierGroups) applyModifierGroupTo(node, ctx, group, context)
+  const previous = context.groupOwner
+  context.groupOwner = node
+  try {
+    for (const modifier of ctx.group.modifiers) applyModifierTo(node, ctx, modifier, context)
+    for (const group of ctx.group.modifierGroups) applyModifierGroupTo(node, ctx, group, context)
+  } finally {
+    if (previous) context.groupOwner = previous
+    else delete context.groupOwner
+  }
 }
 
 /** A modifier on a group can change that group's own constraints, or hide it. */

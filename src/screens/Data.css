@@ -95,3 +95,30 @@
   margin: 0;
   padding-left: 1.25rem;
 }
+
+.data__sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.data__sectionHead h3 {
+  margin: 0;
+}
+
+.data__diff {
+  margin-top: 0.375rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.data__diffList {
+  margin: 0.25rem 0 0;
+  padding-left: 1.125rem;
+}
+
+.data__diffList li {
+  margin: 0.125rem 0;
+}

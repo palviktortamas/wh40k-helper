@@ -4,7 +4,7 @@ import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
 import { instantiate } from '@/roster/defaults'
 import {
-  detachmentOptions,
+  availableDetachmentOptions,
   getRoster,
   graphFor,
   isToggle,
@@ -66,7 +66,7 @@ export function RosterEditor() {
 
   if (!roster || !catalogue || !graph || !validation) return <p>Loading…</p>
 
-  const detachments = detachmentOptions(graph)
+  const detachments = availableDetachmentOptions(roster, graph, validation)
   const detachmentConfigIds = new Set(detachments.map((d) => d.configEntryId))
 
   const addUnit = (entry: ResolvedEntry) => {

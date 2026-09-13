@@ -8,6 +8,7 @@
  * link-chasing.
  */
 
+import { rootEntries } from '@/data/bsdata/parse'
 import type {
   Catalogue,
   GameSystem,
@@ -91,7 +92,7 @@ const asCosts = (costs: Cost[] | undefined): Record<string, number> => {
 /** Guards against the cycles that entry links can form (a transport listing its cargo). */
 const MAX_DEPTH = 12
 
-export function buildGraph(gs: GameSystem, cat: Catalogue): CatalogueGraph {
+export function buildGraph(gs: GameSystem, cat: Catalogue, libraries: Catalogue[] = []): CatalogueGraph {
   const entries = new Map<string, SelectionEntry>()
   const groups = new Map<string, SelectionEntryGroup>()
   const categories = new Map<string, CategoryEntry>()
@@ -109,11 +110,24 @@ export function buildGraph(gs: GameSystem, cat: Catalogue): CatalogueGraph {
     for (const nested of group.selectionEntryGroups ?? []) indexGroup(nested)
   }
 
-  for (const source of [gs, cat]) {
+  // Libraries are the catalogues this one imports; the catalogue wins on collision.
+  for (const source of [gs, ...libraries, cat]) {
     for (const entry of source.sharedSelectionEntries ?? []) indexEntry(entry)
     for (const group of source.sharedSelectionEntryGroups ?? []) indexGroup(group)
     for (const category of source.categoryEntries ?? []) categories.set(category.id, category)
   }
+  // A root entry link can carry its own categories, costs and constraints; the
+  // roster addresses roots by entry id, so remember the link per target.
+  const rootLinks = new Map<string, EntryLink>()
+  const rememberRootLinks = (source: Catalogue) => {
+    for (const link of source.entryLinks ?? [])
+      if (link.type === 'selectionEntry' && !rootLinks.has(link.targetId)) rootLinks.set(link.targetId, link)
+  }
+  rememberRootLinks(cat)
+  const imported = new Set(
+    (cat.catalogueLinks ?? []).filter((l) => l.importRootEntries).map((l) => l.targetId),
+  )
+  for (const lib of libraries) if (imported.has(lib.id)) rememberRootLinks(lib)
   for (const costType of gs.costTypes ?? []) costTypes.set(costType.id, costType)
 
   const cache = new Map<string, ResolvedEntry>()
@@ -216,7 +230,7 @@ export function buildGraph(gs: GameSystem, cat: Catalogue): CatalogueGraph {
     if (cached) return cached
     const entry = entries.get(entryId)
     if (!entry) return undefined
-    const resolved = resolveEntry(entry, undefined, 0)
+    const resolved = resolveEntry(entry, rootLinks.get(entryId), 0)
     cache.set(entryId, resolved)
     return resolved
   }
@@ -228,19 +242,34 @@ export function buildGraph(gs: GameSystem, cat: Catalogue): CatalogueGraph {
   const hasPrimary = (e: SelectionEntry): boolean =>
     (e.categoryLinks ?? []).some((l) => l.primary) && !e.hidden
 
-  const rootEntryIds = (cat.sharedSelectionEntries ?? [])
-    .filter((e) => hasPrimary(e) && !isConfiguration(e))
-    .map((e) => e.id)
+  const roots = rootEntries(cat, libraries, entries)
+  const rootEntryIds = roots.filter((e) => hasPrimary(e) && !isConfiguration(e)).map((e) => e.id)
 
   // Game-system setup entries are the shared ones marked for import (battle
   // size, force disposition, visibility toggles); the catalogue adds its own
-  // (the detachment picker).
+  // (the detachment picker), possibly through a library.
+  // Roster setup comes from the catalogue's own links and entries only — a
+  // library imported with `importRootEntries` (Unaligned Forces) brings its
+  // units, not a second detachment picker.
+  const ownConfiguration = rootEntries(cat, [], entries).filter((e) => hasPrimary(e) && isConfiguration(e))
+  // Only when the catalogue has no setup entry of its own (everything lives in
+  // its library) do the libraries' setup entries stand in — otherwise an
+  // imported library's picker would sit next to the faction's own.
+  const libraryConfiguration =
+    ownConfiguration.length > 0
+      ? []
+      : libraries.flatMap((lib) =>
+          (lib.sharedSelectionEntries ?? []).filter((e) => hasPrimary(e) && isConfiguration(e)),
+        )
   const configurationEntryIds = [
     ...(gs.sharedSelectionEntries ?? []).filter(
       (e) => hasPrimary(e) && isConfiguration(e) && e.import !== false,
     ),
-    ...(cat.sharedSelectionEntries ?? []).filter((e) => hasPrimary(e) && isConfiguration(e)),
-  ].map((e) => e.id)
+    ...ownConfiguration,
+    ...libraryConfiguration,
+  ]
+    .map((e) => e.id)
+    .filter((id, i, all) => all.indexOf(id) === i)
 
   return {
     catalogueId: cat.id,

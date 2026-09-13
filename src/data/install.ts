@@ -90,6 +90,9 @@ export async function installCatalogue(
 
   report({ step: `Downloading ${summary.name}`, done: 1, total: 4 })
   const catalogueText = await fetchText(bsdataUrl(summary.file))
+  const libraries = await fetchLibraries(catalogueText, (name) =>
+    report({ step: `Downloading ${name}`, done: 1, total: 4 }),
+  )
 
   let mfmText: string | undefined
   if (summary.slug) {
@@ -102,7 +105,12 @@ export async function installCatalogue(
   report({ step: 'Parsing', done: 3, total: 4 })
   const result = buildFromText(
     { name: summary.name, ...(summary.slug ? { slug: summary.slug } : {}) },
-    { catalogue: catalogueText, gameSystem: gameSystemText, ...(mfmText ? { mfm: mfmText } : {}) },
+    {
+      catalogue: catalogueText,
+      gameSystem: gameSystemText,
+      ...(mfmText ? { mfm: mfmText } : {}),
+      ...(Object.keys(libraries).length > 0 ? { libraries } : {}),
+    },
     Date.now(),
   )
   report({ step: 'Saving', done: 4, total: 4 })
@@ -122,6 +130,36 @@ export function reparseCatalogue(record: CatalogueRecord): InstallResult {
   )
 }
 
+/**
+ * A catalogue may import others through `catalogueLinks` - a shared "Library"
+ * that holds the datasheets, or the game-wide Unaligned Forces. BSData names
+ * the file after the catalogue, so the link's name is the file. Followed
+ * recursively; a missing library is reported, not fatal, because the parser
+ * then only lacks what that library held.
+ */
+export async function fetchLibraries(
+  catalogueText: string,
+  onFetch: (name: string) => void,
+  fetched: Record<string, string> = {},
+): Promise<Record<string, string>> {
+  const catalogue = (JSON.parse(catalogueText) as CatalogueFile).catalogue
+  for (const link of catalogue.catalogueLinks ?? []) {
+    const file = `${link.name}.json`
+    if (fetched[file] !== undefined) continue
+    onFetch(link.name)
+    let text: string
+    try {
+      text = await fetchText(bsdataUrl(file))
+    } catch (error) {
+      console.warn(`Library ${file} not fetched:`, error)
+      continue
+    }
+    fetched[file] = text
+    await fetchLibraries(text, onFetch, fetched)
+  }
+  return fetched
+}
+
 function buildFromText(
   summary: { name: string; slug?: string },
   raw: CatalogueRecord['raw'],
@@ -129,7 +167,10 @@ function buildFromText(
 ): InstallResult {
   const gameSystem = (JSON.parse(raw.gameSystem) as GameSystemFile).gameSystem
   const catalogue = (JSON.parse(raw.catalogue) as CatalogueFile).catalogue
-  const parsed = parseCatalogue(gameSystem, catalogue)
+  const libraries = Object.values(raw.libraries ?? {}).map(
+    (text) => (JSON.parse(text) as CatalogueFile).catalogue,
+  )
+  const parsed = parseCatalogue(gameSystem, catalogue, libraries)
   parsed.name = summary.name
   if (summary.slug) parsed.slug = summary.slug
 

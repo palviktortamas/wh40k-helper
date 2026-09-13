@@ -32,7 +32,13 @@ export type CatalogueRecord = {
   /** `PARSER_VERSION` that produced `parsed`; older records are re-parsed from `raw` at app start. */
   parserVersion?: number
   /** Source file text, kept verbatim for re-parsing. */
-  raw: { catalogue: string; gameSystem: string; mfm?: string }
+  raw: {
+    catalogue: string
+    gameSystem: string
+    mfm?: string
+    /** Linked library catalogues by file name, when the catalogue imports any. */
+    libraries?: Record<string, string>
+  }
   versions: { bsdataRevision: number; mfmVersion?: string }
 }
 

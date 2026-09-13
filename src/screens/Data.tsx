@@ -14,7 +14,22 @@ import { SOURCE_HOMEPAGES, SOURCE_LABELS } from '@/data/sources'
 import { fetchMissionDeckViaEndpoint, getMissionDeck, importMissionDeckHtml } from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
 import { getSyncConfig } from '@/sync/client'
+import { graphFor, listRosters, normaliseRoster, validate } from '@/roster/store'
 import './Data.css'
+
+/** What a data update did to the rosters built on a faction (spec Phase 6, "data-update diff"). */
+type RosterState = { id: string; name: string; points: number; errors: number }
+type UpdateDiff = { catalogueId: string; changed: { before: RosterState; after: RosterState }[]; unchanged: number }
+
+async function rosterStates(record: CatalogueRecord): Promise<RosterState[]> {
+  const graph = graphFor(record)
+  return (await listRosters())
+    .filter((r) => r.catalogueId === record.id)
+    .map((r) => {
+      const v = validate(normaliseRoster(r, graph), graph)
+      return { id: r.id, name: r.name, points: v.points, errors: v.errors.length }
+    })
+}
 
 const formatDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, {
   year: 'numeric',
@@ -30,6 +45,7 @@ export function Data() {
   const [progress, setProgress] = useState<Progress | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [listing, setListing] = useState(false)
+  const [diffs, setDiffs] = useState<Record<string, UpdateDiff>>({})
 
   const refreshInstalled = useCallback(async () => {
     const records = await getInstalledCatalogues()
@@ -60,7 +76,20 @@ export function Data() {
     setBusy(summary.id)
     setError(null)
     try {
-      await installCatalogue(summary, setProgress)
+      // An update re-validates the rosters built on this faction, before and after,
+      // so a points or legality change is shown rather than discovered mid-game.
+      // Installed records are keyed by the catalogue's own id; the index knows file names.
+      const previous = installed.find((r) => r.name === summary.name)
+      const before = previous ? await rosterStates(previous) : []
+      const record = await installCatalogue(summary, setProgress)
+      if (previous) {
+        const after = await rosterStates(record)
+        const changed = after.flatMap((a) => {
+          const b = before.find((x) => x.id === a.id)
+          return b && (b.points !== a.points || b.errors !== a.errors) ? [{ before: b, after: a }] : []
+        })
+        setDiffs((d) => ({ ...d, [record.id]: { catalogueId: record.id, changed, unchanged: after.length - changed.length } }))
+      }
       await refreshInstalled()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -70,13 +99,20 @@ export function Data() {
     }
   }
 
+  /** Every installed faction that the index lists, one after the other. */
+  const updateAll = async () => {
+    const list = available.length > 0 ? available : await listCatalogues().catch(() => [])
+    if (available.length === 0) setAvailable(list)
+    for (const summary of list) if (installed.some((r) => r.name === summary.name)) await install(summary)
+  }
+
   const remove = async (record: CatalogueRecord) => {
     if (!confirm(`Remove ${record.name}? Its data will be downloaded again if you reinstall.`)) return
     await removeCatalogue(record.id)
     await refreshInstalled()
   }
 
-  const installedIds = new Set(installed.map((r) => r.id))
+  const installedNames = new Set(installed.map((r) => r.name))
 
   return (
     <section className="data">
@@ -92,7 +128,14 @@ export function Data() {
         </p>
       )}
 
-      <h3>Installed</h3>
+      <div className="data__sectionHead">
+        <h3>Installed</h3>
+        {installed.length > 0 && (
+          <button className="data__button data__button--quiet" disabled={busy !== null} onClick={() => void updateAll()}>
+            {busy ? 'Working…' : 'Update all'}
+          </button>
+        )}
+      </div>
       {installed.length === 0 ? (
         <p className="data__empty">No factions installed yet.</p>
       ) : (
@@ -106,11 +149,44 @@ export function Data() {
                   <span className="data__meta">{formatDate(record.installedAt)}</span>
                 </div>
                 <p className="data__meta">
-                  {record.parsed.datasheets.length} datasheets ·{' '}
-                  {record.parsed.detachments.length} detachments · BSData rev{' '}
+                  {record.parsed.datasheets.filter((d) => !d.library).length} datasheets
+                  {record.parsed.datasheets.some((d) => d.library)
+                    ? ` (+${record.parsed.datasheets.filter((d) => d.library).length} from linked libraries)`
+                    : ''}{' '}
+                  · {record.parsed.detachments.length} detachments · BSData rev{' '}
                   {record.versions.bsdataRevision}
                   {record.versions.mfmVersion ? ` · MFM ${record.versions.mfmVersion}` : ''}
+                  {record.raw.libraries ? ` · with ${Object.keys(record.raw.libraries).length} linked ${Object.keys(record.raw.libraries).length === 1 ? 'library' : 'libraries'}` : ''}
                 </p>
+                {diffs[record.id] && (
+                  <div className="data__diff" role="status">
+                    {diffs[record.id]!.changed.length === 0 ? (
+                      <p className="data__meta">
+                        Updated — {diffs[record.id]!.unchanged} roster{diffs[record.id]!.unchanged === 1 ? '' : 's'} unchanged.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="data__meta data__warn">Updated — these rosters changed:</p>
+                        <ul className="data__diffList">
+                          {diffs[record.id]!.changed.map(({ before, after }) => (
+                            <li key={after.id}>
+                              <Link to={`/rosters/${encodeURIComponent(after.id)}`}>{after.name}</Link>:{' '}
+                              {before.points !== after.points ? `${before.points} → ${after.points} pts` : `${after.points} pts`}
+                              {before.errors !== after.errors
+                                ? `, ${before.errors === 0 ? 'legal' : `${before.errors} error${before.errors === 1 ? '' : 's'}`} → ${
+                                    after.errors === 0 ? 'legal' : `${after.errors} error${after.errors === 1 ? '' : 's'}`
+                                  }`
+                                : ''}
+                            </li>
+                          ))}
+                        </ul>
+                        {diffs[record.id]!.unchanged > 0 && (
+                          <p className="data__meta">{diffs[record.id]!.unchanged} other roster{diffs[record.id]!.unchanged === 1 ? '' : 's'} unchanged.</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
                 {check && (
                   <p className="data__meta">
                     {check.discrepancies.length > 0 ? (
@@ -160,7 +236,7 @@ export function Data() {
                 >
                   {busy === summary.id
                     ? (progress?.step ?? 'Working…')
-                    : installedIds.has(summary.id)
+                    : installedNames.has(summary.name)
                       ? 'Update'
                       : 'Install'}
                 </button>

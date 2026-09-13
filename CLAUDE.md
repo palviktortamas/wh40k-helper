@@ -10,14 +10,16 @@ never published, no backend, no accounts, no telemetry.
 2. [docs/PROGRESS.md](docs/PROGRESS.md) — what is built, what was learned the hard way, and what
    is next. **Update it at the end of every working session** so the next agent can continue.
 
-**Current state (2026-09-13, late night):** Phases 1–5 are built: data layer, list builder,
-Play Mode, Missions (deck import, wizard, scoring, Tactical deck, card editor, trackers) and
-Reminders (keyword heuristics → per-rule overrides in Settings → a per-phase panel in the game).
-Everything was walked through in headless Chrome (recipe in the journal). Waiting on the owner:
-deploying the sync/proxy Worker (`worker/README.md`), a check on the actual phone, and a real
-game to tune the reminder defaults. Phase 6 (polish, second faction) and the leftovers are in
-the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must be bumped whenever the
-parsed model changes — installed catalogues re-parse themselves from stored raw text at start.
+**Current state (2026-09-13, late night):** All six phases are built: data layer, list builder,
+Play Mode, Missions, Reminders, and the Phase 6 polish — linked library catalogues (some factions
+keep every datasheet in a `Library` file), "Update all" with a roster diff, and two more factions
+passing every suite. Everything was walked through in headless Chrome (recipe in the journal).
+Waiting on the owner: deploying the sync/proxy Worker (`worker/README.md`), a check on the actual
+phone with `docs/TESTING.md`, a real game to tune the reminder defaults, and which factions come
+next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
+be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
+raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json`, one catalogue
+`.json`, its `.yaml`, and linked libraries as `lib-*.json` (see `test/fixtures.ts`).
 
 ## Hard rules
 
