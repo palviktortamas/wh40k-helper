@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { apply, isBattleOver } from './actions'
-import { totalVp, type Game, type GameUnit } from './types'
+import { emptyMission, totalVp, type Game, type GameUnit } from './types'
 
 // Everything here is invented — the repo must contain no real game data.
 
@@ -174,6 +174,60 @@ describe('game actions', () => {
     expect(g.units[0]!.embarkedIn).toBe('b')
     g = apply(g, { type: 'disembark', unitId: 'a' })
     expect(g.units[0]!.embarkedIn).toBeUndefined()
+  })
+
+  it('runs the Tactical secondary deck: draw, score with the round cap, discard for CP, redraw once', () => {
+    const start: Game = {
+      ...game(),
+      mission: {
+        ...emptyMission(),
+        secondaryMode: 'tactical',
+        deck: ['c1', 'c2', 'c3', 'c4', 'c5'],
+      },
+    }
+    let g = apply(start, { type: 'drawSecondaries' })
+    expect(g.mission!.active).toEqual(['c1', 'c2'])
+    expect(g.mission!.deck).toEqual(['c3', 'c4', 'c5'])
+
+    // Scoring an achieved card adds VP and discards it.
+    g = apply(g, { type: 'scoreSecondary', cardId: 'c1', label: 'C1', vp: 5, discard: true })
+    expect(g.me.vpSecondary).toBe(5)
+    expect(g.mission!.active).toEqual(['c2'])
+    expect(g.mission!.discarded).toEqual(['c1'])
+
+    // Discarding on your own turn is worth 1 CP, once per turn.
+    g = apply(g, { type: 'discardSecondary', cardId: 'c2', label: 'C2' })
+    expect(g.me.cp).toBe(2)
+    g = apply(g, { type: 'drawSecondaries' })
+    g = apply(g, { type: 'discardSecondary', cardId: 'c3', label: 'C3' })
+    expect(g.me.cp).toBe(2)
+
+    // The once-per-battle 1 CP discard-and-redraw.
+    g = apply(g, { type: 'discardRedraw', cardId: 'c4', label: 'C4' })
+    expect(g.me.cp).toBe(1)
+    expect(g.mission!.active).toEqual(['c5'])
+    expect(g.mission!.discardRedrawUsed).toBe(true)
+    expect(apply(g, { type: 'discardRedraw', cardId: 'c5', label: 'C5' })).toBe(g)
+
+    // 15 VP per battle round on secondaries.
+    g = apply(g, { type: 'scoreSecondary', cardId: 'c5', label: 'C5', vp: 12, discard: false })
+    expect(g.me.vpSecondary).toBe(15)
+    expect(g.log.at(-1)!.text).toContain('capped')
+    // A new battle round resets the cap.
+    g = steps(g, 10)
+    expect(g.round).toBe(2)
+    expect(g.mission!.secondaryThisRound).toBe(0)
+  })
+
+  it('ticks and unticks primary scoring lines', () => {
+    const start: Game = { ...game(), mission: { ...emptyMission(), myPrimaryId: 'p1' } }
+    let g = apply(start, { type: 'scorePrimary', key: '1:0:0', label: 'Hold more', vp: 2 })
+    g = apply(g, { type: 'scorePrimary', key: '1:0:0', label: 'Hold more', vp: 2 })
+    expect(g.me.vpPrimary).toBe(4)
+    expect(g.mission!.primaryScored['1:0:0']).toBe(2)
+    g = apply(g, { type: 'unscorePrimary', key: '1:0:0', label: 'Hold more', vp: 2 })
+    expect(g.me.vpPrimary).toBe(2)
+    expect(g.mission!.primaryScored['1:0:0']).toBe(1)
   })
 
   it('locks a once-per-battle ability and can unlock it', () => {

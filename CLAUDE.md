@@ -10,10 +10,11 @@ never published, no backend, no accounts, no telemetry.
 2. [docs/PROGRESS.md](docs/PROGRESS.md) — what is built, what was learned the hard way, and what
    is next. **Update it at the end of every working session** so the next agent can continue.
 
-**Current state (2026-09-13, evening):** Phases 1–3 are built. The Phase 2 review findings are
-all fixed and verified against the real catalogue by fixture-gated tests; Phase 3 (Play Mode core)
-is built, tested, and walked through end to end in headless Chrome (recipe in the journal's
-"Next → Step 1"). What remains before more features is a check on the owner's actual phone.
+**Current state (2026-09-13, night):** Phases 1–3 are built and Phase 4 (Missions) has its core:
+on-device import of the Chapter Approved deck, setup wizard, scoring assistant, Tactical deck.
+Everything was walked through in headless Chrome (recipe in the journal). Waiting on the owner:
+deploying the sync/proxy Worker (`worker/README.md`) and a check on the actual phone. Phase 4
+leftovers and Phases 5–6 are listed in the journal's "Next".
 
 ## Hard rules
 

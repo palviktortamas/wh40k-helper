@@ -5,6 +5,7 @@ import { Rosters } from './screens/Rosters'
 import { RosterEditor } from './screens/RosterEditor'
 import { Play } from './screens/Play'
 import { Game } from './screens/Game'
+import { Missions } from './screens/Missions'
 import { Data } from './screens/Data'
 import { DataHealth } from './screens/DataHealth'
 import { Datasheets } from './screens/Datasheets'
@@ -26,6 +27,7 @@ export function App() {
           <Route path="/play" element={<Play />} />
           <Route path="/play/:gameId" element={<Game />} />
           <Route path="/data" element={<Data />} />
+          <Route path="/missions" element={<Missions />} />
           <Route path="/datasheets/:catalogueId" element={<Datasheets />} />
           <Route path="/datasheets/:catalogueId/:datasheetId" element={<DatasheetDetail />} />
           <Route path="/health/:catalogueId" element={<DataHealth />} />

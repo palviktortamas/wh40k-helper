@@ -5,7 +5,10 @@ import type { CatalogueRecord } from '@/data/db'
 import { graphFor, listRosters, normaliseRoster, validate } from '@/roster/store'
 import type { Roster } from '@/roster/types'
 import { deleteGame, listGames, newGame, saveGame } from '@/play/store'
-import { totalVp, type Game, type Side } from '@/play/types'
+import { totalVp, type Game, type MissionState, type Side } from '@/play/types'
+import { getMissionDeck } from '@/missions/store'
+import type { MissionDeck } from '@/missions/types'
+import { MissionSetup } from './MissionSetup'
 import './Rosters.css'
 import './Game.css'
 
@@ -25,12 +28,15 @@ export function Play() {
   const [opponentName, setOpponentName] = useState('')
   const [opponentFaction, setOpponentFaction] = useState('')
   const [firstTurn, setFirstTurn] = useState<Side>('me')
+  const [deck, setDeck] = useState<MissionDeck | null>(null)
+  const [mission, setMission] = useState<MissionState | undefined>(undefined)
 
   const refresh = useCallback(async () => {
-    const [g, r, c] = await Promise.all([listGames(), listRosters(), getInstalledCatalogues()])
+    const [g, r, c, d] = await Promise.all([listGames(), listRosters(), getInstalledCatalogues(), getMissionDeck()])
     setGames(g)
     setRosters(r)
     setCatalogues(c)
+    setDeck(d ?? null)
     setRosterId((current) => current || (r[0]?.id ?? ''))
   }, [])
 
@@ -62,7 +68,12 @@ export function Play() {
       if (!ok) return
     }
     const game = await saveGame(
-      newGame(roster, catalogue, validation, { opponentName, opponentFaction, firstTurn }),
+      newGame(roster, catalogue, validation, {
+        opponentName,
+        opponentFaction,
+        firstTurn,
+        ...(deck && mission ? { mission } : {}),
+      }),
     )
     navigate(`/play/${encodeURIComponent(game.id)}`)
   }
@@ -139,6 +150,14 @@ export function Play() {
               <option value="opponent">Opponent</option>
             </select>
           </label>
+          {deck ? (
+            <MissionSetup deck={deck} roster={chosen?.roster} firstTurn={firstTurn} onChange={setMission} />
+          ) : (
+            <p className="muted">
+              No mission deck imported — the game starts without mission cards. Import it under{' '}
+              <Link to="/data">Data</Link> to get the setup wizard and scoring.
+            </p>
+          )}
           <div className="rosters__formActions">
             <button className="button" disabled={!chosen} onClick={() => void start()}>
               Start game

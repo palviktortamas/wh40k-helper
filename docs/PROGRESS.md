@@ -16,7 +16,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 1 | Data layer + datasheet browser | done (Wahapedia enrichment deferred to 1b) |
 | 2 | List Builder + validation | done — review findings fixed 2026-09-13, verified on real data |
 | 3 | Play Mode core | **built 2026-09-13** — needs a session on the owner's phone |
-| 4 | Missions (CA 2026-27) | not started |
+| 4 | Missions (CA 2026-27) | **core built 2026-09-13** — import, browser, setup wizard, scoring, Tactical deck; editor and card-state trackers remain |
 | 5 | Reminders | not started |
 | 6 | Polish + second-faction test | not started |
 
@@ -136,6 +136,35 @@ what was learned that the spec could not have predicted, and what comes next.
   end-of-game summary with VP by round), `GameUnitSheet` (stats, weapons table with counts from
   the *surviving* models, abilities with once-per-battle checkboxes, attached leader merged in).
 - Tests: `src/play/actions.test.ts`, `src/play/snapshot.test.ts` on invented data.
+
+### Phase 4 - Missions (core)
+
+- **No mission data in the repo.** The Chapter Approved deck is Wahapedia's published page,
+  converted on the device by `src/missions/parseDeck.ts` (DOM-based; the page's card vocabulary
+  is `cgCardCA7`, `ca7Name`, `caPmBlock`, `caPmWhen`, `caPmScore`, `caPmVP`, `caPmCumul`,
+  `caPmVPPair` for FIXED/TACTICAL pairs, `caAct*` for objective actions, `caPmIntro` for
+  WHEN DRAWN, `ca7Fixed` marks the fixed-eligible secondaries, `caFdRow` the disposition
+  pairings; section boundaries are `<h2 id>`s and each deck sits in `.Columns2` wrappers — the
+  interactive generator after the twist deck repeats every card and must not be read).
+  Schema in `src/missions/types.ts`; `blockApplies()` reads a block header's round wording.
+- Import paths (Data screen → Mission deck): **through the owner's endpoint** — the Worker gained
+  `GET /proxy?url=` restricted to `wahapedia.ru` — or **"Import saved page"** (save the page as
+  HTML in a browser, pick the file). Dexie v6 `missions` store, one record.
+- Screens: `Missions` (cards by deck, deployment maps from Wahapedia's image URLs), `MissionSetup`
+  (the battle sequence as a form: dispositions → derived primaries via the disposition card rows,
+  deployment/twist draw or pick, D6 for central objectives, roll-off for attacker, Fixed or
+  Tactical with two Fixed picks), `GameMission` inside a game (primary scoring assistant showing
+  the blocks that apply this round as tappable "+N VP" lines with an undo, the opponent's primary
+  for reference, the Tactical deck: Draw 2, per-line scoring, "Achieved — discard", "Discard (+1 CP
+  once per own turn)", "Discard & redraw (1 CP, once per battle)", WHEN DRAWN shuffle-back; Fixed
+  mode scores with FIXED values and never discards). The 15 VP per battle round secondary cap is
+  enforced and resets on the new round.
+- `Game.mission` (optional, absent on older games) holds the setup and the live deck state; all of
+  it is undoable. The setup wizard prefills the player's Force Disposition from the roster.
+- Tests: `parseDeck.test.ts` (jsdom; the real page is fixture-gated as `missions.html` in
+  `WH40K_FIXTURES`), `blockApplies` cases, and reducer tests for the deck rules.
+- Walked through in headless Chrome: file import → 25/18/6/6 cards → wizard → scoring → draw →
+  achieve → discard for CP, no console errors.
 
 ### Constraint evaluator - semantics (the things that are easy to get wrong)
 
@@ -348,12 +377,21 @@ walked through in headless Chrome:
   for combined weapons. Profiles no survivor carries are folded into "Other profiles".
   Verified on the real 20-model unit after casualties; watch other factions' naming.
 
-### Step 3 - Phase 4, Missions
+### Step 3 - Phase 4 leftovers
 
-Needs the mission deck, which is Wahapedia-only (no CORS) → the proxy or file import (Phase 1b)
-comes first. Game setup then becomes the wizard in spec §6.1; `Game` already has a
-`firstTurn` and a `startedIllegal` flag to build on, and Force Disposition is a real roster
-selection to derive primaries from.
+The core is built (see "Phase 4 - Missions (core)"). Still to do, in rough order of value:
+
+- **In-app card editor** (spec §6.1: fix typos, house rules). The deck record is plain JSON in
+  Dexie; an "Edit" on a card in the Missions screen that opens the text and VP fields is enough.
+- **Card-state trackers** (spec §6.2): operation markers, decoyed/consecrated/trapped objectives,
+  condemned units, beacon unit, guarded objectives. Today the player keeps those on the table;
+  a per-card note field plus a counter would cover most.
+- **WHEN DRAWN prompts** that pick a unit or objective (Beacon, A Tempting Target, Burden of Trust)
+  are shown as text; wiring them to the army list is the next step.
+- **Twist effects on setup**: Mirrored World (shared primary, D6 table) and Scrambled
+  Communications (swap primaries) are shown as text, not applied automatically.
+- The Data screen's "Refresh through my endpoint" is untested until the owner deploys the Worker.
+- Secondary scoring for the opponent is a plain number (spec §6.2 says so); fine.
 
 ### Phase 1b - deferred, needs a proxy
 

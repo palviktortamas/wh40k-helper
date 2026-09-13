@@ -8,12 +8,15 @@ import {
   LAST_ROUND,
   PHASES,
   PHASE_LABELS,
+  SECONDARY_ROUND_CAP,
   STATUS_LABELS,
+  TACTICAL_DRAW,
   TURN_STATUSES,
   UNDO_DEPTH,
   totalVp,
   type Game,
   type GameState,
+  type MissionState,
   type Phase,
   type Side,
   type UnitStatus,
@@ -35,6 +38,14 @@ export type GameAction =
   | { type: 'setNote'; unitId: string; note: string }
   | { type: 'embark'; unitId: string; transportId: string }
   | { type: 'disembark'; unitId: string }
+  // Missions (spec §6.2)
+  | { type: 'drawSecondaries'; count?: number }
+  | { type: 'discardSecondary'; cardId: string; label: string }
+  | { type: 'discardRedraw'; cardId: string; label: string }
+  | { type: 'scoreSecondary'; cardId: string; label: string; vp: number; discard: boolean }
+  | { type: 'scorePrimary'; key: string; label: string; vp: number }
+  | { type: 'unscorePrimary'; key: string; label: string; vp: number }
+  | { type: 'shuffleWhenDrawn'; cardId: string; label: string }
   | { type: 'undo' }
   | { type: 'endGame' }
 
@@ -44,6 +55,18 @@ const snapshot = (game: Game): GameState => ({
   turn: game.turn,
   me: { ...game.me },
   opponent: { ...game.opponent },
+  ...(game.mission
+    ? {
+        mission: {
+          ...game.mission,
+          fixedIds: [...game.mission.fixedIds],
+          deck: [...game.mission.deck],
+          active: [...game.mission.active],
+          discarded: [...game.mission.discarded],
+          primaryScored: { ...game.mission.primaryScored },
+        },
+      }
+    : {}),
   units: game.units.map((u) => ({
     ...u,
     models: u.models.map((m) => ({ ...m, weapons: m.weapons.map((w) => ({ ...w })) })),
@@ -108,8 +131,11 @@ function advance(game: Game): Game {
   }
   // End of a turn.
   let next = clearTurnStatuses(game)
+  if (next.mission) next = { ...next, mission: { ...next.mission, cpForDiscardThisTurn: false } }
   const secondPlayer = other(game.firstTurn)
   if (game.turn === secondPlayer) {
+    // A new battle round: the 15 VP secondary cap starts over.
+    if (next.mission) next = { ...next, mission: { ...next.mission, secondaryThisRound: 0 } }
     // End of the battle round: record the score.
     next = {
       ...next,
@@ -185,8 +211,122 @@ export function apply(game: Game, action: GameAction): Game {
   return next === game ? game : evacuate(next)
 }
 
+const withMission = (game: Game, fn: (m: MissionState) => MissionState): Game =>
+  game.mission ? { ...game, mission: fn(game.mission) } : game
+
 function applyAction(game: Game, action: GameAction): Game {
   switch (action.type) {
+    case 'drawSecondaries': {
+      if (!game.mission || game.mission.secondaryMode !== 'tactical') return game
+      const count = action.count ?? TACTICAL_DRAW
+      const g = remember(game)
+      const drawn = g.mission!.deck.slice(0, count)
+      if (drawn.length === 0) return withLog(g, 'The Secondary Mission deck is empty')
+      const next = withMission(g, (m) => ({
+        ...m,
+        deck: m.deck.slice(drawn.length),
+        active: [...m.active, ...drawn],
+      }))
+      return withLog(next, `Drew ${drawn.length} Secondary Mission card${drawn.length === 1 ? '' : 's'}`)
+    }
+    case 'discardSecondary': {
+      if (!game.mission?.active.includes(action.cardId)) return game
+      const g = remember(game)
+      // On your own turn, discarding one or more cards is worth 1 CP, once.
+      const gainCp = g.turn === 'me' && !g.mission!.cpForDiscardThisTurn
+      let next = withMission(g, (m) => ({
+        ...m,
+        active: m.active.filter((id) => id !== action.cardId),
+        discarded: [...m.discarded, action.cardId],
+        cpForDiscardThisTurn: m.cpForDiscardThisTurn || gainCp,
+      }))
+      if (gainCp) next = { ...next, me: { ...next.me, cp: next.me.cp + 1 } }
+      return withLog(next, `Discarded ${action.label}${gainCp ? ' — +1 CP' : ''}`)
+    }
+    case 'discardRedraw': {
+      if (!game.mission?.active.includes(action.cardId) || game.mission.discardRedrawUsed || game.me.cp < 1)
+        return game
+      const g = remember(game)
+      const replacement = g.mission!.deck[0]
+      const next = withMission(g, (m) => ({
+        ...m,
+        active: [...m.active.filter((id) => id !== action.cardId), ...(replacement ? [replacement] : [])],
+        deck: m.deck.slice(replacement ? 1 : 0),
+        discarded: [...m.discarded, action.cardId],
+        discardRedrawUsed: true,
+      }))
+      return withLog(
+        { ...next, me: { ...next.me, cp: next.me.cp - 1 } },
+        `Spent 1 CP to discard ${action.label} and draw a replacement (once per battle)`,
+      )
+    }
+    case 'shuffleWhenDrawn': {
+      // A WHEN DRAWN rule: put the card back and draw another.
+      if (!game.mission?.active.includes(action.cardId)) return game
+      const g = remember(game)
+      const replacement = g.mission!.deck[0]
+      const rest = g.mission!.deck.slice(replacement ? 1 : 0)
+      const at = Math.floor(Math.random() * (rest.length + 1))
+      const next = withMission(g, (m) => ({
+        ...m,
+        active: [...m.active.filter((id) => id !== action.cardId), ...(replacement ? [replacement] : [])],
+        deck: [...rest.slice(0, at), action.cardId, ...rest.slice(at)],
+      }))
+      return withLog(next, `${action.label} shuffled back into the deck; drew a new card`)
+    }
+    case 'scoreSecondary': {
+      if (!game.mission) return game
+      const g = remember(game)
+      // The deck caps secondary VP at 15 per battle round (end-of-battle VP exempt).
+      const room = Math.max(0, SECONDARY_ROUND_CAP - g.mission!.secondaryThisRound)
+      const vp = Math.min(action.vp, room)
+      let next: Game = {
+        ...g,
+        me: { ...g.me, vpSecondary: g.me.vpSecondary + vp },
+        mission: { ...g.mission!, secondaryThisRound: g.mission!.secondaryThisRound + vp },
+      }
+      if (action.discard && next.mission!.secondaryMode === 'tactical')
+        next = withMission(next, (m) => ({
+          ...m,
+          active: m.active.filter((id) => id !== action.cardId),
+          discarded: [...m.discarded, action.cardId],
+        }))
+      const discarded = action.discard && next.mission!.secondaryMode === 'tactical'
+      return withLog(
+        next,
+        vp === 0 && discarded
+          ? `${action.label} achieved and discarded`
+          : `${action.label}: +${vp} VP${vp < action.vp ? ` (capped at ${SECONDARY_ROUND_CAP} this round)` : ''}${
+              discarded ? ' — card achieved and discarded' : ''
+            }`,
+      )
+    }
+    case 'scorePrimary': {
+      if (!game.mission) return game
+      const g = remember(game)
+      const next: Game = {
+        ...g,
+        me: { ...g.me, vpPrimary: g.me.vpPrimary + action.vp },
+        mission: {
+          ...g.mission!,
+          primaryScored: { ...g.mission!.primaryScored, [action.key]: (g.mission!.primaryScored[action.key] ?? 0) + 1 },
+        },
+      }
+      return withLog(next, `Primary — ${action.label}: +${action.vp} VP`)
+    }
+    case 'unscorePrimary': {
+      if (!game.mission?.primaryScored[action.key]) return game
+      const g = remember(game)
+      const times = g.mission!.primaryScored[action.key]! - 1
+      const { [action.key]: _dropped, ...rest } = g.mission!.primaryScored
+      void _dropped
+      const next: Game = {
+        ...g,
+        me: { ...g.me, vpPrimary: Math.max(0, g.me.vpPrimary - action.vp) },
+        mission: { ...g.mission!, primaryScored: times > 0 ? { ...rest, [action.key]: times } : rest },
+      }
+      return withLog(next, `Primary — ${action.label}: −${action.vp} VP`)
+    }
     case 'embark': {
       if (action.unitId === action.transportId) return game
       const g = remember(game)

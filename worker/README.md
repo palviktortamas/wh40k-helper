@@ -24,5 +24,9 @@ only the owner's rosters and games, keyed by id, and merges by `updatedAt`.
   then applies anything newer than its own copy and deletes what the other device deleted.
 - Nothing runs in the background; the app only talks to the endpoint when you tap Sync.
 
-No game data ever reaches the Worker — a roster references catalogue entries by id, and each
+- `GET /proxy?url=<https://wahapedia.ru/…>` with the same `Authorization` header fetches that one
+  host's page and returns it with CORS headers, so the app can import the mission deck (Data
+  screen → Mission deck → "Fetch through my endpoint"). Other hosts are refused.
+
+No game data is stored on the Worker — a roster references catalogue entries by id, and each
 device downloads the data itself.

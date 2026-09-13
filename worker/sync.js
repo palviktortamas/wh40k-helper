@@ -15,9 +15,33 @@ const json = (body, status = 200, extra = {}) =>
     headers: { 'content-type': 'application/json', ...cors(), ...extra },
   })
 
+const PROXY_HOSTS = new Set(['wahapedia.ru', 'www.wahapedia.ru'])
+
+async function proxy(url) {
+  let target
+  try {
+    target = new URL(url.searchParams.get('url') ?? '')
+  } catch {
+    return json({ error: 'bad url' }, 400)
+  }
+  if (target.protocol !== 'https:' || !PROXY_HOSTS.has(target.hostname))
+    return json({ error: 'host not allowed' }, 403)
+  const upstream = await fetch(target.toString(), {
+    headers: { 'user-agent': 'wh40k-helper (private, owner-hosted proxy)' },
+  })
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: {
+      'content-type': upstream.headers.get('content-type') ?? 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      ...cors(),
+    },
+  })
+}
+
 const cors = () => ({
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'POST, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
   'access-control-allow-headers': 'authorization, content-type',
   'access-control-max-age': '86400',
 })
@@ -35,15 +59,19 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() })
 
     const url = new URL(request.url)
-    const match = /^\/sync\/([a-z]+)$/.exec(url.pathname)
-    if (!match || request.method !== 'POST') return json({ error: 'not found' }, 404)
-    const collection = match[1]
-    if (!COLLECTIONS.has(collection)) return json({ error: 'unknown collection' }, 404)
-
     const auth = request.headers.get('authorization') ?? ''
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
     if (!env.SYNC_PASSPHRASE || !sameSecret(token, env.SYNC_PASSPHRASE))
       return json({ error: 'unauthorized' }, 401)
+
+    // The Wahapedia proxy (spec §4.2): adds the CORS headers the site lacks,
+    // for that one host only, so the app can import the mission deck.
+    if (url.pathname === '/proxy' && request.method === 'GET') return proxy(url)
+
+    const match = /^\/sync\/([a-z]+)$/.exec(url.pathname)
+    if (!match || request.method !== 'POST') return json({ error: 'not found' }, 404)
+    const collection = match[1]
+    if (!COLLECTIONS.has(collection)) return json({ error: 'unknown collection' }, 404)
 
     let body
     try {

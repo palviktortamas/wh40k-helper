@@ -18,6 +18,9 @@ import {
   type UnitStatus,
 } from '@/play/types'
 import { GameUnitSheet } from './GameUnitSheet'
+import { GameMission } from './GameMission'
+import { getMissionDeck } from '@/missions/store'
+import type { MissionDeck } from '@/missions/types'
 import './Rosters.css'
 import './Game.css'
 
@@ -34,12 +37,14 @@ export function Game() {
   const [catalogue, setCatalogue] = useState<CatalogueRecord | null>(null)
   const [openUnit, setOpenUnit] = useState<string | null>(null)
   const [showLog, setShowLog] = useState(false)
+  const [deck, setDeck] = useState<MissionDeck | null>(null)
 
   useEffect(() => {
     if (!gameId) return
     void getGame(gameId).then(async (g) => {
       setGame(g ?? null)
       if (g) setCatalogue((await getCatalogue(g.catalogueId)) ?? null)
+      if (g?.mission) setDeck((await getMissionDeck()) ?? null)
     })
   }, [gameId])
 
@@ -194,6 +199,13 @@ export function Game() {
             </li>
           ))}
         </ol>
+      )}
+
+      {game.mission && deck && (
+        <>
+          <h3 className="play__heading">Mission</h3>
+          <GameMission game={game} deck={deck} dispatch={dispatch} />
+        </>
       )}
 
       <h3 className="play__heading">Army</h3>

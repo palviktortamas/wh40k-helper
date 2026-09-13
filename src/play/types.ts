@@ -88,6 +88,54 @@ export type PlayerScore = {
   vpSecondary: number
 }
 
+export type SecondaryMode = 'fixed' | 'tactical'
+
+/**
+ * Mission setup and the live state of the secondary deck (spec §6.1–6.2).
+ * Card ids refer to the imported mission deck; the deck itself is not copied
+ * into the game.
+ */
+export type MissionState = {
+  myDisposition?: string
+  opponentDisposition?: string
+  myPrimaryId?: string
+  opponentPrimaryId?: string
+  deploymentId?: string
+  twistId?: string
+  /** D6 roll: 1–5 one central objective, 6 two. */
+  centralObjectives?: 1 | 2
+  attacker?: Side
+  secondaryMode?: SecondaryMode
+  /** Fixed mode: the two chosen cards. */
+  fixedIds: string[]
+  /** Tactical mode: the shuffled draw pile, the active cards, the discard pile. */
+  deck: string[]
+  active: string[]
+  discarded: string[]
+  /** Once per battle: 1 CP to discard one active card and draw a replacement. */
+  discardRedrawUsed: boolean
+  /** Once per own turn: discarding active cards yields 1 CP. */
+  cpForDiscardThisTurn: boolean
+  /** Secondary VP scored this battle round (the deck caps it at 15). */
+  secondaryThisRound: number
+  /** Primary scoring lines ticked, keyed `${round}:${block}:${line}`, and how often. */
+  primaryScored: Record<string, number>
+}
+
+export const SECONDARY_ROUND_CAP = 15
+export const TACTICAL_DRAW = 2
+
+export const emptyMission = (): MissionState => ({
+  fixedIds: [],
+  deck: [],
+  active: [],
+  discarded: [],
+  discardRedrawUsed: false,
+  cpForDiscardThisTurn: false,
+  secondaryThisRound: 0,
+  primaryScored: {},
+})
+
 /** Everything undo has to restore. */
 export type GameState = {
   round: number
@@ -98,6 +146,8 @@ export type GameState = {
   units: GameUnit[]
   /** Total VP at the end of each battle round, for the summary. */
   vpByRound: Record<number, { me: number; opponent: number }>
+  /** Absent on games started before the mission deck existed. */
+  mission?: MissionState
 }
 
 export type LogEntry = {

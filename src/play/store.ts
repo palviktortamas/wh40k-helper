@@ -8,13 +8,15 @@ import type { CatalogueRecord } from '@/data/db'
 import type { Roster } from '@/roster/types'
 import type { Validation } from '@/roster/store'
 import { buildGameUnits } from './snapshot'
-import type { Game, Side } from './types'
+import type { Game, MissionState, Side } from './types'
 import { recordDeletion } from '@/sync/client'
 
 export type StartOptions = {
   opponentName: string
   opponentFaction: string
   firstTurn: Side
+  /** From the setup wizard, when the mission deck is imported. */
+  mission?: MissionState
 }
 
 export function newGame(
@@ -47,6 +49,7 @@ export function newGame(
     opponent: { cp: options.firstTurn === 'opponent' ? 1 : 0, vpPrimary: 0, vpSecondary: 0 },
     units: buildGameUnits(roster, catalogue.parsed, validation),
     vpByRound: {},
+    ...(options.mission ? { mission: options.mission } : {}),
     log: [
       {
         at: now,

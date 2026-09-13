@@ -11,6 +11,9 @@ import type { CatalogueRecord, HealthRecord } from '@/data/db'
 import type { CatalogueSummary } from '@/data/model'
 import type { Progress } from '@/data/install'
 import { SOURCE_HOMEPAGES, SOURCE_LABELS } from '@/data/sources'
+import { fetchMissionDeckViaEndpoint, getMissionDeck, importMissionDeckHtml } from '@/missions/store'
+import type { MissionDeck } from '@/missions/types'
+import { getSyncConfig } from '@/sync/client'
 import './Data.css'
 
 const formatDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, {
@@ -170,6 +173,8 @@ export function Data() {
         </ul>
       )}
 
+      <MissionDeckSection />
+
       <h3>Sources</h3>
       <ul className="data__sources">
         {(['bsdata', 'mfm'] as const).map((id) => (
@@ -181,8 +186,98 @@ export function Data() {
         ))}
       </ul>
       <p className="data__meta">
-        Wahapedia rules text and the mission deck need a proxy and arrive in a later phase.
+        Wahapedia rules text for datasheets (Phase 1b) is not imported yet; the mission deck above
+        comes from Wahapedia through your own endpoint or a saved page.
       </p>
     </section>
+  )
+}
+
+/**
+ * The Chapter Approved mission deck (spec §6.1). Wahapedia publishes it but
+ * sends no CORS headers, so the page arrives either through the owner's
+ * endpoint (Settings → Sync) or as a file saved from the browser.
+ */
+function MissionDeckSection() {
+  const [deck, setDeck] = useState<MissionDeck | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [endpoint, setEndpoint] = useState(false)
+
+  useEffect(() => {
+    void getMissionDeck().then((d) => setDeck(d ?? null))
+    void getSyncConfig().then((c) => setEndpoint(Boolean(c.url && c.passphrase)))
+  }, [])
+
+  const run = async (job: () => Promise<MissionDeck>) => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const imported = await job()
+      setDeck(imported)
+      setMessage(`Imported ${imported.primaries.length} primary, ${imported.secondaries.length} secondary missions.`)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h3>Mission deck</h3>
+      <div className="data__card">
+        <div className="data__cardHead">
+          <strong>Chapter Approved 2026-27</strong>
+          {deck && <span className="data__meta">{formatDate(deck.importedAt)}</span>}
+        </div>
+        {deck ? (
+          <p className="data__meta">
+            {deck.primaries.length} primary · {deck.secondaries.length} secondary ·{' '}
+            {deck.deployments.length} deployments · {deck.twists.length} twists
+          </p>
+        ) : (
+          <p className="data__meta">Not imported yet. Play Mode's mission setup needs it.</p>
+        )}
+        {message && (
+          <p className="data__meta" role="status">
+            {message}
+          </p>
+        )}
+        <div className="data__actions">
+          {deck && (
+            <Link className="data__button tap" to="/missions">
+              Browse cards
+            </Link>
+          )}
+          <button
+            className="data__button data__button--quiet"
+            disabled={busy || !endpoint}
+            title={endpoint ? '' : 'Configure your endpoint under Settings → Sync first'}
+            onClick={() => void run(fetchMissionDeckViaEndpoint)}
+          >
+            {busy ? 'Working…' : deck ? 'Refresh through my endpoint' : 'Fetch through my endpoint'}
+          </button>
+          <label className="data__button data__button--quiet tap data__file">
+            Import saved page
+            <input
+              type="file"
+              accept="text/html,.html,.htm"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void run(async () => importMissionDeckHtml(await file.text()))
+              }}
+            />
+          </label>
+        </div>
+        {!endpoint && !deck && (
+          <p className="data__meta">
+            No endpoint configured: open the deck page in a browser, save it as HTML, and import the
+            file here.
+          </p>
+        )}
+      </div>
+    </>
   )
 }
