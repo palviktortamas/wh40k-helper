@@ -584,11 +584,12 @@ walked through in headless Chrome:
   notes). The default is by group size; if a faction has a mixed unit whose plain models are not
   the largest group, that unit needs the "Remove models…" panel, which is still there.
 - ~~Stratagems per detachment on the in-game datasheet~~ — done 2026-09-13 night 2 via the
-  Wahapedia stratagem import (see "Owner feedback round"). Open: **should the build ship
-  `Stratagems.csv` like the mission deck?** Same source and mechanism (`scripts/fetch-mission-deck.mjs`
-  + a git-ignored `public/` file + a guard exception for a `.csv` over 256 kB), but the owner's
-  2026-09-13 exception covers the deck only — ask before extending it. Until then: file import or
-  the endpoint proxy.
+  Wahapedia stratagem import (see "Owner feedback round"). **The owner decided (2026-09-13, night 2) that the
+  build ships `Stratagems.csv` too:** `scripts/fetch-mission-deck.mjs` fetches it into the
+  git-ignored `public/stratagems-wahapedia.csv`, the guard exempts exactly `dist/missions-ca-*.html`
+  and `dist/stratagems-wahapedia.csv` (`SHIPPED_IN_BUILD`), Workbox precaches `.csv`, and
+  `ensureStratagems()` imports it at app start when the device has none (a dev server has none
+  unless the script is run locally). File import and the endpoint proxy remain as fallbacks.
 - Weapon-profile matching (`weaponCounts` in `GameUnitSheet.tsx`): per loadout entry, exact
   name or the weapon a "➤ X - Mode" sub-profile belongs to first, else whole-word containment
   for combined weapons. Profiles no survivor carries are folded into "Other profiles".

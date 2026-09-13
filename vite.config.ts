@@ -44,7 +44,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // csv: the shipped stratagem export, so its first-start import works offline too.
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,csv}'],
         // Game data lives in IndexedDB, fetched by the app itself — the service
         // worker must never cache or intercept those cross-origin requests.
         navigateFallbackDenylist: [/^\/api\//],

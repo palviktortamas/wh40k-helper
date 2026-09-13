@@ -17,9 +17,7 @@ Battle-shock step at the table, the 11e CP rule (both players gain 1 CP every Co
 stratagems imported from Wahapedia's export (Dexie v8) into a per-phase panel. Everything was
 walked through in headless Chrome on the real catalogue (recipe in the journal). The owner has
 checked the app on the phone. The sync/proxy Worker is **deferred by the owner** ("not needed
-now, maybe later") — do not push for it. Still open: whether the build may ship `Stratagems.csv`
-like the mission deck (ask; the 2026-09-13 exception covers the deck only), a real game to tune
-the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
+now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json`, one catalogue
 `.json`, its `.yaml`, and linked libraries as `lib-*.json` (see `test/fixtures.ts`).
@@ -29,10 +27,12 @@ raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json`, 
 - **No game data in this repo, ever.** Not unit names, ability text, points, or catalogues. The
   app downloads everything to the device at runtime. `npm run check:data` enforces this in CI —
   it matches source-format *markers*, never GW content. Scratch downloads go in the scratchpad
-  directory, never in the working tree. **One owner-approved exception (2026-09-13):** the
-  deployed build ships the Chapter Approved mission deck. The deploy workflow fetches Wahapedia's
-  deck page into `public/missions-ca-2026-27.html` (git-ignored, exists only in a build) and the
-  app imports it on first start. The page itself is still never committed.
+  directory, never in the working tree. **Two owner-approved exceptions (2026-09-13):** the
+  deployed build ships the Chapter Approved mission deck and Wahapedia's stratagem export. The
+  deploy workflow fetches both into `public/` (`missions-ca-2026-27.html`,
+  `stratagems-wahapedia.csv` — git-ignored, exist only in a build) and the app imports them on
+  first start. The files themselves are still never committed; the guard exempts exactly those
+  two paths under `dist/`.
 - **Nothing may be Ork-specific.** Orks are the v1 test faction; adding a faction must be a data
   install, not a code change. No faction names in code, no special-cased branches.
 - **Offline-first.** The only network calls are the data updates on the Data screen and, when the

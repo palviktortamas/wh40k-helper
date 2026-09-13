@@ -11,13 +11,21 @@ import type { CatalogueRecord, HealthRecord } from '@/data/db'
 import type { CatalogueSummary } from '@/data/model'
 import type { Progress } from '@/data/install'
 import { SOURCE_HOMEPAGES, SOURCE_LABELS } from '@/data/sources'
-import { fetchMissionDeckViaEndpoint, getMissionDeck, importBundledMissionDeck, importMissionDeckHtml } from '@/missions/store'
+import {
+  MISSIONS_CHANGED,
+  fetchMissionDeckViaEndpoint,
+  getMissionDeck,
+  importBundledMissionDeck,
+  importMissionDeckHtml,
+} from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
 import { getSyncConfig } from '@/sync/client'
 import {
+  STRATAGEMS_CHANGED,
   STRATAGEMS_SOURCE_URL,
   fetchStratagemsViaEndpoint,
   getStratagemSet,
+  importBundledStratagems,
   importStratagemsCsv,
   removeStratagems,
 } from '@/stratagems/store'
@@ -291,8 +299,12 @@ function StratagemsSection() {
   const [endpoint, setEndpoint] = useState(false)
 
   useEffect(() => {
-    void getStratagemSet().then((s) => setSet(s ?? null))
+    const load = () => void getStratagemSet().then((s) => setSet(s ?? null))
+    load()
     void getSyncConfig().then((c) => setEndpoint(Boolean(c.url && c.passphrase)))
+    // The first-start import may finish after this screen opened.
+    window.addEventListener(STRATAGEMS_CHANGED, load)
+    return () => window.removeEventListener(STRATAGEMS_CHANGED, load)
   }, [])
 
   const run = async (job: () => Promise<StratagemSet>) => {
@@ -325,7 +337,8 @@ function StratagemsSection() {
           </p>
         ) : (
           <p className="data__meta">
-            Not imported yet. Play Mode's stratagem list needs it — fetch it through your endpoint, or open{' '}
+            Not imported yet. Play Mode's stratagem list needs it — the app ships the export and loads it
+            on first start; if that did not happen, load it below, fetch it through your endpoint, or open{' '}
             <a href={STRATAGEMS_SOURCE_URL} target="_blank" rel="noreferrer">
               Stratagems.csv
             </a>{' '}
@@ -340,13 +353,26 @@ function StratagemsSection() {
         <div className="data__actions">
           <button
             className={`data__button${set ? ' data__button--quiet' : ''}`}
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const imported = await importBundledStratagems()
+                if (!imported) throw new Error('This build carries no stratagems — import the file or fetch through your endpoint.')
+                return imported
+              })
+            }
+          >
+            {busy ? 'Working…' : set ? 'Reload the shipped stratagems' : 'Load the shipped stratagems'}
+          </button>
+          <button
+            className="data__button data__button--quiet"
             disabled={busy || !endpoint}
             title={endpoint ? '' : 'Configure your endpoint under Settings → Sync first'}
             onClick={() => void run(fetchStratagemsViaEndpoint)}
           >
             {busy ? 'Working…' : set ? 'Refresh through my endpoint' : 'Fetch through my endpoint'}
           </button>
-          <label className={`data__button tap data__file${set || !endpoint ? ' data__button--quiet' : ''}`}>
+          <label className="data__button data__button--quiet tap data__file">
             Import Stratagems.csv
             <input
               type="file"
@@ -389,8 +415,12 @@ function MissionDeckSection() {
   const [endpoint, setEndpoint] = useState(false)
 
   useEffect(() => {
-    void getMissionDeck().then((d) => setDeck(d ?? null))
+    const load = () => void getMissionDeck().then((d) => setDeck(d ?? null))
+    load()
     void getSyncConfig().then((c) => setEndpoint(Boolean(c.url && c.passphrase)))
+    // The first-start import may finish after this screen opened.
+    window.addEventListener(MISSIONS_CHANGED, load)
+    return () => window.removeEventListener(MISSIONS_CHANGED, load)
   }, [])
 
   const run = async (job: () => Promise<MissionDeck>) => {

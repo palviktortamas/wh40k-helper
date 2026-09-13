@@ -24,9 +24,10 @@ available" toast on open; tap Reload first.
 - [ ] **Mission deck** is there on first start without doing anything (the build ships it):
       the Data screen's deck card shows 25 primary · 18 secondary · 6 deployments · 6 twists.
       **Reload the shipped deck** re-imports it (this replaces card edits).
-- [ ] **Stratagems**: Data → Stratagems → **Import Stratagems.csv** (open the linked file in a
-      browser, save it, pick it) or **Fetch through my endpoint** → "Imported N stratagems (10
-      Core)". Play Mode's stratagem panel fills in.
+- [ ] **Stratagems** are there on first start without doing anything (the build ships the
+      export): Data → Stratagems reads "N stratagems across every faction · 10 Core". Fallbacks:
+      **Load the shipped stratagems**, **Fetch through my endpoint**, or **Import Stratagems.csv**
+      (open the linked file in a browser, save it, pick it).
 - [ ] Fallback: **Import saved page** — open the Wahapedia mission-deck page on the PC, save it
       as HTML, import the file. Expect "Imported 25 primary, 18 secondary missions".
 - [ ] **Browse cards**: Primary tab grouped by disposition, Secondary tab shows 4 "Fixed-eligible"

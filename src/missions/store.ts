@@ -63,11 +63,14 @@ export async function importBundledMissionDeck(): Promise<MissionDeck | undefine
   return importMissionDeckHtml(html)
 }
 
+/** Fired on `window` when the deck changes behind a screen's back (the first-start import). */
+export const MISSIONS_CHANGED = 'wh40k:missions-changed'
+
 /** On start: bring in the shipped deck when the device has none yet. */
 export async function ensureMissionDeck(): Promise<void> {
   if (await getMissionDeck()) return
   try {
-    await importBundledMissionDeck()
+    if (await importBundledMissionDeck()) window.dispatchEvent(new Event(MISSIONS_CHANGED))
   } catch (error) {
     console.warn('Bundled mission deck could not be imported:', error)
   }

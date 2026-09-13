@@ -1,11 +1,11 @@
 // Guards the acceptance criterion "a fresh clone contains no game data": the
 // repository and the deployed bundle must hold code only.
 //
-// One exception, decided by the owner on 2026-09-13: the deployed bundle may
-// carry the Chapter Approved mission deck page (`missions-ca-*.html`), fetched
-// from Wahapedia at build time by scripts/fetch-mission-deck.mjs. It is never
-// committed (git-ignored under public/) and it is HTML, so the format markers
-// below do not apply to it; its size stays well under the code-file limit.
+// Two exceptions, decided by the owner on 2026-09-13: the deployed bundle may
+// carry the Chapter Approved mission deck page (`missions-ca-*.html`) and the
+// Wahapedia stratagem export (`stratagems-wahapedia.csv`), fetched at build
+// time by scripts/fetch-mission-deck.mjs. Neither is ever committed (git-ignored
+// under public/); see SHIPPED_IN_BUILD below.
 //
 // The check is structural on purpose — it looks for the *shape* of the source
 // formats, never for unit names, so the guard itself stays free of GW content.
@@ -44,9 +44,18 @@ const MAX_CODE_BYTES = 1536 * 1024
 /** Generated or vendored files that are legitimately large. */
 const SIZE_ALLOWLIST = new Set(['package-lock.json'])
 
+/**
+ * The owner-approved exceptions (2026-09-13): the deployed bundle may carry the
+ * Chapter Approved mission deck page and Wahapedia's stratagem export, both
+ * fetched at build time by scripts/fetch-mission-deck.mjs. They exist only in
+ * `dist/` (and git-ignored `public/`); a copy anywhere else is still a problem.
+ */
+const SHIPPED_IN_BUILD = /^dist[\\/](missions-ca-[^\\/]+\.html|stratagems-wahapedia\.csv)$/
+
 const problems = []
 
 const inspect = (absolute, label) => {
+  if (SHIPPED_IN_BUILD.test(label)) return
   const ext = extname(absolute).toLowerCase()
   if (BANNED_EXTENSIONS.has(ext)) {
     problems.push(`${label}: datafile extension ${ext}`)
