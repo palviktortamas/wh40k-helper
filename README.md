@@ -33,8 +33,8 @@ Bootstrapping. See [docs/spec.md](docs/spec.md) for the full specification and t
 |---|---|---|
 | 0 | Source verification | done (spec Appendix A) |
 | — | PWA scaffold + Pages deploy | done |
-| 1 | Data layer + datasheet browser | not started |
-| 2 | List Builder + validation | not started |
+| 1 | Data layer + datasheet browser | done |
+| 2 | List Builder + validation | next |
 | 3 | Play Mode core | not started |
 | 4 | Missions (CA 2026-27) | not started |
 | 5 | Reminders | not started |
