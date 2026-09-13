@@ -2,7 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import pkg from './package.json'
+import pkg from './package.json' with { type: 'json' }
 
 // Served from https://<user>.github.io/<repo>/ — override with BASE_PATH if the
 // host ever changes (e.g. Cloudflare Pages serves from the root).

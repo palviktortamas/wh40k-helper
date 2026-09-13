@@ -10,7 +10,8 @@ Personal project. Unofficial and unaffiliated with Games Workshop. Not for distr
 
 ## Running it
 
-Requires **Node 20.11+** (the build toolchain needs it; Node 18 fails at the service-worker step).
+Requires **Node 22.12+** (Vite 8's floor). The repo pins Node 24 in `.nvmrc`; with
+[fnm](https://github.com/Schniz/fnm) or nvm installed, `cd` into the project and it switches for you.
 
 ```sh
 npm install
