@@ -20,6 +20,29 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* Lists are built at a PC and played from a phone: the same build reads well
+   on both. Content stays in a readable column; the chrome follows it. */
+.shell__main > * {
+  width: 100%;
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 900px) {
+  .shell__header,
+  .shell__nav {
+    padding-left: calc(50% - 380px);
+    padding-right: calc(50% - 380px);
+  }
+  .shell__nav a {
+    min-height: 52px;
+  }
+  .shell__main {
+    padding-top: 1.5rem;
+  }
+}
+
 .shell__nav {
   display: grid;
   grid-auto-flow: column;

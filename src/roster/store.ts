@@ -14,6 +14,7 @@ import { walkSelections } from './types'
 import type { Catalogue, GameSystem } from '@/data/bsdata/schema'
 import { COST_TYPE } from '@/data/bsdata/schema'
 import { WARLORD_CATEGORY } from './vocabulary'
+import { recordDeletion } from '@/sync/client'
 
 export type RosterSummary = Pick<Roster, 'id' | 'name' | 'catalogueId' | 'pointsLimit' | 'updatedAt'>
 
@@ -48,6 +49,8 @@ export async function saveRoster(roster: Roster): Promise<void> {
 
 export async function deleteRoster(id: string): Promise<void> {
   await db.rosters.delete(id)
+  // So a synced device deletes it too (spec §4.4).
+  await recordDeletion('rosters', id)
 }
 
 export async function duplicateRoster(roster: Roster): Promise<Roster> {

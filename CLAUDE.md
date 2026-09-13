@@ -5,7 +5,7 @@ never published, no backend, no accounts, no telemetry.
 
 **Read these two files before doing anything:**
 
-1. [docs/spec.md](docs/spec.md) — the full specification (v0.5) and the ground-truth Phase 0
+1. [docs/spec.md](docs/spec.md) — the full specification (v0.6) and the ground-truth Phase 0
    source verification in Appendix A. This is the contract; do not re-derive it.
 2. [docs/PROGRESS.md](docs/PROGRESS.md) — what is built, what was learned the hard way, and what
    is next. **Update it at the end of every working session** so the next agent can continue.
@@ -23,7 +23,11 @@ is built, tested, and walked through end to end in headless Chrome (recipe in th
   directory, never in the working tree.
 - **Nothing may be Ork-specific.** Orks are the v1 test faction; adding a faction must be a data
   install, not a code change. No faction names in code, no special-cased branches.
-- **Offline-first.** The only network calls are the data updates on the Data screen.
+- **Offline-first.** The only network calls are the data updates on the Data screen and, when the
+  owner has configured one, the owner's own sync endpoint on an explicit "Sync now" (spec §4.4).
+  Never sync in the background.
+- **PC and phone are both first-class.** Lists are built at a PC and played from the phone; keep
+  the content column readable at 1280 px wide as well as at 390 px.
 - **IndexedDB for all primary state** (via Dexie). `localStorage` is never used for real data.
 - **Mobile-first.** Portrait ~360–430px, 44px touch targets, 16px body floor, dark by default,
   colour never the only carrier of meaning.

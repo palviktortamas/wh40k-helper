@@ -1,0 +1,9 @@
+name = "wh40k-helper-sync"
+main = "sync.js"
+compatibility_date = "2026-09-01"
+
+# Create the namespace once with `npx wrangler kv namespace create SYNC` and
+# paste the id it prints here.
+[[kv_namespaces]]
+binding = "SYNC"
+id = "REPLACE_WITH_YOUR_NAMESPACE_ID"

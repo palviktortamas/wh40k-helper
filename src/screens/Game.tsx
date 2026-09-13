@@ -83,8 +83,26 @@ export function Game() {
     if (!unit.leaderOf) continue
     leadersOf.set(unit.leaderOf, [...(leadersOf.get(unit.leaderOf) ?? []), unit])
   }
-  const topLevel = game.units.filter((u) => !u.leaderOf || !game.units.some((t) => t.id === u.leaderOf))
+  const exists = (id: string | undefined) => Boolean(id) && game.units.some((t) => t.id === id)
+  const passengersOf = new Map<string, GameUnit[]>()
+  for (const unit of game.units) {
+    if (!unit.embarkedIn || !exists(unit.embarkedIn) || exists(unit.leaderOf)) continue
+    passengersOf.set(unit.embarkedIn, [...(passengersOf.get(unit.embarkedIn) ?? []), unit])
+  }
+  // Leaders ride with their unit; embarked units ride inside their transport.
+  const topLevel = game.units.filter((u) => !exists(u.leaderOf) && !(u.embarkedIn && exists(u.embarkedIn)))
   const over = isBattleOver(game)
+
+  const renderUnit = (unit: GameUnit, leader = false) => (
+    <>
+      <UnitCard unit={unit} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(unit.id)} leader={leader} />
+      {(leadersOf.get(unit.id) ?? []).map((l) => (
+        <div key={l.id} className={`unit__leader ${l.destroyed ? 'unit--dead' : ''}`}>
+          <UnitCard unit={l} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(l.id)} leader />
+        </div>
+      ))}
+    </>
+  )
 
   return (
     <section className="game">
@@ -182,10 +200,11 @@ export function Game() {
       <ul className="units">
         {topLevel.map((unit) => (
           <li key={unit.id} className={`units__item unit ${unit.destroyed ? 'unit--dead' : ''}`}>
-            <UnitCard unit={unit} dispatch={dispatch} onOpen={() => setOpenUnit(unit.id)} />
-            {(leadersOf.get(unit.id) ?? []).map((leader) => (
-              <div key={leader.id} className={`unit__leader ${leader.destroyed ? 'unit--dead' : ''}`}>
-                <UnitCard unit={leader} dispatch={dispatch} onOpen={() => setOpenUnit(leader.id)} leader />
+            {renderUnit(unit)}
+            {(passengersOf.get(unit.id) ?? []).map((passenger) => (
+              <div key={passenger.id} className={`unit__leader unit__passenger ${passenger.destroyed ? 'unit--dead' : ''}`}>
+                <p className="muted unit__aboard">Embarked</p>
+                {renderUnit(passenger)}
               </div>
             ))}
           </li>
@@ -260,15 +279,29 @@ function Counter({
 
 function UnitCard({
   unit,
+  game,
   dispatch,
   onOpen,
   leader = false,
 }: {
   unit: GameUnit
+  game: GameModel
   dispatch: (action: GameAction) => void
   onOpen: () => void
   leader?: boolean
 }) {
+  // Units this transport could carry: anything alive, not a leader (they ride
+  // with their unit), not already aboard something, not itself.
+  const candidates = unit.transportCapacity
+    ? game.units.filter(
+        (u) =>
+          u.id !== unit.id &&
+          !u.destroyed &&
+          !u.leaderOf &&
+          !u.transportCapacity &&
+          (!u.embarkedIn || u.embarkedIn === unit.id),
+      )
+    : []
   const [expanded, setExpanded] = useState(false)
   const alive = modelsAlive(unit)
   const total = modelsTotal(unit)
@@ -338,10 +371,37 @@ function UnitCard({
               {expanded ? 'Done' : 'Remove models…'}
             </button>
           )}
+          {unit.embarkedIn && (
+            <button className="button button--quiet" onClick={() => dispatch({ type: 'disembark', unitId: unit.id })}>
+              Disembark
+            </button>
+          )}
           <button className="button button--quiet" onClick={() => setExpanded((e) => !e)}>
             {expanded ? 'Less' : 'More…'}
           </button>
         </div>
+      )}
+
+      {!unit.destroyed && unit.transportCapacity && (
+        <label className="units__attach">
+          Embark a unit{' '}
+          <span className="muted unit__capacity">{unit.transportCapacity.replace(/\*\*/g, '')}</span>
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) dispatch({ type: 'embark', unitId: e.target.value, transportId: unit.id })
+            }}
+          >
+            <option value="">— choose a unit —</option>
+            {candidates
+              .filter((c) => c.embarkedIn !== unit.id)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </select>
+        </label>
       )}
 
       {expanded && (

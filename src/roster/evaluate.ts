@@ -97,6 +97,8 @@ export type EvaluationResult = {
   enhancements: number
   /** Whether the data itself enforced the points limit, so layer 2 need not. */
   pointsLimitChecked: boolean
+  /** Whether the data itself requires a Warlord, so layer 2 need not repeat it. */
+  warlordChecked: boolean
   /** The chosen detachment, read from the configuration selections. */
   detachment?: { selectionId: string; entryId: string; name: string; dp: number }
   /** The root selection holding the Warlord upgrade, if any. */
@@ -206,6 +208,11 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
 
   const detachmentNode = context.all.find((n) => (n.costs[COST_TYPE.detachmentPoints] ?? 0) > 0)
   const warlordCategory = categoryByName.get(WARLORD_CATEGORY)
+  const warlordChecked = virtuals.some(
+    (n) =>
+      n.entry.id === warlordCategory &&
+      [...n.constraints.values()].some((c) => c.type === 'min' && c.value >= 1),
+  )
   const warlordNode = warlordCategory
     ? context.all.find((n) => n.categoryIds.has(warlordCategory))
     : undefined
@@ -218,6 +225,7 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
     detachmentPoints,
     enhancements,
     pointsLimitChecked,
+    warlordChecked,
     ...(detachmentNode
       ? {
           detachment: {

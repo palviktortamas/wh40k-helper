@@ -42,7 +42,10 @@ what was learned that the spec could not have predicted, and what comes next.
 - Theme tokens in `src/index.css`: dark default, light and system variants. Settings screen is
   real (theme switcher + the About/attribution screen the spec requires).
 - Dexie at `src/data/db.ts`, currently **version 5** (v1 settings, v2 catalogues/health/overrides,
-  v3 rosters, v4 roster-shape migration, v5 games).
+  v3 rosters, v4 roster-shape migration, v5 games). Sync configuration and tombstones live in
+  the `settings` store under `sync.*` keys.
+- `worker/` holds the source of the owner's optional Cloudflare sync endpoint (spec §4.4). It is
+  not part of the Vite build and holds no game data.
 - Service worker registered with `registerType: 'prompt'` → "new version available" toast via
   `src/app/useServiceWorkerUpdate.ts`. Never reloads mid-game.
 - Icons are generated from geometry by `scripts/generate-icons.mjs` (hand-rolled PNG encoder, no
@@ -178,15 +181,14 @@ what was learned that the spec could not have predicted, and what comes next.
 - Modifiers must all be applied before any constraint is read, because a modifier's `field` can be
   a constraint id.
 
-### The spec's own acceptance example no longer matches the data
+### The spec's acceptance example was corrected (v0.6)
 
-Spec section 9 asks for a 20-model unit built as "17 + 2 special + 1 leader model". In catalogue
-revision 3 that unit's first option group is capped at 18 and the leader models sit in a separate
-group of 1-2, so 17 + 2 = 19 breaks the cap. The legal 20-model build is 16 + 2 special + 2 leader
-models (verified 2026-09-13: 180 pts, a third special weapon errors, the 4th copy pays the
-Requisition surcharge, the leader attaches, one detachment enhancement applies, over-limit
-errors from the data's own force constraint). The evaluator is right and the spec example is
-stale. **Raised with the owner; spec not edited.**
+Spec section 9 used to ask for a 20-model unit built as "17 + 2 special + 1 leader model". In
+catalogue revision 3 the first option group is capped at 18 and the leader models sit in a
+separate group of 1-2, so the legal 20-model build is 16 + 2 special + 2 leader models (verified
+2026-09-13: 180 pts, a third special weapon errors, the 4th copy pays the Requisition surcharge,
+the leader attaches, one detachment enhancement applies, over-limit errors from the data's own
+force constraint). The owner agreed and §9 now states the current build.
 
 ---
 
@@ -303,9 +305,39 @@ feel of the steppers and the "Remove models…" panel with a thumb; unit-editor 
 unit (every group asks `isGroupAvailable`; memoise per render in `UnitEditor` if it lags — it did
 not in Chrome).
 
+### Done 2026-09-13 (late) - owner decisions and spec v0.6
+
+The owner decided: **transports are v1**, the **§9 example is updated** to the current data,
+and the app must **move lists between a PC and the phone** and be **pleasant on a desktop
+browser**. Spec v0.6 records all four (§2, §3, §4.4, §9, §10). Built the same evening and
+walked through in headless Chrome:
+
+- **Embarking (Play Mode).** `GameUnit.embarkedIn`; `embark` / `disembark` actions; a
+  transport's card (any unit whose datasheet has a transport capacity) offers an "Embark a unit"
+  select with the capacity text as a reminder (not enforced — it mixes counts and keywords);
+  passengers render inside the transport like leaders inside their unit; a destroyed transport
+  spills its passengers with a log line; undo restores. Leaders always ride with their unit.
+- **Transfer by text (`src/roster/transfer.ts`).** "Share" on a roster card puts a versioned JSON
+  envelope on the clipboard (share sheet on touch devices only — desktop Chrome has
+  `navigator.share` too and opens the Windows dialog, which is not what you want at a PC);
+  "Import" on the Rosters screen accepts paste or a file, adopts the roster with a fresh id and a
+  non-colliding name, and warns when the faction is not installed on this device.
+- **Sync (`src/sync/client.ts`, `worker/`).** Settings → "Sync between your devices": endpoint
+  URL + passphrase, "Sync now". One `POST /sync/rosters` and one `/sync/games` per tap; the
+  Worker (Cloudflare, KV, source and deploy steps in `worker/README.md`) merges by `updatedAt`
+  and returns the merged set; the client applies newer records and honours tombstones (local
+  deletions are recorded in a `sync.tombstones` setting by `deleteRoster` / `deleteGame`).
+  **The owner has not deployed the Worker yet** — the client was only tested against a dead URL
+  (clean error) and by reading the code; test against a real deployment is the next step.
+- **Desktop layout.** Content column max 760 px, header and tab bar follow it above 900 px.
+- Duplicate Warlord messages: layer 2 stands down when the data's Warlord category minimum is
+  live (`warlordChecked`), as it already did for the points limit.
+
 ### Step 2 - Phase 3 leftovers
 
-- Transport / embarking assignment (spec §10 open question; `embarked` exists as a status only).
+- **Deploy the sync Worker** (owner, ~5 min, `worker/README.md`) and sync PC ↔ phone once;
+  fix whatever that shows. Then consider syncing on opening the Rosters screen (spec allows it
+  "once trusted").
 - Model-removal default order (plain models first, character last) — today the user always
   chooses when there is more than one model type.
 - Reserves "arrive" action beyond toggling the status.
@@ -337,8 +369,6 @@ Cloudflare Worker (spec 4.2) or the manual file-import flow. Not started.
 
 ### Open questions for the owner
 
-Spec §10 lists these; still unanswered:
-
 - Which two factions come next (only needed to pick a Phase 6 test catalogue)?
-- Transports/embarking in Play Mode: v1 or slip to Phase 6?
-- Spec §9's 20-model example is stale against the data (see above): update the spec?
+
+Answered 2026-09-13: transports are v1 (built); the §9 example is updated in spec v0.6.

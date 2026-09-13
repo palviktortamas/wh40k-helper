@@ -13,6 +13,7 @@ import {
   validate,
 } from '@/roster/store'
 import { POINTS_PRESETS, type Roster } from '@/roster/types'
+import { adoptRoster, exportRosterJson, parseRosterEnvelope, shareText } from '@/roster/transfer'
 import './Rosters.css'
 
 export function Rosters() {
@@ -23,6 +24,9 @@ export function Rosters() {
   const [name, setName] = useState('')
   const [catalogueId, setCatalogueId] = useState('')
   const [limit, setLimit] = useState<number>(2000)
+  const [importing, setImporting] = useState(false)
+  const [pasted, setPasted] = useState('')
+  const [importError, setImportError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setRosters(await listRosters())
@@ -41,6 +45,25 @@ export function Rosters() {
     const roster = newRoster(catalogue, name.trim() || 'New army', limit)
     await saveRoster(roster)
     navigate(`/rosters/${encodeURIComponent(roster.id)}`)
+  }
+
+  // Import a roster exported on another device (spec §4.4). The receiving
+  // device validates it against its own installed data.
+  const importText = async (text: string) => {
+    setImportError(null)
+    try {
+      const envelope = parseRosterEnvelope(text)
+      const roster = adoptRoster(envelope.roster, rosters.map((r) => r.name))
+      await saveRoster(roster)
+      if (!catalogues.some((c) => c.id === roster.catalogueId)) {
+        alert(`Imported. Install "${envelope.catalogueName}" under Data to edit and validate it.`)
+      }
+      setImporting(false)
+      setPasted('')
+      await refresh()
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   if (catalogues.length === 0) {
@@ -94,10 +117,58 @@ export function Rosters() {
             </button>
           </div>
         </div>
+      ) : importing ? (
+        <div className="rosters__form">
+          <label>
+            Paste an exported roster
+            <textarea
+              className="rosters__paste"
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+              rows={6}
+              placeholder='{"app":"wh40k-helper","kind":"roster",…}'
+            />
+          </label>
+          <label>
+            …or pick the file
+            <input
+              type="file"
+              accept="application/json,.json"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void file.text().then(importText)
+              }}
+            />
+          </label>
+          {importError && (
+            <p className="issues__item issues__item--error" role="alert">
+              {importError}
+            </p>
+          )}
+          <div className="rosters__formActions">
+            <button className="button" disabled={!pasted.trim()} onClick={() => void importText(pasted)}>
+              Import
+            </button>
+            <button
+              className="button button--quiet"
+              onClick={() => {
+                setImporting(false)
+                setImportError(null)
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       ) : (
-        <button className="button" onClick={() => setCreating(true)}>
-          New roster
-        </button>
+        <div className="rosters__controls">
+          <button className="button" onClick={() => setCreating(true)}>
+            New roster
+          </button>
+          <button className="button button--quiet" onClick={() => setImporting(true)}>
+            Import
+          </button>
+        </div>
       )}
 
       {rosters.length === 0 ? (
@@ -160,6 +231,19 @@ function RosterCard({
           }}
         >
           Duplicate
+        </button>
+        <button
+          className="button button--quiet"
+          onClick={async () => {
+            // Phone: share sheet. PC: clipboard. Paste it into "Import" on the other device.
+            const outcome = await shareText(
+              roster.name,
+              exportRosterJson(roster, catalogue?.name ?? 'Unknown faction'),
+            )
+            if (outcome === 'copied') alert('Roster JSON copied. Paste it into "Import" on the other device.')
+          }}
+        >
+          Share
         </button>
         <button
           className="button button--quiet"

@@ -153,6 +153,23 @@
   border-left: 3px solid var(--border);
 }
 
+.unit__passenger {
+  border-left-style: dashed;
+}
+
+.unit__capacity {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.unit__aboard {
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .unit__stats {
   display: flex;
   flex-wrap: wrap;

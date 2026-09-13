@@ -1,5 +1,14 @@
+import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import type { Theme } from '@/app/useTheme'
+import { getSetting } from '@/data/db'
+import {
+  SYNC_LAST_KEY,
+  getSyncConfig,
+  saveSyncConfig,
+  syncAll,
+  type SyncSummary,
+} from '@/sync/client'
 import './Settings.css'
 
 const THEMES: { value: Theme; label: string }[] = [
@@ -7,6 +16,8 @@ const THEMES: { value: Theme; label: string }[] = [
   { value: 'light', label: 'Light' },
   { value: 'system', label: 'System' },
 ]
+
+const WORKER_README = 'https://github.com/palviktortamas/wh40k-helper/tree/main/worker'
 
 export function Settings() {
   const [theme, setTheme] = useOutletContext<[Theme, (next: Theme) => void]>()
@@ -33,13 +44,16 @@ export function Settings() {
         </div>
       </fieldset>
 
+      <SyncSettings />
+
       <h3>About</h3>
       <p>
         Version {__APP_VERSION__} ({__BUILD_COMMIT__})
       </p>
       <p>
         An unofficial, private helper for Warhammer 40,000 11th Edition. It is not published, has
-        no accounts, no backend and no analytics — everything stays on this device.
+        no accounts and no analytics — everything stays on this device, unless you point it at
+        your own sync endpoint above.
       </p>
       <p>
         Game data is provided by the <a href="https://github.com/BSData/wh40k-11e">BSData</a>{' '}
@@ -52,5 +66,100 @@ export function Settings() {
         This app is unofficial and unaffiliated.
       </p>
     </section>
+  )
+}
+
+/**
+ * Sync with the owner's own endpoint (spec §4.4). Manual only: the app talks
+ * to it when the button is tapped and at no other time.
+ */
+function SyncSettings() {
+  const [url, setUrl] = useState('')
+  const [passphrase, setPassphrase] = useState('')
+  const [last, setLast] = useState<SyncSummary | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    void getSyncConfig().then((c) => {
+      setUrl(c.url)
+      setPassphrase(c.passphrase)
+    })
+    void getSetting<SyncSummary | null>(SYNC_LAST_KEY, null).then(setLast)
+  }, [])
+
+  const run = async () => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await saveSyncConfig({ url, passphrase })
+      const summary = await syncAll({ url, passphrase })
+      setLast(summary)
+      setMessage(
+        `Synced: ${summary.pushed} sent, ${summary.pulled} received${
+          summary.removed ? `, ${summary.removed} removed` : ''
+        }.`,
+      )
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <fieldset className="settings__group">
+      <legend>Sync between your devices</legend>
+      <p className="settings__hint">
+        Build lists at the PC, play from the phone. Rosters and games are exchanged with a tiny
+        endpoint you host yourself; nothing runs in the background and no game data is sent.{' '}
+        <a href={WORKER_README} target="_blank" rel="noreferrer">
+          How to set one up
+        </a>
+        . Without an endpoint, use "Share" on a roster and "Import" on the other device.
+      </p>
+      <label className="settings__field">
+        Endpoint URL
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://wh40k-helper-sync.you.workers.dev"
+          autoCapitalize="off"
+          autoCorrect="off"
+        />
+      </label>
+      <label className="settings__field">
+        Passphrase (the same on every device)
+        <input
+          type="password"
+          value={passphrase}
+          onChange={(e) => setPassphrase(e.target.value)}
+          autoComplete="off"
+        />
+      </label>
+      <div className="settings__actions">
+        <button className="button" disabled={busy || !url || !passphrase} onClick={() => void run()}>
+          {busy ? 'Syncing…' : 'Sync now'}
+        </button>
+        <button
+          className="button button--quiet"
+          disabled={busy}
+          onClick={() => void saveSyncConfig({ url, passphrase }).then(() => setMessage('Saved.'))}
+        >
+          Save
+        </button>
+      </div>
+      {message && (
+        <p className="settings__hint" role="status">
+          {message}
+        </p>
+      )}
+      {last && !message && (
+        <p className="settings__hint">
+          Last sync {new Date(last.at).toLocaleString()}: {last.pushed} sent, {last.pulled} received.
+        </p>
+      )}
+    </fieldset>
   )
 }

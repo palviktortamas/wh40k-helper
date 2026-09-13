@@ -67,6 +67,10 @@ export type GameUnit = {
   isWarlord: boolean
   /** For a Leader: the unit id it is attached to. */
   leaderOf?: string
+  /** The transport this unit is currently embarked in, by unit id. */
+  embarkedIn?: string
+  /** Datasheet transport capacity text, shown as a reminder when embarking (not enforced). */
+  transportCapacity?: string
   models: ModelGroup[]
   /** The unit's damaged profile applies at or below this many wounds, when it has one. */
   damagedAt?: number

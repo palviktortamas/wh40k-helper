@@ -36,7 +36,8 @@ See [docs/spec.md](docs/spec.md) for the full specification and the phase plan, 
 | — | PWA scaffold + Pages deploy | done |
 | 1 | Data layer + datasheet browser | done |
 | 2 | List Builder + validation | done |
-| 3 | Play Mode core | built; awaiting a session on a phone |
+| 3 | Play Mode core | built (incl. embarking); walked through in headless Chrome |
+| — | PC ↔ phone transfer and sync | share/import built; sync client built, Worker in `worker/` awaits deployment |
 | 4 | Missions (CA 2026-27) | not started |
 | 5 | Reminders | not started |
 | 6 | Polish / second faction | not started |

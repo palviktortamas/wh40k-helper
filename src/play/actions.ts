@@ -33,6 +33,8 @@ export type GameAction =
   | { type: 'toggleStatus'; unitId: string; status: UnitStatus }
   | { type: 'toggleOnce'; unitId: string; abilityId: string; label: string }
   | { type: 'setNote'; unitId: string; note: string }
+  | { type: 'embark'; unitId: string; transportId: string }
+  | { type: 'disembark'; unitId: string }
   | { type: 'undo' }
   | { type: 'endGame' }
 
@@ -153,10 +155,50 @@ function retreat(game: Game): Game {
   return withLog(next, 'Back to the previous turn')
 }
 
+const setEmbarked = (unit: Game['units'][number], transportId: string | undefined) => {
+  const { embarkedIn: _old, ...rest } = unit
+  void _old
+  const statuses = rest.statuses.filter((s) => s !== 'embarked')
+  return transportId
+    ? { ...rest, embarkedIn: transportId, statuses: [...statuses, 'embarked' as const] }
+    : { ...rest, statuses }
+}
+
+/** A destroyed transport spills its passengers (emergency disembarkation). */
+function evacuate(game: Game): Game {
+  let next = game
+  for (const unit of game.units) {
+    if (!unit.embarkedIn) continue
+    const transport = game.units.find((t) => t.id === unit.embarkedIn)
+    if (transport && !transport.destroyed) continue
+    next = withLog(
+      updateUnit(next, unit.id, (u) => setEmbarked(u, undefined)),
+      `${unit.name} disembarks — ${transport?.name ?? 'its transport'} was destroyed`,
+    )
+  }
+  return next
+}
+
 export function apply(game: Game, action: GameAction): Game {
   if (game.status === 'finished' && action.type !== 'undo') return game
+  const next = applyAction(game, action)
+  return next === game ? game : evacuate(next)
+}
 
+function applyAction(game: Game, action: GameAction): Game {
   switch (action.type) {
+    case 'embark': {
+      if (action.unitId === action.transportId) return game
+      const g = remember(game)
+      const next = updateUnit(g, action.unitId, (u) => setEmbarked(u, action.transportId))
+      return withLog(next, `${unitName(g, action.unitId)} embarks in ${unitName(g, action.transportId)}`)
+    }
+    case 'disembark': {
+      if (!game.units.find((u) => u.id === action.unitId)?.embarkedIn) return game
+      const g = remember(game)
+      const next = updateUnit(g, action.unitId, (u) => setEmbarked(u, undefined))
+      return withLog(next, `${unitName(g, action.unitId)} disembarks`)
+    }
     case 'nextPhase':
       return advance(remember(game))
     case 'prevPhase':

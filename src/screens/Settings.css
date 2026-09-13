@@ -48,3 +48,59 @@
   color: var(--text-muted);
   font-size: 0.8125rem;
 }
+
+/* --- sync --- */
+
+.settings__hint {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.settings__field input {
+  min-height: 44px;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}
+
+.settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 0.875rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.settings .button[disabled] {
+  opacity: 0.45;
+}
+
+.settings .button--quiet {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  color: var(--text);
+  font-weight: 400;
+}

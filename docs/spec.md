@@ -1,6 +1,8 @@
 # Warhammer 40,000 (11th Edition) Play Helper — Specification
 
-Version 0.5 — 2026-09-13 (Phase 0 source verification added as Appendix A)
+Version 0.6 — 2026-09-13 (v0.5: Phase 0 source verification added as Appendix A; v0.6: §9 example
+corrected to the current data, transports decided for v1, §4.4 cross-device transfer and sync added,
+desktop usability added to §3)
 Audience: Claude Code (implementer). Owner: a single private user; app is never published.
 
 ---
@@ -17,14 +19,14 @@ Scope for v1: **Orks only**, but nothing may be Ork-specific in the code — dat
 ## 2. Users, constraints, non-goals
 
 - One user (the owner), occasionally 1–2 friends using the owner's phone or their own copy of the app.
-- **No accounts, no backend, no sync.** All data lives on the device. No analytics, no telemetry.
+- **No accounts, no third-party backend, no analytics, no telemetry.** All data lives on the device and works offline. The one exception is the owner's own optional sync endpoint (§4.4), which the owner hosts and which stores nothing but the owner's rosters and games.
 - Not published to any store. Not distributed publicly. Contains GW rules text only insofar as the community datafiles and the user's own entries contain it — this is fine for private use; do not add any sharing/publishing feature.
 - Non-goals for v1: multiplayer sync, opponent's army tracking, dice roller, Crusade, Combat Patrol, Boarding Actions, Kill Team, painting/collection tracking.
 
 ## 3. Platform & tech
 
 - **Progressive Web App (PWA)**, installable to the home screen on iOS Safari and Android Chrome. Must work fully **offline** after first load (service worker, precached app shell and datafiles).
-- Mobile-first UI (portrait, ~360–430 px wide). Large touch targets, dark theme by default (games are often played in dim clubs), light theme optional. Landscape/tablet layout is nice-to-have, not required.
+- Mobile-first UI (portrait, ~360–430 px wide). Large touch targets, dark theme by default (games are often played in dim clubs), light theme optional. **The same build must also be usable and pleasant in a desktop browser** — lists are typically built at a PC and played from the phone: content centred in a readable max width (~760 px), the tab bar still reachable, no stretched full-width controls, keyboard-navigable forms. Landscape/tablet layout follows from that.
 - Persistence: IndexedDB (via a thin wrapper such as Dexie) for rosters, games, imported datafiles and settings. Provide a full **Export / Import backup** as a single JSON file (share sheet / file picker) so data survives a phone change. Never use `localStorage` for primary data.
 - Stack: Claude Code chooses, with the constraint that it is a single static bundle deployable to **GitHub Pages** (decided). Suggested: TypeScript + React (or Svelte/Vue) + Vite + `vite-plugin-pwa`. No SSR, no server code. Deploy via a GitHub Actions workflow on push to `main`; the data-update logic must work from the Pages origin (fetch GitHub raw + Wahapedia + mfm mirror over HTTPS; if any source blocks cross-origin requests, fall back to the file-import flow described in §4.2 — never snapshot GW data into the public repo).
   - Testing loop: pushing to `main` redeploys in about a minute; the installed PWA picks up the new version on next open (show a "new version available — reload" toast). Also provide `npm run dev -- --host` so the owner can open the dev build from the phone over local Wi-Fi, and print a QR code of the Pages URL in the README.
@@ -78,6 +80,13 @@ Claude Code must inspect the current BSData repo structure and schema (BattleScr
 - **Weapon profile**: name, range, A, BS/WS, S, AP, D, keywords (Sustained Hits, Lethal Hits, Torrent, Blast, Devastating Wounds, Anti-X, Hazardous, Pistol, Heavy, Assault, Melta, Twin-linked, Precision, Ignores Cover, Lance, Extra Attacks, Indirect Fire, One Shot …); support multiple profiles per weapon (e.g. strike/sweep).
 - **Ability / Rule**: id, name, full text, type (Core / Faction / Detachment / Datasheet / Wargear / Enhancement / Stratagem), and **reminder metadata** (see §6.4).
 - **Constraints** (from BSData): the raw constraint/modifier/condition graph, kept faithfully so the validator can evaluate it.
+
+### 4.4 Cross-device transfer and sync (added v0.6)
+
+The owner builds lists at a PC and plays from the phone, so a roster must move between devices without a phone change or a cable. Two mechanisms, both offline-first:
+
+1. **Transfer by text/file (no infrastructure).** Any roster can be exported as a single JSON document (versioned envelope: app id, kind, schema version, the roster, the catalogue it belongs to) via copy-to-clipboard, the share sheet, or a file; the Rosters screen imports one by paste or file picker. Importing assigns a fresh id, keeps the catalogue id, and re-validates against the data installed on the receiving device (the data itself is downloaded per device, never transferred). The full backup of §3 uses the same envelope with `kind: 'backup'`.
+2. **Sync through an owner-hosted endpoint.** A tiny Cloudflare Worker with a KV namespace (free tier), deployed by the owner from source kept in this repo (`worker/`), with a single long random passphrase set on both devices in Settings → Sync. The app talks to it only when the user taps *Upload* / *Download* (or, once trusted, on opening the Rosters screen), never in the background. Storage is a per-record document keyed by roster/game id with `updatedAt`; merge is last-writer-wins by `updatedAt`, deletions are tombstones, and nothing is ever overwritten on the device without the newer copy having a later timestamp. The endpoint holds only rosters and games — no game data, no personal data beyond what the owner typed. The same Worker later carries the Wahapedia proxy (§4.2) so there is exactly one piece of owner infrastructure. Without a configured endpoint the Sync section explains how to deploy one and the app is unchanged otherwise.
 
 ## 5. List Builder
 
@@ -168,7 +177,7 @@ Each phase must end with the app runnable on the owner's phone (deployed to the 
 
 ## 9. Acceptance criteria (samples)
 
-- Can build a legal 2000-pt Ork list including a 20-Boyz unit with the exact loadout `17× slugga+choppa, 2× rokkit launcha, Boss Nob w/ power klaw`, a Warboss attached as Leader, one enhancement, warlord set; app shows green.
+- Can build a legal 2000-pt Ork list including a 20-Boyz unit with the exact loadout the current datasheet allows — `16× Boy (slugga+choppa), 2× Boy w/ rokkit launcha, 2× Nob (one with kustom choppa + kombi-skorcha)`; the first option group is capped at 18 and the Nobz sit in their own 1–2 group, so the old "17 + 2 + 1 Boss Nob w/ power klaw" build is not legal in the current data — a Warboss attached as Leader, one enhancement, warlord set; app shows green at 180 pts for the unit (verified against catalogue revision 3 on 2026-09-13).
 - Adding a 3rd rokkit to that Boyz unit, a 2nd warlord, a 4th copy of a datasheet, or exceeding 2000 pts each produce a specific error naming the rule.
 - After "Update data" changes a unit's points, the roster's total and badge update and the diff screen lists the change.
 - If BSData and the MFM mirror disagree on a unit's points, the Data Health screen shows both values, the unit shows a warning icon, and choosing an override changes the roster total immediately.
@@ -181,7 +190,7 @@ Each phase must end with the app runnable on the owner's phone (deployed to the 
 1. **Missions**: bundled from Wahapedia's published deck (§6.1); the owner only proofreads. If a future deck (2027-28) appears, the same JSON schema is refilled.
 2. **Opponent tracking**: only the opponent's VP/CP numbers, not their army (assumed).
 3. **Hosting**: GitHub Pages (decided). Owner creates the public repo and enables Pages; Claude Code adds the deploy workflow.
-4. **Transports/embarking** in Play Mode: v1 or later? (Assumed v1 nice-to-have, can slip to Phase 6.)
+4. **Transports/embarking** in Play Mode: **decided v1 (2026-09-13).** Units embark in and disembark from a transport during play; embarked units are shown under their transport; capacity is shown from the datasheet as a reminder, not enforced (the capacity text mixes model counts and keywords).
 5. **Language**: UI in English (assumed); data is English from BSData.
 6. Which two factions come next (only to pick a test catalogue for Phase 6)?
 

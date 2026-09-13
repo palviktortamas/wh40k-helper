@@ -9,6 +9,7 @@ import type { Roster } from '@/roster/types'
 import type { Validation } from '@/roster/store'
 import { buildGameUnits } from './snapshot'
 import type { Game, Side } from './types'
+import { recordDeletion } from '@/sync/client'
 
 export type StartOptions = {
   opponentName: string
@@ -70,4 +71,7 @@ export async function saveGame(game: Game): Promise<Game> {
   return saved
 }
 
-export const deleteGame = (id: string): Promise<void> => db.games.delete(id)
+export async function deleteGame(id: string): Promise<void> {
+  await db.games.delete(id)
+  await recordDeletion('games', id)
+}

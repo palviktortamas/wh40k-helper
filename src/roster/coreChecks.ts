@@ -36,11 +36,12 @@ export function coreChecks(
 
   if (roster.selections.length > 0) {
     if (!evaluation.warlordSelectionId) {
-      issues.push({
+      if (!evaluation.warlordChecked)
+        issues.push({
         severity: 'error',
-        message: 'No Warlord nominated. Exactly one Character must be your Warlord.',
-        rule: 'Core Rules — Muster Armies: Warlord',
-      })
+          message: 'No Warlord nominated. Exactly one Character must be your Warlord.',
+          rule: 'Core Rules — Muster Armies: Warlord',
+        })
     } else if (!evaluation.characterSelectionIds.includes(evaluation.warlordSelectionId)) {
       issues.push({
         severity: 'error',

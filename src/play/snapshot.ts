@@ -133,6 +133,7 @@ export function buildGameUnits(
         : {}),
       models: modelGroups(unit, sheet),
       ...(damaged !== undefined ? { damagedAt: Number(damaged) } : {}),
+      ...(sheet?.transportCapacity ? { transportCapacity: sheet.transportCapacity } : {}),
       statuses: [],
       destroyed: false,
       usedOnce: [],

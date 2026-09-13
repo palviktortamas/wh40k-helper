@@ -159,6 +159,23 @@ describe('game actions', () => {
     expect(isBattleOver(g)).toBe(true)
   })
 
+  it('embarks a unit, shows it as embarked, and spills it when the transport dies', () => {
+    let g = apply(game(), { type: 'embark', unitId: 'a', transportId: 'b' })
+    expect(g.units[0]!.embarkedIn).toBe('b')
+    expect(g.units[0]!.statuses).toEqual(['embarked'])
+    // A unit cannot embark in itself.
+    expect(apply(g, { type: 'embark', unitId: 'a', transportId: 'a' })).toBe(g)
+    g = apply(g, { type: 'destroy', unitId: 'b' })
+    expect(g.units[0]!.embarkedIn).toBeUndefined()
+    expect(g.units[0]!.statuses).toEqual([])
+    expect(g.log.at(-1)!.text).toContain('disembarks')
+    // Undo restores the embarkation along with the transport.
+    g = apply(g, { type: 'undo' })
+    expect(g.units[0]!.embarkedIn).toBe('b')
+    g = apply(g, { type: 'disembark', unitId: 'a' })
+    expect(g.units[0]!.embarkedIn).toBeUndefined()
+  })
+
   it('locks a once-per-battle ability and can unlock it', () => {
     let g = apply(game(), { type: 'toggleOnce', unitId: 'a', abilityId: 'ab1', label: 'Shout' })
     expect(g.units[0]!.usedOnce).toEqual(['ab1'])
