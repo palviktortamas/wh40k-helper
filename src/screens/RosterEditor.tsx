@@ -25,7 +25,7 @@ import {
 import { exportRosterText } from '@/roster/export'
 import { POINTS_PRESETS, walkSelections, type Roster, type Selection } from '@/roster/types'
 import type { CatalogueGraph, ResolvedEntry } from '@/roster/resolve'
-import { ROLE_ORDER, roleHeading, roleKey, roleOf, type RoleKey } from '@/roster/roles'
+import { groupByRole, roleKey, roleOf } from '@/roster/roles'
 import { WARLORD_CATEGORY } from '@/roster/vocabulary'
 import { COST_TYPE } from '@/data/bsdata/schema'
 import { OptionTree, UnitEditor } from './UnitEditor'
@@ -51,7 +51,7 @@ export function RosterEditor() {
   const [editing, setEditing] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [view, setView] = useState<UnitsView>('role')
-  const [collapsed, setCollapsed] = useState<Set<RoleKey>>(new Set())
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!rosterId) return
@@ -188,24 +188,25 @@ export function RosterEditor() {
     />
   )
 
-  // By role: attached leaders ride inside the unit they lead, as at the table.
-  const grouped = new Map<RoleKey, { units: Selection[]; points: number; roleName?: string }>()
-  if (view !== 'order') {
-    for (const unit of roster.selections) {
-      if (unit.attachedTo && unitById.has(unit.attachedTo)) continue
-      const roleName = roleOf(graph, unit.entryId)
-      const key = roleKey(roleName)
-      const group = grouped.get(key) ?? { units: [], points: 0 }
-      group.units.push(unit)
-      group.points +=
+  // By role: attached leaders ride inside the unit they lead, as at the table,
+  // and count towards that group's points.
+  const groups =
+    view === 'order'
+      ? []
+      : groupByRole(
+          roster.selections.filter((u) => !(u.attachedTo && unitById.has(u.attachedTo))),
+          (u) => roleOf(graph, u.entryId),
+        )
+  const groupPoints = (units: Selection[]) =>
+    units.reduce(
+      (sum, unit) =>
+        sum +
         (validation.unitPoints[unit.id] ?? 0) +
         roster.selections
           .filter((l) => l.attachedTo === unit.id)
-          .reduce((sum, l) => sum + (validation.unitPoints[l.id] ?? 0), 0)
-      if (roleName && !group.roleName) group.roleName = roleName
-      grouped.set(key, group)
-    }
-  }
+          .reduce((s, l) => s + (validation.unitPoints[l.id] ?? 0), 0),
+      0,
+    )
 
   return (
     <section className="rosters editor">
@@ -247,12 +248,12 @@ export function RosterEditor() {
             ? ` · ${detachment.forceDispositions.join(' / ')}`
             : ''}
         </p>
-        {view !== 'order' && grouped.size > 1 && (
+        {groups.length > 1 && (
           <nav className="summary__jump" aria-label="Jump to a unit group">
-            {ROLE_ORDER.filter((key) => grouped.has(key)).map((key) => (
-              <a key={key} href={`#group-${key}`} className={`summary__jumpLink role--${key}`}>
-                <span className="role-tag">{roleHeading(key, grouped.get(key)!.roleName)}</span>
-                <span className="muted">{grouped.get(key)!.units.length}</span>
+            {groups.map((g) => (
+              <a key={g.id} href={`#${g.id}`} className={`summary__jumpLink role--${g.key}`}>
+                <span className="role-tag">{g.heading}</span>
+                <span className="muted">{g.items.length}</span>
               </a>
             ))}
           </nav>
@@ -435,11 +436,10 @@ export function RosterEditor() {
       ) : view === 'order' ? (
         <ul className="units">{roster.selections.map((unit, index) => cardFor(unit, index))}</ul>
       ) : (
-        ROLE_ORDER.filter((key) => grouped.has(key)).map((key) => {
-          const group = grouped.get(key)!
-          const open = !collapsed.has(key)
+        groups.map((group) => {
+          const open = !collapsed.has(group.id)
           return (
-            <section key={key} id={`group-${key}`} className={`unitgroup role--${key}`}>
+            <section key={group.id} id={group.id} className={`unitgroup role--${group.key}`}>
               {/* The heading folds the group: a 2000-point army is read one role at a time. */}
               <button
                 className="unitgroup__head unitgroup__head--button"
@@ -447,8 +447,8 @@ export function RosterEditor() {
                 onClick={() =>
                   setCollapsed((c) => {
                     const next = new Set(c)
-                    if (next.has(key)) next.delete(key)
-                    else next.add(key)
+                    if (next.has(group.id)) next.delete(group.id)
+                    else next.add(group.id)
                     return next
                   })
                 }
@@ -457,15 +457,15 @@ export function RosterEditor() {
                   <span className="unitgroup__chevron" aria-hidden="true">
                     {open ? '▾' : '▸'}
                   </span>{' '}
-                  {roleHeading(key, group.roleName)}
+                  {group.heading}
                 </h3>
                 <span className="unitgroup__sum">
-                  {group.units.length} · {group.points} pts
+                  {group.items.length} · {groupPoints(group.items)} pts
                 </span>
               </button>
               {open && (
                 <ul className={`units ${view === 'compact' ? 'units--compact' : ''}`}>
-                  {group.units.map((unit) => cardFor(unit, roster.selections.indexOf(unit)))}
+                  {group.items.map((unit) => cardFor(unit, roster.selections.indexOf(unit)))}
                 </ul>
               )}
             </section>
@@ -722,7 +722,8 @@ function UnitPicker({
   catalogueName: string
 }) {
   const [query, setQuery] = useState('')
-  const [role, setRole] = useState<RoleKey | 'all'>('all')
+  /** A group id from `groupByRole`, or 'all'. */
+  const [role, setRole] = useState<string>('all')
   const [open, setOpen] = useState<string | null>(null)
 
   const entries = useMemo(
@@ -732,24 +733,22 @@ function UnitPicker({
         .filter((e): e is ResolvedEntry => Boolean(e))
         // The data's own gates: Legends units only once "Show Legends" is on, and so on.
         .filter((e) => validation.isEntryAvailable(undefined, e))
-        .map((entry) => {
-          const roleName = roleOf(graph, entry.id)
-          return { entry, sheet: sheets.get(entry.id), roleName, key: roleKey(roleName) }
-        })
+        .map((entry) => ({ entry, sheet: sheets.get(entry.id), roleName: roleOf(graph, entry.id) }))
         .sort((a, b) => a.entry.name.localeCompare(b.entry.name)),
     [graph, validation, sheets],
   )
 
   const needle = query.trim().toLowerCase()
-  const shown = entries.filter(({ entry, sheet, key }) => {
-    if (role !== 'all' && key !== role) return false
-    if (!needle) return true
-    return (
-      entry.name.toLowerCase().includes(needle) ||
-      (sheet?.keywords ?? []).some((k) => k.toLowerCase().includes(needle))
-    )
-  })
-  const present = ROLE_ORDER.filter((key) => entries.some((e) => e.key === key))
+  const allGroups = groupByRole(entries, (e) => e.roleName)
+  const shown = groupByRole(
+    entries.filter(
+      ({ entry, sheet }) =>
+        !needle ||
+        entry.name.toLowerCase().includes(needle) ||
+        (sheet?.keywords ?? []).some((k) => k.toLowerCase().includes(needle)),
+    ),
+    (e) => e.roleName,
+  ).filter((g) => role === 'all' || g.id === role)
 
   return (
     <section className="rosters picker">
@@ -770,32 +769,31 @@ function UnitPicker({
         <button className={`sheets__role${role === 'all' ? ' sheets__role--on' : ''}`} aria-pressed={role === 'all'} onClick={() => setRole('all')}>
           All
         </button>
-        {present.map((key) => (
+        {allGroups.map((g) => (
           <button
-            key={key}
-            className={`sheets__role role--${key}${role === key ? ' sheets__role--on' : ''}`}
-            aria-pressed={role === key}
-            onClick={() => setRole(key)}
+            key={g.id}
+            className={`sheets__role role--${g.key}${role === g.id ? ' sheets__role--on' : ''}`}
+            aria-pressed={role === g.id}
+            onClick={() => setRole(role === g.id ? 'all' : g.id)}
           >
-            <span className="role-tag">{roleHeading(key, entries.find((e) => e.key === key)?.roleName)}</span>
+            <span className="role-tag">{g.heading}</span>
           </button>
         ))}
       </div>
 
-      {ROLE_ORDER.filter((key) => shown.some((e) => e.key === key)).map((key) => {
-        const group = shown.filter((e) => e.key === key)
+      {shown.map((group) => {
         return (
-          <section key={key} className={`unitgroup role--${key}`}>
+          <section key={group.id} className={`unitgroup role--${group.key}`}>
             <div className="unitgroup__head">
-              <h3>{roleHeading(key, group[0]?.roleName)}</h3>
-              <span className="unitgroup__sum">{group.length}</span>
+              <h3>{group.heading}</h3>
+              <span className="unitgroup__sum">{group.items.length}</span>
             </div>
             <ul className="picker__list">
-              {group.map(({ entry, sheet }) => {
+              {group.items.map(({ entry, sheet }) => {
                 const id = entry.linkId ?? entry.id
                 const expanded = open === id
                 return (
-                  <li key={id} className={`picker__item role-stripe role--${key}`}>
+                  <li key={id} className={`picker__item role-stripe role--${group.key}`}>
                     <div className="picker__row">
                       <button className="picker__main tap" onClick={() => onPick(entry)}>
                         <span className="picker__name">

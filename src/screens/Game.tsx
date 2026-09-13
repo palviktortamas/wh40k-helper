@@ -131,7 +131,7 @@ export function Game() {
     <>
       <UnitCard unit={unit} sheet={sheets.get(unit.entryId)} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(unit.id)} leader={leader} />
       {(leadersOf.get(unit.id) ?? []).map((l) => (
-        <div key={l.id} className={`unit__leader role-stripe role--character ${l.destroyed ? 'unit--dead' : ''}`}>
+        <div key={l.id} className={`unit__leader role-stripe role--${roleKey(sheets.get(l.entryId)?.role)} ${l.destroyed ? 'unit--dead' : ''}`}>
           <UnitCard unit={l} sheet={sheets.get(l.entryId)} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(l.id)} leader />
         </div>
       ))}

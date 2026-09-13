@@ -361,6 +361,14 @@ faction survives re-runs, and it imports the stratagem CSV through the file inpu
   and the sticky summary carries a **jump bar** (one chip per group, anchors `#group-<role>`
   with `scroll-margin-top` clearing the summary). Group headings use fixed words for the known
   roles and the data's own name for the rest — never pluralised ("Infantry").
+- **Every primary category is a group** (owner, 2026-09-14: "epic hero, monster and mounted
+  groups should be also"). The test faction's roots use nine primaries — Epic Hero, Character,
+  Battleline, Infantry, Mounted, Monster, Vehicle, Dedicated Transport, Fortification — and the
+  game system also defines Beast, Swarm and Aircraft. `roles.ts` knows all twelve (order,
+  heading, colour token `--role-<key>`); `groupByRole()` is the one grouping used by the roster,
+  the picker and the datasheet browser, and an unknown primary still gets its own group under
+  the data's own name. Roles are not keywords: a Character that is also Infantry sits under
+  Characters because that is its primary category in the data.
 - **Caps in the editor.** The evaluator now reports **headroom**: per selection, the smallest
   `max − actual` over its own `selections` caps, and — for caps scoped beyond the parent
   (`unit`, `force`, entry-id) — tightened onto every ancestor up to the scope (one more "Boy w/

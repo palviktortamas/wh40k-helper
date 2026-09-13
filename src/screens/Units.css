@@ -85,20 +85,44 @@
   border-left-style: solid;
 }
 
+.role--epic-hero {
+  --role: var(--role-epic-hero);
+}
 .role--character {
   --role: var(--role-character);
 }
 .role--battleline {
   --role: var(--role-battleline);
 }
+.role--infantry {
+  --role: var(--role-infantry);
+}
+.role--mounted {
+  --role: var(--role-mounted);
+}
+.role--beast {
+  --role: var(--role-beast);
+}
+.role--swarm {
+  --role: var(--role-swarm);
+}
+.role--monster {
+  --role: var(--role-monster);
+}
+.role--vehicle {
+  --role: var(--role-vehicle);
+}
 .role--transport {
   --role: var(--role-transport);
 }
-.role--other {
-  --role: var(--role-other);
+.role--aircraft {
+  --role: var(--role-aircraft);
 }
 .role--fortification {
   --role: var(--role-fortification);
+}
+.role--other {
+  --role: var(--role-other);
 }
 
 .role-stripe {

@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
 import type { Datasheet } from '@/data/model'
-import { ROLE_ORDER, roleHeading, roleKey, type RoleKey } from '@/roster/roles'
+import { groupByRole } from '@/roster/roles'
 import { StatStrip } from './StatStrip'
 import './Datasheets.css'
 import './Units.css'
@@ -21,31 +21,33 @@ export function Datasheets() {
   const { catalogueId } = useParams<{ catalogueId: string }>()
   const [record, setRecord] = useState<CatalogueRecord | null>(null)
   const [query, setQuery] = useState('')
-  const [role, setRole] = useState<RoleKey | 'all'>('all')
+  /** A group id from `groupByRole`, or 'all'. */
+  const [role, setRole] = useState<string>('all')
 
   useEffect(() => {
     if (!catalogueId) return
     void getCatalogue(catalogueId).then((r) => setRecord(r ?? null))
   }, [catalogueId])
 
+  const all = record?.parsed.datasheets ?? []
+  const allGroups = useMemo(() => groupByRole(all, (d) => d.role), [all])
+
   const shown = useMemo(() => {
-    if (!record) return []
     const needle = query.trim().toLowerCase()
-    return record.parsed.datasheets.filter((sheet) => {
-      if (role !== 'all' && roleKey(sheet.role) !== role) return false
-      if (!needle) return true
-      return (
-        sheet.name.toLowerCase().includes(needle) ||
-        sheet.keywords.some((k) => k.toLowerCase().includes(needle))
-      )
-    })
-  }, [record, query, role])
+    return groupByRole(
+      all.filter(
+        (sheet) =>
+          !needle ||
+          sheet.name.toLowerCase().includes(needle) ||
+          sheet.keywords.some((k) => k.toLowerCase().includes(needle)),
+      ),
+      (d) => d.role,
+    ).filter((g) => role === 'all' || g.id === role)
+  }, [all, query, role])
 
   if (!record) return <p>Loading…</p>
 
-  const all = record.parsed.datasheets
-  const present = ROLE_ORDER.filter((key) => all.some((d) => roleKey(d.role) === key))
-  const roleName = (key: RoleKey) => all.find((d) => roleKey(d.role) === key)?.role
+  const shownCount = shown.reduce((sum, g) => sum + g.items.length, 0)
 
   return (
     <section className="sheets">
@@ -68,60 +70,57 @@ export function Datasheets() {
         >
           All
         </button>
-        {present.map((key) => (
+        {allGroups.map((g) => (
           <button
-            key={key}
-            className={`sheets__role role--${key}${role === key ? ' sheets__role--on' : ''}`}
-            aria-pressed={role === key}
-            onClick={() => setRole(key)}
+            key={g.id}
+            className={`sheets__role role--${g.key}${role === g.id ? ' sheets__role--on' : ''}`}
+            aria-pressed={role === g.id}
+            onClick={() => setRole(role === g.id ? 'all' : g.id)}
           >
-            <span className="role-tag">{roleHeading(key, roleName(key))}</span>
+            <span className="role-tag">{g.heading}</span>
           </button>
         ))}
       </div>
 
       <p className="sheets__count">
-        {shown.length} of {all.length} datasheets
+        {shownCount} of {all.length} datasheets
       </p>
 
-      {ROLE_ORDER.filter((key) => shown.some((d) => roleKey(d.role) === key)).map((key) => {
-        const group = shown.filter((d) => roleKey(d.role) === key)
-        return (
-          <section key={key} className={`unitgroup role--${key}`}>
-            <div className="unitgroup__head">
-              <h3>{roleHeading(key, roleName(key))}</h3>
-              <span className="unitgroup__sum">{group.length}</span>
-            </div>
-            <ul className="sheets__list">
-              {group.map((sheet) => {
-                const points = startingPoints(sheet)
-                return (
-                  <li key={sheet.id}>
-                    <Link
-                      className={`sheets__item tap role-stripe role--${key}`}
-                      to={`/datasheets/${encodeURIComponent(record.id)}/${encodeURIComponent(sheet.id)}`}
-                    >
-                      <span className="sheets__main">
-                        <span className="sheets__name">
-                          {sheet.name}
-                          {sheet.variant && <span className="sheets__variant">{sheet.variant}</span>}
-                          {sheet.library && (
-                            <span className="sheets__variant" title={`From ${sheet.library}`}>
-                              linked
-                            </span>
-                          )}
-                        </span>
-                        <StatStrip stats={sheet.stats} firstOnly />
+      {shown.map((group) => (
+        <section key={group.id} className={`unitgroup role--${group.key}`}>
+          <div className="unitgroup__head">
+            <h3>{group.heading}</h3>
+            <span className="unitgroup__sum">{group.items.length}</span>
+          </div>
+          <ul className="sheets__list">
+            {group.items.map((sheet) => {
+              const points = startingPoints(sheet)
+              return (
+                <li key={sheet.id}>
+                  <Link
+                    className={`sheets__item tap role-stripe role--${group.key}`}
+                    to={`/datasheets/${encodeURIComponent(record.id)}/${encodeURIComponent(sheet.id)}`}
+                  >
+                    <span className="sheets__main">
+                      <span className="sheets__name">
+                        {sheet.name}
+                        {sheet.variant && <span className="sheets__variant">{sheet.variant}</span>}
+                        {sheet.library && (
+                          <span className="sheets__variant" title={`From ${sheet.library}`}>
+                            linked
+                          </span>
+                        )}
                       </span>
-                      <span className="sheets__points">{points === undefined ? '—' : `${points} pts`}</span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-        )
-      })}
+                      <StatStrip stats={sheet.stats} firstOnly />
+                    </span>
+                    <span className="sheets__points">{points === undefined ? '—' : `${points} pts`}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ))}
     </section>
   )
 }
