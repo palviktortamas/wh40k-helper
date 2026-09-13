@@ -1,0 +1,178 @@
+.sheets__search {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.sheets__roles {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.sheets__role {
+  min-height: 40px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+/* Selected filters change weight and border as well as colour. */
+.sheets__role--on {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sheets__count {
+  margin: 0.5rem 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.sheets__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sheets__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.sheets__name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sheets__variant {
+  padding: 0.0625rem 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.sheets__points {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* --- detail --- */
+
+.sheet__back {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sheet h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.sheet__meta {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--text-muted);
+}
+
+.sheet__statName {
+  margin: 0.75rem 0 0.25rem;
+  font-weight: 600;
+}
+
+/* Tables may exceed the viewport; they scroll inside their own box so the page
+   never scrolls sideways. */
+.sheet__scroll {
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+
+.sheet__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.sheet__table th,
+.sheet__table td {
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sheet__table thead th {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.sheet__table--stats td,
+.sheet__table--stats th {
+  text-align: center;
+}
+
+.sheet__keywords {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  white-space: normal;
+}
+
+.sheet__pricing,
+.sheet__plain {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.sheet__pricing {
+  list-style: none;
+  padding-left: 0;
+}
+
+.sheet__pricing li {
+  padding: 0.375rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sheet__band {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.sheet__cost {
+  margin-right: 0.75rem;
+}
+
+.sheet__abilities dt {
+  font-weight: 600;
+  margin-top: 0.625rem;
+}
+
+.sheet__abilities dd {
+  margin: 0.125rem 0 0;
+  color: var(--text-muted);
+}

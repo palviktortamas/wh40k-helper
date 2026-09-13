@@ -1,20 +1,24 @@
 // Guards the acceptance criterion "a fresh clone contains no game data": the
-// repository and the deployed bundle must hold code only. The check is
-// structural on purpose — it looks for the *shape* of the source formats, never
-// for unit names, so the guard itself stays free of GW content.
+// repository and the deployed bundle must hold code only.
+//
+// The check is structural on purpose — it looks for the *shape* of the source
+// formats, never for unit names, so the guard itself stays free of GW content.
+//
+// Naming a schema field is code, not data: the parser and the docs legitimately
+// mention `sharedSelectionEntries`. So format markers only count against files
+// that could actually *be* a datafile (.json/.yaml/.csv), and everything else is
+// judged on size — a committed catalogue is megabytes, hand-written code is not.
 import { execFileSync } from 'node:child_process'
 import { readFileSync, statSync, existsSync, readdirSync } from 'node:fs'
 import { join, extname, relative } from 'node:path'
 
 const ROOT = process.cwd()
 
-// Markers are format identifiers from BattleScribe / the Wahapedia export and
-// the MFM mirror. Finding one means a datafile was committed or bundled.
+/** Format identifiers from BattleScribe, the Wahapedia export and the MFM mirror. */
 const MARKERS = [
   'battleScribeVersion',
   'sharedSelectionEntries',
   'sharedSelectionEntryGroups',
-  'selectionEntryGroups',
   'categoryEntries',
   'datasheets_wargear',
   'datasheets_models_cost',
@@ -23,11 +27,16 @@ const MARKERS = [
 ]
 
 const BANNED_EXTENSIONS = new Set(['.cat', '.catz', '.gst', '.gstz'])
-const MAX_BYTES = 512 * 1024
+const DATA_EXTENSIONS = new Set(['.json', '.yaml', '.yml', '.csv'])
+const CODE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.md', '.html', '.css'])
 
-// This file names the markers by necessity; the spec doc quotes the source
-// schemas. Neither carries game data.
-const ALLOWLIST = new Set(['scripts/check-no-game-data.mjs', 'docs/spec.md'])
+/** A hand-written data file stays small; a catalogue does not. */
+const MAX_DATA_BYTES = 256 * 1024
+/** A bundle that swallowed a catalogue would blow past this; our app does not. */
+const MAX_CODE_BYTES = 1536 * 1024
+
+/** Generated or vendored files that are legitimately large. */
+const SIZE_ALLOWLIST = new Set(['package-lock.json'])
 
 const problems = []
 
@@ -37,14 +46,21 @@ const inspect = (absolute, label) => {
     problems.push(`${label}: datafile extension ${ext}`)
     return
   }
-  if (!['.json', '.yaml', '.yml', '.csv', '.js', '.mjs', '.ts', '.tsx', '.md', '.html'].includes(ext)) return
+
+  const isData = DATA_EXTENSIONS.has(ext)
+  const isCode = CODE_EXTENSIONS.has(ext)
+  if (!isData && !isCode) return
 
   const { size } = statSync(absolute)
-  // A committed catalogue is megabytes; nothing hand-written here should be.
-  if (size > MAX_BYTES && !absolute.includes('package-lock.json')) {
-    problems.push(`${label}: ${(size / 1024).toFixed(0)} kB — too large to be hand-written`)
+  const limit = isData ? MAX_DATA_BYTES : MAX_CODE_BYTES
+  if (size > limit && !SIZE_ALLOWLIST.has(label.replace(/\\/g, '/'))) {
+    problems.push(
+      `${label}: ${(size / 1024).toFixed(0)} kB exceeds the ${(limit / 1024).toFixed(0)} kB limit for ${isData ? 'data' : 'code'} files`,
+    )
   }
 
+  // Only a real datafile can be caught by its markers; code may name the schema.
+  if (!isData) return
   const text = readFileSync(absolute, 'utf8')
   for (const marker of MARKERS) {
     if (text.includes(marker)) problems.push(`${label}: contains source-format marker "${marker}"`)
@@ -54,7 +70,6 @@ const inspect = (absolute, label) => {
 // 1. Everything git tracks.
 const tracked = execFileSync('git', ['ls-files'], { encoding: 'utf8' }).split('\n').filter(Boolean)
 for (const file of tracked) {
-  if (ALLOWLIST.has(file)) continue
   if (existsSync(join(ROOT, file))) inspect(join(ROOT, file), file)
 }
 

@@ -4,6 +4,9 @@ import { useTheme } from './app/useTheme'
 import { Rosters } from './screens/Rosters'
 import { Play } from './screens/Play'
 import { Data } from './screens/Data'
+import { DataHealth } from './screens/DataHealth'
+import { Datasheets } from './screens/Datasheets'
+import { DatasheetDetail } from './screens/DatasheetDetail'
 import { Settings } from './screens/Settings'
 
 export function App() {
@@ -19,6 +22,9 @@ export function App() {
           <Route path="/rosters" element={<Rosters />} />
           <Route path="/play" element={<Play />} />
           <Route path="/data" element={<Data />} />
+          <Route path="/datasheets/:catalogueId" element={<Datasheets />} />
+          <Route path="/datasheets/:catalogueId/:datasheetId" element={<DatasheetDetail />} />
+          <Route path="/health/:catalogueId" element={<DataHealth />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/rosters" replace />} />
         </Route>

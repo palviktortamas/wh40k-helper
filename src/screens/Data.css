@@ -1,0 +1,97 @@
+.data__intro,
+.data__empty {
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+.data h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+.data__error {
+  padding: 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
+}
+
+.data__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.data__card {
+  padding: 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.data__card--tight {
+  padding: 0.5rem 0.875rem;
+}
+
+.data__cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 44px;
+}
+
+.data__meta {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Icons are paired with words so colour is never the only signal. */
+.data__warn {
+  color: var(--warning);
+}
+
+.data__ok {
+  color: var(--ok);
+}
+
+.data__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.data__button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.875rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.data__button[disabled] {
+  opacity: 0.6;
+}
+
+.data__button--quiet {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  color: var(--text);
+  font-weight: 400;
+}
+
+.data__sources {
+  margin: 0;
+  padding-left: 1.25rem;
+}
