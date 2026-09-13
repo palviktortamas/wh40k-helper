@@ -46,10 +46,11 @@ available" toast on open; tap Reload first.
 - [ ] **Add unit** → the picker groups units by role (coloured headings, role chips to filter),
       each row shows points at every size and the stat line; **i** opens abilities and weapons.
       Search matches keywords too. Tap a row → it is added.
-- [ ] The roster is grouped **By role** with a subtotal per group and a coloured stripe per card;
-      every card shows the stat line and the loadout roll-up. **My order** shows the flat list with
-      ↑ ↓ arrows. The choice survives a reload. The sticky summary (badge, points meter, DP,
-      detachment and its Force Dispositions) stays in view while scrolling.
+- [ ] The roster is grouped by role with a subtotal per group and a coloured stripe per card.
+      **Cards** shows the stat line and the loadout roll-up on every card; **Compact** is one line
+      per unit; **My order** is the flat list with ↑ ↓ arrows. The choice survives a reload.
+      Tapping a group heading folds it; the sticky summary (badge, points meter, DP, detachment
+      and its Force Dispositions) carries a jump bar with one chip per group that scrolls to it.
 - [ ] Tap **Edit** → editor: stat line on top, loadout groups on the left, the **Datasheet** panel
       (weapons carried with counts, abilities, detachment rules that name this unit with a
       detachment chip) below on the phone and beside on a PC. Build the spec §9 20-model unit

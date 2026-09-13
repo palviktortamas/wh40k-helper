@@ -28,9 +28,13 @@ export function roleOf(graph: CatalogueGraph, entryId: string): string | undefin
   return id ? graph.categories.get(id)?.name : undefined
 }
 
-/** Plural heading for a group of units of one role. */
+/**
+ * Heading for a group of units of one role. Known roles get a fixed heading;
+ * anything else shows the data's own role name verbatim (never pluralised —
+ * "Infantry" is already a group word).
+ */
 export function roleHeading(key: RoleKey, roleName?: string): string {
-  if (roleName) return roleName.endsWith('s') ? roleName : `${roleName}s`
+  if (key === 'other' && roleName) return roleName
   switch (key) {
     case 'character':
       return 'Characters'

@@ -35,8 +35,12 @@ import { shortText } from '@/reminders/heuristics'
 import './Rosters.css'
 import './Units.css'
 
-/** Which way the unit list is arranged; remembered per device (IndexedDB settings). */
-type UnitsView = 'role' | 'order'
+/**
+ * Which way the unit list is arranged; remembered per device (IndexedDB settings).
+ * `role`: grouped by battlefield role with full cards; `compact`: grouped, one line per unit —
+ * for a 2000-point army on a phone; `order`: the flat list in the owner's order with arrows.
+ */
+type UnitsView = 'role' | 'compact' | 'order'
 const VIEW_KEY = 'rosters.unitsView'
 
 export function RosterEditor() {
@@ -47,6 +51,7 @@ export function RosterEditor() {
   const [editing, setEditing] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [view, setView] = useState<UnitsView>('role')
+  const [collapsed, setCollapsed] = useState<Set<RoleKey>>(new Set())
 
   useEffect(() => {
     if (!rosterId) return
@@ -174,8 +179,9 @@ export function RosterEditor() {
       unitById={unitById}
       enhancementIds={enhancementIds}
       showArrows={view === 'order'}
+      compact={view === 'compact'}
       nested={nested}
-      leaders={view === 'role' ? roster.selections.filter((l) => l.attachedTo === unit.id) : []}
+      leaders={view !== 'order' ? roster.selections.filter((l) => l.attachedTo === unit.id) : []}
       renderLeader={(leader) => cardFor(leader, roster.selections.indexOf(leader), true)}
       onEdit={() => setEditing(unit.id)}
       update={update}
@@ -184,7 +190,7 @@ export function RosterEditor() {
 
   // By role: attached leaders ride inside the unit they lead, as at the table.
   const grouped = new Map<RoleKey, { units: Selection[]; points: number; roleName?: string }>()
-  if (view === 'role') {
+  if (view !== 'order') {
     for (const unit of roster.selections) {
       if (unit.attachedTo && unitById.has(unit.attachedTo)) continue
       const roleName = roleOf(graph, unit.entryId)
@@ -241,6 +247,16 @@ export function RosterEditor() {
             ? ` · ${detachment.forceDispositions.join(' / ')}`
             : ''}
         </p>
+        {view !== 'order' && grouped.size > 1 && (
+          <nav className="summary__jump" aria-label="Jump to a unit group">
+            {ROLE_ORDER.filter((key) => grouped.has(key)).map((key) => (
+              <a key={key} href={`#group-${key}`} className={`summary__jumpLink role--${key}`}>
+                <span className="role-tag">{roleHeading(key, grouped.get(key)!.roleName)}</span>
+                <span className="muted">{grouped.get(key)!.units.length}</span>
+              </a>
+            ))}
+          </nav>
+        )}
       </div>
 
       <div className="rosters__controls">
@@ -403,7 +419,10 @@ export function RosterEditor() {
         </button>
         <div className="segmented" role="group" aria-label="Arrange units">
           <button className={view === 'role' ? 'segmented--on' : ''} aria-pressed={view === 'role'} onClick={() => changeView('role')}>
-            By role
+            Cards
+          </button>
+          <button className={view === 'compact' ? 'segmented--on' : ''} aria-pressed={view === 'compact'} onClick={() => changeView('compact')}>
+            Compact
           </button>
           <button className={view === 'order' ? 'segmented--on' : ''} aria-pressed={view === 'order'} onClick={() => changeView('order')}>
             My order
@@ -418,15 +437,37 @@ export function RosterEditor() {
       ) : (
         ROLE_ORDER.filter((key) => grouped.has(key)).map((key) => {
           const group = grouped.get(key)!
+          const open = !collapsed.has(key)
           return (
-            <section key={key} className={`unitgroup role--${key}`}>
-              <div className="unitgroup__head">
-                <h3>{roleHeading(key, group.roleName)}</h3>
+            <section key={key} id={`group-${key}`} className={`unitgroup role--${key}`}>
+              {/* The heading folds the group: a 2000-point army is read one role at a time. */}
+              <button
+                className="unitgroup__head unitgroup__head--button"
+                aria-expanded={open}
+                onClick={() =>
+                  setCollapsed((c) => {
+                    const next = new Set(c)
+                    if (next.has(key)) next.delete(key)
+                    else next.add(key)
+                    return next
+                  })
+                }
+              >
+                <h3>
+                  <span className="unitgroup__chevron" aria-hidden="true">
+                    {open ? '▾' : '▸'}
+                  </span>{' '}
+                  {roleHeading(key, group.roleName)}
+                </h3>
                 <span className="unitgroup__sum">
                   {group.units.length} · {group.points} pts
                 </span>
-              </div>
-              <ul className="units">{group.units.map((unit) => cardFor(unit, roster.selections.indexOf(unit)))}</ul>
+              </button>
+              {open && (
+                <ul className={`units ${view === 'compact' ? 'units--compact' : ''}`}>
+                  {group.units.map((unit) => cardFor(unit, roster.selections.indexOf(unit)))}
+                </ul>
+              )}
             </section>
           )
         })
@@ -486,6 +527,7 @@ function UnitCard({
   unitById,
   enhancementIds,
   showArrows,
+  compact,
   nested,
   leaders,
   renderLeader,
@@ -503,6 +545,7 @@ function UnitCard({
   unitById: Map<string, Selection>
   enhancementIds: Set<string>
   showArrows: boolean
+  compact: boolean
   nested: boolean
   leaders: Selection[]
   renderLeader: (leader: Selection) => React.ReactNode
@@ -517,6 +560,30 @@ function UnitCard({
   const ledBy = roster.selections.filter((l) => l.attachedTo === unit.id)
   const enhancements = enhancementsTaken(unit, enhancementIds)
   const key = roleKey(role)
+
+  if (compact) {
+    // One line per unit: name, points, the chips that matter, the roll-up. Tap → editor.
+    return (
+      <li className={`units__item units__item--compact role-stripe role--${key} ${nested ? 'units__item--nested' : ''}`}>
+        <button className="units__main units__main--compact" onClick={onEdit}>
+          <span className="units__top">
+            <span className="units__name">
+              {unit.name}
+              <span className="muted units__pts">{validation.unitPoints[unit.id] ?? 0} pts</span>
+            </span>
+            <span className="units__chips">
+              {nested && <span className="chip">Leader</span>}
+              {isWarlord && <span className="chip chip--warlord">Warlord</span>}
+              {enhancements.length > 0 && <span className="rule-chip rule-chip--enhancement">{enhancements.length}× enh.</span>}
+              {errors > 0 && <span className="chip chip--error">✕ {errors}</span>}
+            </span>
+          </span>
+          <span className="muted units__loadout">{describeLoadout(unit)}</span>
+        </button>
+        {leaders.length > 0 && <ul className="units units--leaders units--compact">{leaders.map(renderLeader)}</ul>}
+      </li>
+    )
+  }
 
   return (
     <li className={`units__item role-stripe role--${key} ${nested ? 'units__item--nested' : ''}`}>

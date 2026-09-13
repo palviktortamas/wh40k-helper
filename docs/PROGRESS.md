@@ -355,6 +355,12 @@ faction survives re-runs, and it imports the stratagem CSV through the file inpu
   the pricing bands, stat strip per row, **i** expands abilities/weapons/keywords. `UnitEditor`:
   stat strip, two columns at ≥900 px (options | Datasheet panel: weapons carried via the shared
   `play/weapons.ts` + `modelGroups()`, abilities, detachment rules, enhancements).
+- **Navigating a big list** (owner: "units still not grouped, barely navigable" — they were
+  looking at the deployed app before the push; fixed anyway): three densities (**Cards /
+  Compact / My order**, setting `rosters.unitsView`), role groups fold on tap of their heading,
+  and the sticky summary carries a **jump bar** (one chip per group, anchors `#group-<role>`
+  with `scroll-margin-top` clearing the summary). Group headings use fixed words for the known
+  roles and the data's own name for the rest — never pluralised ("Infantry").
 - **Caps in the editor.** The evaluator now reports **headroom**: per selection, the smallest
   `max − actual` over its own `selections` caps, and — for caps scoped beyond the parent
   (`unit`, `force`, entry-id) — tightened onto every ancestor up to the scope (one more "Boy w/
