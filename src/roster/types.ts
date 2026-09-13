@@ -11,13 +11,33 @@ export type Selection = {
   id: string
   /** The catalogue entry this instantiates. */
   entryId: string
+  /**
+   * The entry link that pulled the entry into this parent, when it came through
+   * one. A link can add constraints, modifiers and costs on top of the shared
+   * entry, and one shared entry can be linked twice under the same parent, so
+   * the link is what identifies *which* option this is. Absent on selections
+   * saved before this field existed; those fall back to `entryId` + `groupId`.
+   */
+  linkId?: string
   /** The group it was chosen from, when it came from one. */
   groupId?: string
   name: string
   type: SelectionType
-  /** How many copies. Models use this for unit size; upgrades are usually 1. */
+  /**
+   * How many copies, **per copy of the parent**. A model with `count: 9` whose
+   * weapon child has `count: 1` means nine weapons; a unit-scope limit sees 9.
+   * The evaluator, the export and the editor all read it this way — a nested
+   * count is never an absolute total.
+   */
   count: number
   selections: Selection[]
+  /**
+   * Leader attachment: the instance id of the root selection this unit is
+   * joined to, and the association (from the catalogue) that allows it. Only
+   * meaningful on a root selection.
+   */
+  attachedTo?: string
+  associationId?: string
 }
 
 export type Roster = {
@@ -26,17 +46,27 @@ export type Roster = {
   /** Catalogue record id, so a roster knows which faction it belongs to. */
   catalogueId: string
   pointsLimit: number
-  /** Chosen detachment entry id, when one is picked. */
-  detachmentId?: string
-  /** Instance id of the selection marked Warlord. */
-  warlordSelectionId?: string
   notes?: string
+  /**
+   * Roster-level configuration as real selections — battle size, detachment,
+   * force disposition and the data's own toggles. They live in the tree so the
+   * catalogue's conditions ("when the detachment is X", "at Incursion size")
+   * can be evaluated exactly like any other selection.
+   */
+  configuration: Selection[]
   /** Top-level unit selections, in display order. */
   selections: Selection[]
   createdAt: number
   updatedAt: number
   /** The data version this roster was built against, for post-update diffs. */
   builtWith: { bsdataRevision: number; mfmVersion?: string }
+  /**
+   * Set by the storage migration from the pre-configuration roster shape and
+   * consumed (then removed) by `normaliseRoster`, which needs the catalogue
+   * graph the migration does not have.
+   */
+  pendingDetachmentId?: string
+  pendingWarlordSelectionId?: string
 }
 
 export const POINTS_PRESETS = [500, 1000, 1500, 2000, 3000] as const
@@ -50,4 +80,17 @@ export type ValidationIssue = {
   message: string
   /** The rule this comes from, so the message can cite it (spec §5.3). */
   rule: string
+}
+
+/** Depth-first walk over a selection tree. */
+export function* walkSelections(selections: Selection[]): Generator<Selection> {
+  for (const selection of selections) {
+    yield selection
+    yield* walkSelections(selection.selections)
+  }
+}
+
+export function findSelection(selections: Selection[], id: string): Selection | undefined {
+  for (const selection of walkSelections(selections)) if (selection.id === id) return selection
+  return undefined
 }

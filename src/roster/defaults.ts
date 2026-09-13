@@ -32,20 +32,27 @@ const groupMaximum = (group: ResolvedGroup): number | undefined => {
   return max && max.value >= 0 ? max.value : undefined
 }
 
+/** A bare selection of `entry`, with no children taken. */
+export function bareSelection(entry: ResolvedEntry, count = 1, groupId?: string): Selection {
+  return {
+    id: newSelectionId(),
+    entryId: entry.id,
+    ...(entry.linkId ? { linkId: entry.linkId } : {}),
+    ...(groupId ? { groupId } : {}),
+    name: entry.name,
+    type: entry.type,
+    count,
+    selections: [],
+  }
+}
+
 /**
  * Builds a selection for `entry`, recursively taking the choices its own data
  * says are mandatory. Depth is bounded for the same reason the resolver bounds
  * it: entry links can cycle.
  */
 export function instantiate(entry: ResolvedEntry, count = 1, depth = 0): Selection {
-  const selection: Selection = {
-    id: newSelectionId(),
-    entryId: entry.id,
-    name: entry.name,
-    type: entry.type,
-    count,
-    selections: [],
-  }
+  const selection = bareSelection(entry, count)
   if (depth > 6) return selection
 
   // Direct children that are required (min 1 on the entry itself) — default
@@ -112,4 +119,19 @@ export function cloneSelection(selection: Selection): Selection {
     id: newSelectionId(),
     selections: selection.selections.map(cloneSelection),
   }
+}
+
+/**
+ * Whether an existing selection is the one an option row represents. Older
+ * selections have no link id and match on entry (and group) alone.
+ */
+export function isSameOption(
+  selection: Selection,
+  entry: ResolvedEntry,
+  groupId: string | undefined,
+): boolean {
+  if (selection.entryId !== entry.id) return false
+  if (selection.linkId && entry.linkId) return selection.linkId === entry.linkId
+  if (groupId && selection.groupId) return selection.groupId === groupId
+  return true
 }

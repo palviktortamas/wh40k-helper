@@ -21,8 +21,10 @@ import type {
   Association,
   CategoryEntry,
   CostType,
+  ForceEntry,
 } from '@/data/bsdata/schema'
 import type { SelectionType } from './types'
+import { CONFIGURATION_CATEGORY } from './vocabulary'
 
 export type ResolvedEntry = {
   /** Entry id. Two links to one shared entry resolve to the same id. */
@@ -60,12 +62,21 @@ export type ResolvedGroup = {
 }
 
 export type CatalogueGraph = {
+  /** The catalogue's own id — what `primary-catalogue` conditions compare against. */
+  catalogueId: string
   entries: Map<string, SelectionEntry>
   groups: Map<string, SelectionEntryGroup>
   categories: Map<string, CategoryEntry>
   costTypes: Map<string, CostType>
+  /** The force entries the game system offers; the first non-hidden one is the app's force. */
+  forceEntries: ForceEntry[]
   /** Entries that are datasheets — a primary category link and not hidden. */
   rootEntryIds: string[]
+  /**
+   * Roster setup entries (battle size, detachment, force disposition, toggles),
+   * from both the game system and the catalogue. Instantiated once per roster.
+   */
+  configurationEntryIds: string[]
   resolve: (entryId: string) => ResolvedEntry | undefined
   /** Constructs met but not modelled, surfaced rather than swallowed. */
   unsupported: string[]
@@ -210,9 +221,51 @@ export function buildGraph(gs: GameSystem, cat: Catalogue): CatalogueGraph {
     return resolved
   }
 
+  const isConfiguration = (e: SelectionEntry): boolean =>
+    (e.categoryLinks ?? []).some(
+      (l) => l.primary && categories.get(l.targetId)?.name === CONFIGURATION_CATEGORY,
+    )
+  const hasPrimary = (e: SelectionEntry): boolean =>
+    (e.categoryLinks ?? []).some((l) => l.primary) && !e.hidden
+
   const rootEntryIds = (cat.sharedSelectionEntries ?? [])
-    .filter((e) => (e.categoryLinks ?? []).some((l) => l.primary) && !e.hidden)
+    .filter((e) => hasPrimary(e) && !isConfiguration(e))
     .map((e) => e.id)
 
-  return { entries, groups, categories, costTypes, rootEntryIds, resolve, unsupported }
+  // Game-system setup entries are the shared ones marked for import (battle
+  // size, force disposition, visibility toggles); the catalogue adds its own
+  // (the detachment picker).
+  const configurationEntryIds = [
+    ...(gs.sharedSelectionEntries ?? []).filter(
+      (e) => hasPrimary(e) && isConfiguration(e) && e.import !== false,
+    ),
+    ...(cat.sharedSelectionEntries ?? []).filter((e) => hasPrimary(e) && isConfiguration(e)),
+  ].map((e) => e.id)
+
+  return {
+    catalogueId: cat.id,
+    entries,
+    groups,
+    categories,
+    costTypes,
+    forceEntries: gs.forceEntries ?? [],
+    rootEntryIds,
+    configurationEntryIds,
+    resolve,
+    unsupported,
+  }
+}
+
+/** A selectable child of a resolved entry, with the group it was offered in. */
+export type ChildOption = { entry: ResolvedEntry; group?: ResolvedGroup }
+
+/** Every entry selectable under `entry`: direct ones and those in (nested) groups. */
+export function childOptions(entry: ResolvedEntry): ChildOption[] {
+  const out: ChildOption[] = entry.entries.map((e) => ({ entry: e }))
+  const walk = (group: ResolvedGroup) => {
+    for (const e of group.entries) out.push({ entry: e, group })
+    for (const nested of group.groups) walk(nested)
+  }
+  for (const group of entry.groups) walk(group)
+  return out
 }

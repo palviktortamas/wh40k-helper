@@ -272,3 +272,33 @@
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+
+/* Army configuration panel and leader attachment */
+.config {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.config summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+}
+.config__entry h3 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1rem;
+}
+.units__attach {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0 0.75rem 0.5rem;
+  font-size: 0.9rem;
+}
+.units__attach select {
+  min-height: 44px;
+  font-size: 1rem;
+}

@@ -60,6 +60,9 @@ export type CategoryEntry = {
   id: BsId
   name: string
   hidden?: boolean
+  /** Army-wide caps live here too: "Warlord min 1 max 1", "Epic Hero …". */
+  constraints?: Constraint[]
+  modifiers?: Modifier[]
 }
 
 export type CategoryLink = {

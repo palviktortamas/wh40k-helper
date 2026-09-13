@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
-import { instantiate } from '@/roster/defaults'
+import { bareSelection, instantiate, isSameOption } from '@/roster/defaults'
 import { replaceSelection, type Validation } from '@/roster/store'
 import type { CatalogueGraph, ResolvedEntry, ResolvedGroup } from '@/roster/resolve'
 import type { Selection } from '@/roster/types'
+import { COST_TYPE } from '@/data/bsdata/schema'
 import { describeLoadout } from './RosterEditor'
 import './Rosters.css'
 
@@ -16,7 +17,8 @@ import './Rosters.css'
  * Limits are not enforced by disabling controls: the constraint evaluator is the
  * authority, and it says *why* something is illegal. Steppers stay live and the
  * error list explains, which keeps the editor honest when the data disagrees
- * with our assumptions.
+ * with our assumptions. What *is* filtered is availability: the data's own
+ * "you may only take X if Y" gates decide which options are offered at all.
  */
 export function UnitEditor({
   selection,
@@ -55,7 +57,9 @@ export function UnitEditor({
         ‹ Back
       </button>
       <h2>{selection.name}</h2>
-      <p className="muted">{describeLoadout(selection)}</p>
+      <p className="muted">
+        {describeLoadout(selection)} · {validation.unitPoints[selection.id] ?? 0} pts
+      </p>
 
       {issues.length > 0 && (
         <ul className="issues">
@@ -71,9 +75,9 @@ export function UnitEditor({
       <OptionTree
         parent={selection}
         entry={entry}
-        onChange={onChange}
         root={selection}
         rootOnChange={onChange}
+        validation={validation}
       />
     </section>
   )
@@ -82,59 +86,85 @@ export function UnitEditor({
 const contains = (node: Selection, id: string): boolean =>
   node.id === id || node.selections.some((child) => contains(child, id))
 
-function OptionTree({
+type TreeProps = {
+  parent: Selection
+  root: Selection
+  rootOnChange: (next: Selection) => void
+  validation: Validation
+}
+
+/** The option groups and direct entries of one selection, availability-gated. */
+export function OptionTree({
   parent,
   entry,
   root,
   rootOnChange,
-}: {
-  parent: Selection
-  entry: ResolvedEntry
-  onChange: (next: Selection) => void
-  root: Selection
-  rootOnChange: (next: Selection) => void
-}) {
+  validation,
+}: TreeProps & { entry: ResolvedEntry }) {
+  const direct = entry.entries.filter((child) => offered(validation, parent, child, undefined))
   return (
     <>
       {entry.groups
-        .filter((group) => !group.hidden)
+        .filter((group) => groupOffered(validation, parent, group))
         .map((group) => (
           <GroupEditor
-            key={group.id}
+            key={group.linkId ?? group.id}
             group={group}
             parent={parent}
             root={root}
             rootOnChange={rootOnChange}
+            validation={validation}
           />
         ))}
-      {entry.entries.filter((child) => !child.hidden && child.type === 'model').length > 0 && (
-        <ModelRows entry={entry} parent={parent} root={root} rootOnChange={rootOnChange} />
+      {direct.length > 0 && (
+        <div className="group">
+          <div className="group__head">
+            <h3>{direct.some((c) => c.type === 'model') ? 'Models' : 'Options'}</h3>
+          </div>
+          {direct.map((child) => (
+            <OptionRow
+              key={child.linkId ?? child.id}
+              entry={child}
+              parent={parent}
+              root={root}
+              rootOnChange={rootOnChange}
+              validation={validation}
+            />
+          ))}
+        </div>
       )}
     </>
   )
 }
+
+/** An option is shown when the data offers it here — or it is already taken, so it can be removed. */
+const offered = (
+  validation: Validation,
+  parent: Selection,
+  entry: ResolvedEntry,
+  group: ResolvedGroup | undefined,
+): boolean =>
+  parent.selections.some((s) => isSameOption(s, entry, group?.id)) ||
+  validation.isEntryAvailable(parent.id, entry, group)
+
+const groupOffered = (validation: Validation, parent: Selection, group: ResolvedGroup): boolean =>
+  parent.selections.some((s) => s.groupId === group.id) || validation.isGroupAvailable(parent.id, group)
 
 function GroupEditor({
   group,
   parent,
   root,
   rootOnChange,
-}: {
-  group: ResolvedGroup
-  parent: Selection
-  root: Selection
-  rootOnChange: (next: Selection) => void
-}) {
-  const candidates = group.entries.filter((e) => !e.hidden)
+  validation,
+}: TreeProps & { group: ResolvedGroup }) {
+  const candidates = group.entries.filter((e) => offered(validation, parent, e, group))
+  const nested = group.groups.filter((g) => groupOffered(validation, parent, g))
   const max = group.constraints.find((c) => c.type === 'max' && c.scope === 'parent')
   const min = group.constraints.find((c) => c.type === 'min' && c.scope === 'parent')
 
-  const taken = candidates.reduce(
-    (sum, candidate) => sum + countOf(parent, candidate.id),
-    0,
-  )
+  const taken = candidates.reduce((sum, candidate) => sum + countOf(parent, candidate, group.id), 0)
 
-  if (candidates.length === 0 && group.groups.length === 0) return null
+  if (candidates.length === 0 && nested.length === 0) return null
 
   return (
     <div className="group">
@@ -149,63 +179,34 @@ function GroupEditor({
 
       {candidates.map((candidate) => (
         <OptionRow
-          key={candidate.id}
+          key={candidate.linkId ?? candidate.id}
           entry={candidate}
           groupId={group.id}
           parent={parent}
           root={root}
           rootOnChange={rootOnChange}
+          validation={validation}
         />
       ))}
 
-      {group.groups
-        .filter((nested) => !nested.hidden)
-        .map((nested) => (
-          <GroupEditor
-            key={nested.id}
-            group={nested}
-            parent={parent}
-            root={root}
-            rootOnChange={rootOnChange}
-          />
-        ))}
+      {nested.map((child) => (
+        <GroupEditor
+          key={child.linkId ?? child.id}
+          group={child}
+          parent={parent}
+          root={root}
+          rootOnChange={rootOnChange}
+          validation={validation}
+        />
+      ))}
     </div>
   )
 }
 
-function ModelRows({
-  entry,
-  parent,
-  root,
-  rootOnChange,
-}: {
-  entry: ResolvedEntry
-  parent: Selection
-  root: Selection
-  rootOnChange: (next: Selection) => void
-}) {
-  return (
-    <div className="group">
-      <div className="group__head">
-        <h3>Models</h3>
-      </div>
-      {entry.entries
-        .filter((child) => !child.hidden && child.type === 'model')
-        .map((child) => (
-          <OptionRow
-            key={child.id}
-            entry={child}
-            parent={parent}
-            root={root}
-            rootOnChange={rootOnChange}
-          />
-        ))}
-    </div>
-  )
-}
-
-const countOf = (parent: Selection, entryId: string): number =>
-  parent.selections.filter((s) => s.entryId === entryId).reduce((sum, s) => sum + s.count, 0)
+const countOf = (parent: Selection, entry: ResolvedEntry, groupId: string | undefined): number =>
+  parent.selections
+    .filter((s) => isSameOption(s, entry, groupId))
+    .reduce((sum, s) => sum + s.count, 0)
 
 function OptionRow({
   entry,
@@ -213,36 +214,28 @@ function OptionRow({
   parent,
   root,
   rootOnChange,
-}: {
-  entry: ResolvedEntry
-  groupId?: string
-  parent: Selection
-  root: Selection
-  rootOnChange: (next: Selection) => void
-}) {
-  const existing = parent.selections.find((s) => s.entryId === entry.id)
+  validation,
+}: TreeProps & { entry: ResolvedEntry; groupId?: string }) {
+  const existing = parent.selections.find((s) => isSameOption(s, entry, groupId))
   const count = existing?.count ?? 0
-  const points = entry.costs['51b2-306e-1021-d207']
+  const points = entry.costs[COST_TYPE.points]
 
   const setCount = (next: number) => {
     const value = Math.max(0, next)
     let updated: Selection
 
     if (value === 0) {
-      updated = {
-        ...parent,
-        selections: parent.selections.filter((s) => s.entryId !== entry.id),
-      }
+      updated = { ...parent, selections: parent.selections.filter((s) => s !== existing) }
     } else if (existing) {
       updated = {
         ...parent,
-        selections: parent.selections.map((s) =>
-          s.entryId === entry.id ? { ...s, count: value } : s,
-        ),
+        selections: parent.selections.map((s) => (s === existing ? { ...s, count: value } : s)),
       }
     } else {
       // A new pick brings its own required sub-choices with it.
-      const child = instantiate(entry, value)
+      const child = entry.entries.length + entry.groups.length > 0
+        ? instantiate(entry, value)
+        : bareSelection(entry, value)
       if (groupId) child.groupId = groupId
       updated = { ...parent, selections: [...parent.selections, child] }
     }
@@ -271,56 +264,18 @@ function OptionRow({
           +
         </button>
       </div>
-      {existing && existing.selections.length > 0 && (
-        <details className="option__sub">
+      {existing && (entry.entries.length > 0 || entry.groups.length > 0) && (
+        <details className="option__sub" open={existing.selections.length > 0}>
           <summary>Loadout</summary>
-          <NestedOptions
-            selection={existing}
+          <OptionTree
+            parent={existing}
             entry={entry}
             root={root}
             rootOnChange={rootOnChange}
+            validation={validation}
           />
         </details>
       )}
     </div>
-  )
-}
-
-function NestedOptions({
-  selection,
-  entry,
-  root,
-  rootOnChange,
-}: {
-  selection: Selection
-  entry: ResolvedEntry
-  root: Selection
-  rootOnChange: (next: Selection) => void
-}) {
-  return (
-    <>
-      {entry.groups
-        .filter((group) => !group.hidden)
-        .map((group) => (
-          <GroupEditor
-            key={group.id}
-            group={group}
-            parent={selection}
-            root={root}
-            rootOnChange={rootOnChange}
-          />
-        ))}
-      {entry.entries
-        .filter((child) => !child.hidden)
-        .map((child) => (
-          <OptionRow
-            key={child.id}
-            entry={child}
-            parent={selection}
-            root={root}
-            rootOnChange={rootOnChange}
-          />
-        ))}
-    </>
   )
 }

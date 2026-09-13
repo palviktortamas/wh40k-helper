@@ -106,12 +106,45 @@ const troopers: SelectionEntry = {
               ],
             },
           ],
-          selectionEntries: [{ id: 'e-heavy', name: 'Heavy gunner', type: 'model' }],
+          selectionEntries: [
+            {
+              id: 'e-heavy',
+              name: 'Heavy gunner',
+              type: 'model',
+              selectionEntries: [
+                {
+                  id: 'e-biggun',
+                  name: 'Big gun',
+                  type: 'upgrade',
+                  constraints: [
+                    // Only one big gun in the whole unit, however many gunners carry one.
+                    // Sits two levels below the unit: unit > model > weapon.
+                    { id: 'c-biggun-unit', type: 'max', value: 1, field: 'selections', scope: 'unit' },
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
     },
   ],
+  entryLinks: [
+    {
+      id: 'l-banner',
+      name: 'Banner',
+      targetId: 'e-banner',
+      type: 'selectionEntry',
+      // The limit lives on the *link*, not on the shared entry it points at.
+      constraints: [
+        { id: 'c-banner-max', type: 'max', value: 1, field: 'selections', scope: 'parent' },
+      ],
+    },
+  ],
 }
+
+/** A shared upgrade with no constraints of its own; every limit arrives via a link. */
+const banner: SelectionEntry = { id: 'e-banner', name: 'Banner', type: 'upgrade' }
 
 const catalogue: Catalogue = {
   id: 'cat',
@@ -119,7 +152,7 @@ const catalogue: Catalogue = {
   revision: 1,
   battleScribeVersion: '2.03',
   gameSystemId: 'gs',
-  sharedSelectionEntries: [troopers],
+  sharedSelectionEntries: [troopers, banner],
 }
 
 const graph = () => buildGraph(gameSystem, catalogue)
@@ -145,6 +178,7 @@ const roster = (selections: Selection[], pointsLimit = 2000): Roster => ({
   name: 'Test',
   catalogueId: 'cat',
   pointsLimit,
+  configuration: [],
   selections,
   createdAt: 0,
   updatedAt: 0,
@@ -214,6 +248,48 @@ describe('constraint evaluator', () => {
   it('reports nothing as unsupported for data it fully models', () => {
     const result = evaluateRoster(roster([squad(10)]), graph())
     expect(result.unsupported).toEqual([])
+  })
+
+  it('counts a weapon two levels below the unit against a unit-scope limit', () => {
+    // The spec's flagship case: two special-weapon models in a 12-model unit,
+    // each carrying one gun, where the gun is capped at one per unit.
+    const twoGuns = sel('e-squad', 'Squad', 'unit', 1, [
+      sel('e-trooper', 'Trooper', 'model', 10),
+      sel('e-heavy', 'Heavy gunner', 'model', 2, [sel('e-biggun', 'Big gun', 'upgrade', 1)]),
+    ])
+    const result = evaluateRoster(roster([twoGuns]), graph())
+    expect(result.issues.some((i) => i.message.includes('Big gun'))).toBe(true)
+
+    // One gunner with one gun is fine.
+    const oneGun = sel('e-squad', 'Squad', 'unit', 1, [
+      sel('e-trooper', 'Trooper', 'model', 10),
+      sel('e-heavy', 'Heavy gunner', 'model', 1, [sel('e-biggun', 'Big gun', 'upgrade', 1)]),
+    ])
+    expect(evaluateRoster(roster([oneGun]), graph()).issues).toEqual([])
+  })
+
+  it('treats a nested count as per copy of its parent', () => {
+    // Two gunners each with one gun means two guns; the same is true for the
+    // points, which must multiply through the tree rather than sum raw counts.
+    const twoGuns = sel('e-squad', 'Squad', 'unit', 1, [
+      sel('e-trooper', 'Trooper', 'model', 10),
+      sel('e-heavy', 'Heavy gunner', 'model', 2, [sel('e-biggun', 'Big gun', 'upgrade', 1)]),
+    ])
+    const result = evaluateRoster(roster([twoGuns]), graph())
+    expect(result.issues.some((i) => i.message.includes('has 2'))).toBe(true)
+  })
+
+  it('keeps the constraints an entry link carries into a particular parent', () => {
+    const entry = graph().resolve('e-squad')!
+    const linked = entry.entries.find((e) => e.id === 'e-banner')!
+    expect(linked.linkId).toBe('l-banner')
+
+    const twoBanners = sel('e-squad', 'Squad', 'unit', 1, [
+      sel('e-trooper', 'Trooper', 'model', 10),
+      { ...sel('e-banner', 'Banner', 'upgrade', 2), linkId: 'l-banner' },
+    ])
+    const result = evaluateRoster(roster([twoBanners]), graph())
+    expect(result.issues.some((i) => i.message.includes('Banner'))).toBe(true)
   })
 
   it('instantiates an entry with its mandatory choices already made', () => {

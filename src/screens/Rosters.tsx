@@ -8,6 +8,7 @@ import {
   graphFor,
   listRosters,
   newRoster,
+  normaliseRoster,
   saveRoster,
   validate,
 } from '@/roster/store'
@@ -127,11 +128,11 @@ function RosterCard({
   onChanged: () => Promise<void>
 }) {
   // Validation is cheap enough to run per card, and the badge is the whole point.
-  const validation = catalogue ? validate(roster, graphFor(catalogue)) : undefined
-  const detachment =
-    catalogue && roster.detachmentId
-      ? graphFor(catalogue).resolve(roster.detachmentId)?.name
-      : undefined
+  // Older rosters are normalised in memory only; the editor saves the upgrade.
+  const validation = catalogue
+    ? validate(normaliseRoster(roster, graphFor(catalogue)), graphFor(catalogue))
+    : undefined
+  const detachment = validation?.detachment?.name
 
   return (
     <li className="rosters__card">

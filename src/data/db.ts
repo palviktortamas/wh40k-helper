@@ -79,6 +79,38 @@ db.version(3).stores({
   rosters: 'id, catalogueId, updatedAt',
 })
 
+/**
+ * v4: roster configuration (battle size, detachment, force disposition) became
+ * real selections, and the Warlord became the data's own upgrade selection.
+ * The old `detachmentId` / `warlordSelectionId` fields are parked as `pending*`
+ * so `normaliseRoster` can convert them once it has the catalogue graph, which
+ * a storage migration does not.
+ */
+db.version(4)
+  .stores({
+    settings: 'key',
+    catalogues: 'id, name',
+    health: 'catalogueId',
+    overrides: 'key',
+    rosters: 'id, catalogueId, updatedAt',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('rosters')
+      .toCollection()
+      .modify((roster: Record<string, unknown>) => {
+        if (!Array.isArray(roster['configuration'])) roster['configuration'] = []
+        if (typeof roster['detachmentId'] === 'string') {
+          roster['pendingDetachmentId'] = roster['detachmentId']
+        }
+        if (typeof roster['warlordSelectionId'] === 'string') {
+          roster['pendingWarlordSelectionId'] = roster['warlordSelectionId']
+        }
+        delete roster['detachmentId']
+        delete roster['warlordSelectionId']
+      }),
+  )
+
 export { db }
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
