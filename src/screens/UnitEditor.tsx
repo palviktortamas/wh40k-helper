@@ -1,37 +1,62 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { bareSelection, instantiate, isSameOption } from '@/roster/defaults'
 import { replaceSelection, type Validation } from '@/roster/store'
 import type { CatalogueGraph, ResolvedEntry, ResolvedGroup } from '@/roster/resolve'
 import type { Selection } from '@/roster/types'
+import type { Datasheet, Detachment, ParsedCatalogue } from '@/data/model'
 import { COST_TYPE } from '@/data/bsdata/schema'
-import { describeLoadout } from './RosterEditor'
+import { modelGroups } from '@/play/snapshot'
+import { weaponCounts } from '@/play/weapons'
+import { ruleAppliesTo } from '@/roster/detachmentRules'
+import { roleKey } from '@/roster/roles'
+import { describeLoadout, enhancementsTaken } from './RosterEditor'
+import { StatStrip } from './StatStrip'
+import { WeaponTable } from './WeaponTable'
+import { Marked } from './Marked'
 import './Rosters.css'
+import './Units.css'
 
 /**
  * The per-model loadout editor (spec §5.2). A unit is shown as its option
  * groups; within each, every selectable entry gets a stepper. That is what makes
- * "17 with slugga and choppa, 2 with a rokkit launcha, 1 Boss Nob" expressible
+ * "16 with slugga and choppa, 2 with a rokkit launcha, 2 Nobz" expressible
  * rather than a single fixed loadout for the whole unit — the main complaint the
  * spec has about other apps.
  *
- * Limits are not enforced by disabling controls: the constraint evaluator is the
- * authority, and it says *why* something is illegal. Steppers stay live and the
- * error list explains, which keeps the editor honest when the data disagrees
- * with our assumptions. What *is* filtered is availability: the data's own
- * "you may only take X if Y" gates decide which options are offered at all.
+ * Limits: the constraint evaluator is the authority. It now reports how much
+ * room each cap leaves (`headroom`), so a "+" that would break a `max` is
+ * disabled, and before any increment the editor asks `tryChange` whether the
+ * data would raise a new "at most" error — a second net for caps that live on
+ * a scope the headroom cannot see. What *is* filtered is availability: the
+ * data's own "you may only take X if Y" gates decide which options are offered.
+ *
+ * Next to the options sits the datasheet as it is being built: stats, the
+ * weapons the chosen models carry, abilities, and the chosen detachment's rules
+ * that name this unit — so a list is built from the unit's actual profile,
+ * not from memory.
  */
 export function UnitEditor({
   selection,
   graph,
   validation,
+  sheet,
+  detachment,
+  catalogue,
+  role,
   onBack,
   onChange,
+  tryChange,
 }: {
   selection: Selection
   graph: CatalogueGraph
   validation: Validation
+  sheet: Datasheet | undefined
+  detachment: Detachment | undefined
+  catalogue: ParsedCatalogue
+  role: string | undefined
   onBack: () => void
   onChange: (next: Selection) => void
+  tryChange: (next: Selection) => string | undefined
 }) {
   const entry = graph.resolve(selection.entryId)
 
@@ -51,15 +76,21 @@ export function UnitEditor({
     )
   }
 
+  const key = roleKey(role)
+
   return (
-    <section className="rosters">
+    <section className={`rosters editor role--${key}`}>
       <button className="sheet__back tap" onClick={onBack}>
-        ‹ Back
+        ‹ Back to the list
       </button>
-      <h2>{selection.name}</h2>
-      <p className="muted">
-        {describeLoadout(selection)} · {validation.unitPoints[selection.id] ?? 0} pts
+      <div className="editor__head">
+        <h2>{selection.name}</h2>
+        <span className="role-tag">{role ?? 'Unit'}</span>
+      </div>
+      <p className="muted editor__summary">
+        {describeLoadout(selection)} · <strong>{validation.unitPoints[selection.id] ?? 0} pts</strong>
       </p>
+      {sheet && <StatStrip stats={sheet.stats} size="large" />}
 
       {issues.length > 0 && (
         <ul className="issues">
@@ -72,14 +103,100 @@ export function UnitEditor({
         </ul>
       )}
 
-      <OptionTree
-        parent={selection}
-        entry={entry}
-        root={selection}
-        rootOnChange={onChange}
-        validation={validation}
-      />
+      <div className="editor__cols">
+        <div className="editor__options">
+          <h3 className="editor__colHead">Loadout</h3>
+          <OptionTree
+            parent={selection}
+            entry={entry}
+            root={selection}
+            rootOnChange={onChange}
+            validation={validation}
+            tryChange={tryChange}
+          />
+        </div>
+        {sheet && (
+          <aside className="editor__sheet">
+            <h3 className="editor__colHead">Datasheet</h3>
+            <BuiltSheet selection={selection} sheet={sheet} detachment={detachment} catalogue={catalogue} />
+          </aside>
+        )}
+      </div>
     </section>
+  )
+}
+
+/** The datasheet as the loadout stands: carried weapons with counts, abilities, detachment rules. */
+function BuiltSheet({
+  selection,
+  sheet,
+  detachment,
+  catalogue,
+}: {
+  selection: Selection
+  sheet: Datasheet
+  detachment: Detachment | undefined
+  catalogue: ParsedCatalogue
+}) {
+  const { rows, unmatched } = weaponCounts({ models: modelGroups(selection, sheet) }, sheet)
+  const keywords = [...sheet.keywords, ...sheet.factionKeywords]
+  const detachmentRules = (detachment?.rules ?? []).filter((r) => ruleAppliesTo(r.text, keywords) !== false)
+  const enhancementIds = new Set((catalogue.enhancements ?? []).map((e) => e.id))
+  const taken = enhancementsTaken(selection, enhancementIds)
+  const enhancementText = new Map((catalogue.enhancements ?? []).map((e) => [e.name, e.text]))
+  const carried = rows.filter((r) => r.count > 0)
+
+  return (
+    <div className="built">
+      <WeaponTable title="Ranged weapons" rows={carried.filter((r) => r.profile.kind === 'ranged')} />
+      <WeaponTable title="Melee weapons" rows={carried.filter((r) => r.profile.kind === 'melee')} />
+      {carried.length === 0 && <p className="muted">No weapons chosen yet.</p>}
+      {unmatched.length > 0 && (
+        <p className="muted">
+          Also carried: {unmatched.map(([name, n]) => `${n}× ${name}`).join(', ')}
+        </p>
+      )}
+
+      {(sheet.abilities.length > 0 || detachmentRules.length > 0 || taken.length > 0) && <h3>Abilities</h3>}
+      <ul className="abilities">
+        {detachmentRules.map((rule) => (
+          <li key={rule.id} className="abilities__item">
+            <div className="abilities__head">
+              {rule.name}
+              <span className="rule-chip rule-chip--detachment">{detachment!.name}</span>
+            </div>
+            <p className="abilities__text">
+              <Marked text={rule.text} />
+            </p>
+          </li>
+        ))}
+        {taken.map((name) => (
+          <li key={name} className="abilities__item">
+            <div className="abilities__head">
+              {name}
+              <span className="rule-chip rule-chip--enhancement">Enhancement</span>
+            </div>
+            {enhancementText.get(name) && (
+              <p className="abilities__text">
+                <Marked text={enhancementText.get(name)!} />
+              </p>
+            )}
+          </li>
+        ))}
+        {sheet.abilities.map((ability) => (
+          <li key={ability.id} className="abilities__item">
+            <div className="abilities__head">
+              {ability.name}
+              {ability.kind === 'faction' && <span className="rule-chip rule-chip--core">Core / faction</span>}
+            </div>
+            <p className="abilities__text">
+              <Marked text={ability.text || '—'} />
+            </p>
+          </li>
+        ))}
+      </ul>
+      <p className="muted built__keywords">{keywords.join(', ')}</p>
+    </div>
   )
 }
 
@@ -91,6 +208,8 @@ type TreeProps = {
   root: Selection
   rootOnChange: (next: Selection) => void
   validation: Validation
+  /** Asked before an increment; a message refuses it. Absent for roster configuration. */
+  tryChange?: ((nextRoot: Selection) => string | undefined) | undefined
 }
 
 /** The option groups and direct entries of one selection, availability-gated. */
@@ -100,6 +219,7 @@ export function OptionTree({
   root,
   rootOnChange,
   validation,
+  tryChange,
 }: TreeProps & { entry: ResolvedEntry }) {
   const direct = entry.entries.filter((child) => offered(validation, parent, child, undefined))
   return (
@@ -114,6 +234,7 @@ export function OptionTree({
             root={root}
             rootOnChange={rootOnChange}
             validation={validation}
+            tryChange={tryChange}
           />
         ))}
       {direct.length > 0 && (
@@ -129,6 +250,8 @@ export function OptionTree({
               root={root}
               rootOnChange={rootOnChange}
               validation={validation}
+              tryChange={tryChange}
+              groupFull={false}
             />
           ))}
         </div>
@@ -156,6 +279,7 @@ function GroupEditor({
   root,
   rootOnChange,
   validation,
+  tryChange,
 }: TreeProps & { group: ResolvedGroup }) {
   const candidates = group.entries.filter((e) => offered(validation, parent, e, group))
   const nested = group.groups.filter((g) => groupOffered(validation, parent, g))
@@ -163,17 +287,27 @@ function GroupEditor({
   const min = group.constraints.find((c) => c.type === 'min' && c.scope === 'parent')
 
   const taken = candidates.reduce((sum, candidate) => sum + countOf(parent, candidate, group.id), 0)
+  // The evaluator's own reading of the cap after modifiers ("3, or 6 above 10
+  // models"). It also counts members the editor lists in another group (a
+  // special-weapon model still counts towards "9-18 models"), so the shown
+  // count is derived from the room left, not from the rows here.
+  const evaluated = validation.groupHeadroom[`${parent.id}:${group.id}`]
+  const baseMax = max && max.value >= 0 ? max.value : undefined
+  const limit = evaluated !== undefined ? Math.max(taken + evaluated, baseMax ?? 0) : baseMax
+  const shownTaken = evaluated !== undefined && limit !== undefined ? limit - evaluated : taken
+  const groupFull = limit !== undefined && shownTaken >= limit
 
   if (candidates.length === 0 && nested.length === 0) return null
 
   return (
-    <div className="group">
+    <div className={`group ${groupFull ? 'group--full' : ''}`}>
       <div className="group__head">
         <h3>{group.name}</h3>
-        <span className="muted">
-          {taken}
-          {max && max.value >= 0 ? ` / ${max.value}` : ''}
-          {min && min.value > 0 ? ` (min ${min.value})` : ''}
+        <span className={`group__count ${groupFull ? 'group__count--full' : ''}`}>
+          {shownTaken}
+          {limit !== undefined ? ` / ${limit}` : ''}
+          {min && min.value > 0 ? ` · min ${min.value}` : ''}
+          {groupFull ? ' · full' : ''}
         </span>
       </div>
 
@@ -186,6 +320,8 @@ function GroupEditor({
           root={root}
           rootOnChange={rootOnChange}
           validation={validation}
+          tryChange={tryChange}
+          groupFull={groupFull}
         />
       ))}
 
@@ -197,6 +333,7 @@ function GroupEditor({
           root={root}
           rootOnChange={rootOnChange}
           validation={validation}
+          tryChange={tryChange}
         />
       ))}
     </div>
@@ -215,10 +352,20 @@ function OptionRow({
   root,
   rootOnChange,
   validation,
-}: TreeProps & { entry: ResolvedEntry; groupId?: string }) {
+  tryChange,
+  groupFull,
+}: TreeProps & { entry: ResolvedEntry; groupId?: string; groupFull: boolean }) {
+  const [hint, setHint] = useState<string | null>(null)
   const existing = parent.selections.find((s) => isSameOption(s, entry, groupId))
   const count = existing?.count ?? 0
   const points = entry.costs[COST_TYPE.points]
+
+  // Room left on this option itself: the evaluator's number once it is taken,
+  // the data's plain `max` before that.
+  const baseMax = entry.constraints.find((c) => c.type === 'max' && c.scope === 'parent' && c.value >= 0)?.value
+  const room = existing ? validation.headroom[existing.id] : baseMax !== undefined ? baseMax - count : undefined
+  const atCap = room !== undefined && room <= 0
+  const plusDisabled = groupFull || atCap
 
   const setCount = (next: number) => {
     const value = Math.max(0, next)
@@ -240,27 +387,53 @@ function OptionRow({
       updated = { ...parent, selections: [...parent.selections, child] }
     }
 
-    rootOnChange(
+    const nextRoot =
       parent.id === root.id
         ? updated
-        : { ...root, selections: replaceSelection(root.selections, parent.id, updated) },
-    )
+        : { ...root, selections: replaceSelection(root.selections, parent.id, updated) }
+
+    if (value > count && tryChange) {
+      const refusal = tryChange(nextRoot)
+      if (refusal) {
+        setHint(refusal)
+        setTimeout(() => setHint(null), 2500)
+        return
+      }
+    }
+    setHint(null)
+    rootOnChange(nextRoot)
   }
 
   return (
-    <div className="option">
+    <div className={`option ${count > 0 ? 'option--taken' : ''}`}>
       <div className="option__label">
         <span>{entry.name}</span>
         {points ? <span className="muted"> {points} pts</span> : null}
+        {/* Worth a word only when more than one could be taken; a fixed single pick just greys its "+". */}
+        {room !== undefined && count > 0 && count + Math.max(room, 0) > 1 && (
+          <span className={`option__room ${atCap ? 'option__room--cap' : ''}`}>
+            {atCap ? 'max' : `${room} more`}
+          </span>
+        )}
+        {hint && (
+          <span className="option__hint" role="status">
+            {hint}
+          </span>
+        )}
       </div>
       <div className="stepper">
-        <button aria-label={`One fewer ${entry.name}`} onClick={() => setCount(count - 1)}>
+        <button aria-label={`One fewer ${entry.name}`} disabled={count === 0} onClick={() => setCount(count - 1)}>
           −
         </button>
         <span className="stepper__value" aria-live="polite">
           {count}
         </span>
-        <button aria-label={`One more ${entry.name}`} onClick={() => setCount(count + 1)}>
+        <button
+          aria-label={`One more ${entry.name}`}
+          disabled={plusDisabled}
+          title={plusDisabled ? 'At the limit the data allows' : undefined}
+          onClick={() => setCount(count + 1)}
+        >
           +
         </button>
       </div>
@@ -273,6 +446,7 @@ function OptionRow({
             root={root}
             rootOnChange={rootOnChange}
             validation={validation}
+            tryChange={tryChange}
           />
         </details>
       )}

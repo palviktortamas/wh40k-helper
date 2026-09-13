@@ -42,8 +42,9 @@ const game = (): Game => ({
   round: 1,
   phase: 'command',
   turn: 'me',
+  // The first Command phase has already given both players their Core CP.
   me: { cp: 1, vpPrimary: 0, vpSecondary: 0 },
-  opponent: { cp: 0, vpPrimary: 0, vpSecondary: 0 },
+  opponent: { cp: 1, vpPrimary: 0, vpSecondary: 0 },
   units: [unit('a', [{ id: 'a1', total: 10, wounds: 1 }, { id: 'a2', total: 2, wounds: 1 }]), unit('b', [{ id: 'b1', total: 1, wounds: 6 }])],
   vpByRound: {},
   log: [],
@@ -65,12 +66,14 @@ describe('game actions', () => {
     g = steps(g, 1)
     expect(g.turn).toBe('opponent')
     expect(g.phase).toBe('command')
-    // The opponent gains 1 CP at the start of their Command phase.
-    expect(g.opponent.cp).toBe(1)
+    // 11e Core Rules, "Gain Core CP": *both* players gain 1 CP in every Command phase.
+    expect(g.opponent.cp).toBe(2)
+    expect(g.me.cp).toBe(2)
     g = steps(g, 5)
     expect(g.round).toBe(2)
     expect(g.turn).toBe('me')
-    expect(g.me.cp).toBe(2)
+    expect(g.me.cp).toBe(3)
+    expect(g.opponent.cp).toBe(3)
     expect(g.vpByRound[1]).toEqual({ me: 0, opponent: 0 })
   })
 
@@ -80,7 +83,8 @@ describe('game actions', () => {
     g = apply(g, { type: 'prevPhase' })
     expect(g.turn).toBe('me')
     expect(g.phase).toBe('fight')
-    expect(g.opponent.cp).toBe(0)
+    expect(g.opponent.cp).toBe(1)
+    expect(g.me.cp).toBe(1)
     // Cannot go before the first Command phase.
     const start = game()
     expect(apply(start, { type: 'prevPhase' })).toBe(start)

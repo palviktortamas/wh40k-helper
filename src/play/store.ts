@@ -44,9 +44,10 @@ export function newGame(
     round: 1,
     phase: 'command',
     turn: options.firstTurn,
-    // Both players start with 0 CP and gain 1 at the start of their first Command phase (Core Rules).
-    me: { cp: options.firstTurn === 'me' ? 1 : 0, vpPrimary: 0, vpSecondary: 0 },
-    opponent: { cp: options.firstTurn === 'opponent' ? 1 : 0, vpPrimary: 0, vpSecondary: 0 },
+    // The game opens in the first Command phase, whose "Gain Core CP" step gives
+    // *both* players 1 CP (11th edition Core Rules) — not only the active player.
+    me: { cp: 1, vpPrimary: 0, vpSecondary: 0 },
+    opponent: { cp: 1, vpPrimary: 0, vpSecondary: 0 },
     units: buildGameUnits(roster, catalogue.parsed, validation),
     vpByRound: {},
     ...(options.mission ? { mission: options.mission } : {}),

@@ -14,6 +14,14 @@ import { SOURCE_HOMEPAGES, SOURCE_LABELS } from '@/data/sources'
 import { fetchMissionDeckViaEndpoint, getMissionDeck, importBundledMissionDeck, importMissionDeckHtml } from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
 import { getSyncConfig } from '@/sync/client'
+import {
+  STRATAGEMS_SOURCE_URL,
+  fetchStratagemsViaEndpoint,
+  getStratagemSet,
+  importStratagemsCsv,
+  removeStratagems,
+} from '@/stratagems/store'
+import type { StratagemSet } from '@/stratagems/types'
 import { graphFor, listRosters, normaliseRoster, validate } from '@/roster/store'
 import './Data.css'
 
@@ -250,6 +258,7 @@ export function Data() {
       )}
 
       <MissionDeckSection />
+      <StratagemsSection />
 
       <h3>Sources</h3>
       <ul className="data__sources">
@@ -262,10 +271,109 @@ export function Data() {
         ))}
       </ul>
       <p className="data__meta">
-        Wahapedia rules text for datasheets (Phase 1b) is not imported yet; the mission deck above
-        comes from Wahapedia through your own endpoint or a saved page.
+        Wahapedia rules text for datasheets (Phase 1b) is not imported yet; the mission deck and the
+        stratagems above come from Wahapedia through your own endpoint or a saved file.
       </p>
     </section>
+  )
+}
+
+/**
+ * Stratagems (spec §6.3): BSData has none, so they come from Wahapedia's
+ * `Stratagems.csv` export — through the owner's endpoint or as a file saved
+ * from the browser. One import covers every faction; games filter it by
+ * detachment.
+ */
+function StratagemsSection() {
+  const [set, setSet] = useState<StratagemSet | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [endpoint, setEndpoint] = useState(false)
+
+  useEffect(() => {
+    void getStratagemSet().then((s) => setSet(s ?? null))
+    void getSyncConfig().then((c) => setEndpoint(Boolean(c.url && c.passphrase)))
+  }, [])
+
+  const run = async (job: () => Promise<StratagemSet>) => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const imported = await job()
+      setSet(imported)
+      const core = imported.stratagems.filter((s) => s.core).length
+      setMessage(`Imported ${imported.stratagems.length} stratagems (${core} Core).`)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h3>Stratagems</h3>
+      <div className="data__card">
+        <div className="data__cardHead">
+          <strong>Wahapedia stratagem export</strong>
+          {set && <span className="data__meta">{formatDate(set.importedAt)}</span>}
+        </div>
+        {set ? (
+          <p className="data__meta">
+            {set.stratagems.length} stratagems across every faction · {set.stratagems.filter((s) => s.core).length}{' '}
+            Core. Play Mode lists the Core ones and your detachment's, by phase, with their CP.
+          </p>
+        ) : (
+          <p className="data__meta">
+            Not imported yet. Play Mode's stratagem list needs it — fetch it through your endpoint, or open{' '}
+            <a href={STRATAGEMS_SOURCE_URL} target="_blank" rel="noreferrer">
+              Stratagems.csv
+            </a>{' '}
+            in a browser, save it, and pick the file here.
+          </p>
+        )}
+        {message && (
+          <p className="data__meta" role="status">
+            {message}
+          </p>
+        )}
+        <div className="data__actions">
+          <button
+            className={`data__button${set ? ' data__button--quiet' : ''}`}
+            disabled={busy || !endpoint}
+            title={endpoint ? '' : 'Configure your endpoint under Settings → Sync first'}
+            onClick={() => void run(fetchStratagemsViaEndpoint)}
+          >
+            {busy ? 'Working…' : set ? 'Refresh through my endpoint' : 'Fetch through my endpoint'}
+          </button>
+          <label className={`data__button tap data__file${set || !endpoint ? ' data__button--quiet' : ''}`}>
+            Import Stratagems.csv
+            <input
+              type="file"
+              accept="text/csv,.csv,text/plain"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void run(async () => importStratagemsCsv(await file.text()))
+              }}
+            />
+          </label>
+          {set && (
+            <button
+              className="data__button data__button--quiet"
+              disabled={busy}
+              onClick={async () => {
+                if (!confirm('Remove the imported stratagems from this device?')) return
+                await removeStratagems()
+                setSet(null)
+              }}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 

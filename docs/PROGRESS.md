@@ -19,6 +19,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 4 | Missions (CA 2026-27) | **built 2026-09-13** — import, browser, setup wizard, scoring, Tactical deck, card editor, card-state trackers; WHEN DRAWN unit picks and twist automation remain |
 | 5 | Reminders | **built 2026-09-13 (late night)** — heuristics, per-rule overrides, in-game phase panel; needs a real game to tune the defaults |
 | 6 | Polish + second-faction test | **built 2026-09-13 (late night)** — linked library catalogues, two more factions pass every suite, Update all + roster diff |
+| 7 | Owner feedback round: UI redesign, rules fixes, stratagems | **built 2026-09-13 (night 2)** — role-grouped list builder with stats, caps enforced in the editor, detachment rules on units, stat strips at the table, 11e CP fix, Battle-shock step, stratagem import + panel |
 
 ---
 
@@ -295,6 +296,85 @@ generality gaps, all fixed:
   (1 + 102 datasheets, 2 linked libraries, 24 detachments of which 15 offered), datasheet with
   6 abilities, roster → detachment → unit → editor, 128 reminder groups; no console errors.
 
+### Owner feedback round (2026-09-13, night 2) — UI redesign, rules fixes, stratagems
+
+The owner loaded their faction and asked for: stats/abilities visible while building, units
+grouped so they can be found, weapon caps enforced in the editor, an overall UI that scales to a
+large army ("more colours"), base stats on the table cards, detachment rules shown on the units
+they improve, the 11e rules read so nothing like the CP generation is wrong, and a stratagem
+list in Play Mode. Everything below was walked through in headless Chrome on the real catalogue
+(driver `walk.mjs` in the scratchpad; it uses a *persistent* Chrome profile so the installed
+faction survives re-runs, and it imports the stratagem CSV through the file input).
+
+- **Rules verified against the 11e Core Rules (Wahapedia) and two secondary sources.** Command
+  phase = Start → **Gain Core CP: "Both players gain 1 CP"** → Battle-shock step → Command
+  abilities → End. The app used to grant only the active player 1 CP; `advance()` now grants
+  both (and `retreat()` takes it back from both), a new game starts with **1 CP each**. Also
+  encoded: each Stratagem once per phase, one Stratagem per unit per phase, a Battle-shocked unit
+  cannot be targeted by its controller's Stratagems (footnote on the panel). Spec §6.2 corrected.
+  No 11e cap on CP gained from other sources was found; tournaments may add one.
+- **Stratagems (spec §6.3).** BSData has none (verified: zero stratagem entries). They come from
+  Wahapedia's `Stratagems.csv` — `src/stratagems/parseCsv.ts` (generic pipe-CSV: BOM, trailing
+  pipe, header-keyed), `select.ts` (Core + chosen detachment by normalised name; phase/turn
+  match; TARGET-keyword match per unit), `store.ts` (Dexie **v8** `stratagems`, one record for
+  every faction; import by file or through the owner's endpoint proxy). **Data facts:** the 11e
+  Core set is the ten rows typed exactly `Core Stratagem` (Command Re-roll, Counteroffensive,
+  Crushing Impact, Epic Challenge, Explosives, Fire Overwatch, Heroic Intervention, Insane
+  Bravery, Rapid Ingress, Smokescreen); rows typed `Core – <Category> Stratagem` are 10th-edition
+  leftovers (Tank Shock, Grenade, Go to Ground…) and `Boarding Actions – …` / `Challenger – …`
+  are other game modes — all dropped. The table also lists movement "abilities"; only rows whose
+  type contains "Stratagem" are kept. Faction rows join by the `detachment` column, so
+  `Factions.csv` is not needed. HTML text is converted once, at import, into the app's marked
+  form (`**KEYWORD**` from `<span class="kwb">`, `__bold__` from `<b>`, bullets from `<li>`) by
+  `src/stratagems/marked.ts`; `Marked.tsx` is the one renderer — no HTML is ever injected. The
+  same renderer now shows BSData's `**bold**` ability text properly.
+- **Play Mode:** `GameStratagems` panel (Now / All, CP chip, WHEN always visible, tap for
+  TARGET/EFFECT/RESTRICTIONS, **Use** = `useStratagem` action: spends CP, marks
+  `GameState.stratagemsUsed[round:turn:phase:id]`, undoable, tap again to take back);
+  `BattleShockStep` panel in your Command phase (`belowHalfStrength()` in `play/types.ts`, plus
+  units already shocked, with Ld; Failed/Passed toggle the status); unit cards carry a **stat
+  strip** (`StatStrip.tsx`, first profile only on cards, live W for single models) and a role
+  stripe; the unit sheet shows detachment rules that name the unit, enhancements with text, and
+  "Stratagems for this unit".
+- **Detachment rules on units** (`src/roster/detachmentRules.ts`): a rule's bold-caps tokens are
+  read as keyword clauses — "friendly **X** units" first, "**X** units" as fallback, `/` as
+  alternatives, multi-word tokens need every word, "excluding **Y**" negates, stat letters and
+  weapon abilities are skipped — and matched against the datasheet's keywords + faction
+  keywords. A rule naming no unit is army-wide (`undefined`). Shown with a detachment chip in the
+  unit editor's Datasheet panel and on the in-game sheet. **Not done:** BSData's
+  detachment-conditional *profile modifiers* (69 owners in the test faction append weapon
+  keywords such as `[ASSAULT]` when a detachment is present) are still not evaluated; the rule
+  text says what they do.
+- **List builder redesign.** `RosterEditor`: sticky summary (badge, points meter, DP,
+  detachment + Force Dispositions), detachment rule `<details>`, issues folded into one
+  `<details>`, **By role / My order** toggle (setting `rosters.unitsView` in IndexedDB), units
+  grouped by battlefield role with subtotal and colour (`src/roster/roles.ts` — game-system
+  vocabulary: Character / Battleline / Dedicated Transport / Other / Fortification), attached
+  leaders nested inside their unit in role view, cards with stat strip, roll-up, enhancement
+  chips, Remove asks first. `UnitPicker`: grouped by role, role chips, points at every size from
+  the pricing bands, stat strip per row, **i** expands abilities/weapons/keywords. `UnitEditor`:
+  stat strip, two columns at ≥900 px (options | Datasheet panel: weapons carried via the shared
+  `play/weapons.ts` + `modelGroups()`, abilities, detachment rules, enhancements).
+- **Caps in the editor.** The evaluator now reports **headroom**: per selection, the smallest
+  `max − actual` over its own `selections` caps, and — for caps scoped beyond the parent
+  (`unit`, `force`, entry-id) — tightened onto every ancestor up to the scope (one more "Boy w/
+  Rokkit launcha" is one more rokkit launcha in the unit: `max 1 @unit` lives on the *weapon*
+  child, the model entry itself only has `max 2 @parent`). `groupHeadroom` per
+  `owner:groupId`. The `+` is disabled at 0 and the group head reads "n / limit · full" (limit
+  derived from the room, because the evaluator counts special-weapon models in "9-18 Boyz" while
+  the editor lists them in another group). Second net: before any increment `tryChange` runs a
+  trial validation and refuses if the count of "at most" errors inside the unit would rise.
+- **Design.** Tokens added: `--surface-sunken`, `--accent-soft`, five `--role-*` colours (dark and
+  light); shared `Units.css` (stat strip, role stripe/tag, group heads, keyword mark, rule chips,
+  ability list, points meter). No web fonts — offline-first PWA, system-ui stays; hierarchy comes
+  from weight, size and letter-spaced uppercase labels. Colour is never alone: every role colour
+  sits next to its word, Inv/hurt cells carry the value, used stratagems say "Used ✓".
+  Layout guards: `.shell__main{overflow-x:hidden}`, `minmax(0,1fr)` grids, wrapping counters —
+  the first screenshots showed the editor and the score panel widening the phone page.
+- Tests: `detachmentRules.test.ts`, `stratagems/parseCsv.test.ts` (invented export slice in the
+  real shape; parser, marked text, detachment join, phase match), CP tests updated. 89 pass with
+  the fixtures, 69 in CI.
+
 ### Constraint evaluator - semantics (the things that are easy to get wrong)
 
 - **A scope query searches the scope's whole subtree.** `includeChildSelections` does not gate
@@ -503,8 +583,12 @@ walked through in headless Chrome:
 - ~~Model-removal default order~~ and ~~Reserves "arrive"~~ — done 2026-09-13 night (see Phase 4
   notes). The default is by group size; if a faction has a mixed unit whose plain models are not
   the largest group, that unit needs the "Remove models…" panel, which is still there.
-- Stratagems per detachment on the in-game datasheet (needs Wahapedia or a parse of BSData
-  rules; not in the current parsed model).
+- ~~Stratagems per detachment on the in-game datasheet~~ — done 2026-09-13 night 2 via the
+  Wahapedia stratagem import (see "Owner feedback round"). Open: **should the build ship
+  `Stratagems.csv` like the mission deck?** Same source and mechanism (`scripts/fetch-mission-deck.mjs`
+  + a git-ignored `public/` file + a guard exception for a `.csv` over 256 kB), but the owner's
+  2026-09-13 exception covers the deck only — ask before extending it. Until then: file import or
+  the endpoint proxy.
 - Weapon-profile matching (`weaponCounts` in `GameUnitSheet.tsx`): per loadout entry, exact
   name or the weapon a "➤ X - Mode" sub-profile belongs to first, else whole-word containment
   for combined weapons. Profiles no survivor carries are folded into "Other profiles".
@@ -536,8 +620,16 @@ Built (see "Phase 5 - Reminders"). What a real game will tell:
   Scouts, Stealth…) currently land as *army* rules because BSData links them as shared rules;
   showing them per unit would need the parser to keep the link per datasheet (it does — they
   are in `sheet.abilities` with kind `faction`; `derive.ts` chooses to pool them).
-- **Stratagems** are still not in the data (BSData has none); reminders for them would need
-  Wahapedia's stratagem export through the Worker (Phase 1b).
+- **Stratagems** are imported now (Wahapedia export, Data screen); the in-game panel filters by
+  phase. Turning them into reminders (the heuristics already understand the WHEN wording) is a
+  small follow-up if the panel proves too far from the reminders list in a real game.
+- **Detachment-conditional weapon keywords** (BSData profile modifiers, e.g. `[ASSAULT]` while a
+  detachment is present) are not evaluated; the detachment rule text is shown on the unit instead.
+- **Role grouping** is on the roster, the picker and the datasheet browser; Settings → Reminders
+  still lists units flat.
+- The unit-sheet's "Stratagems for this unit" is a keyword match on the TARGET line; Wahapedia's
+  `Datasheets_stratagems.csv` (datasheet id → stratagem id) would be exact but needs the
+  Wahapedia datasheet ids joined to BSData by name.
 - **Weapon keywords** (spec lists them as reminder sources) are not reminders yet — Sustained
   Hits, Lethal Hits etc. are visible in the weapons table; a per-unit "keywords in play" line in
   the Shooting/Fight panel would be the cheap version.

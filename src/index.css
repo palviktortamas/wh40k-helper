@@ -14,6 +14,15 @@
   --danger: #ff6b5e;
   --warning: #ffc14d;
   --ok: #6abf3f;
+  /* A step below the surface, for cells and quiet panels inside a card. */
+  --surface-sunken: #0f1311;
+  --accent-soft: rgb(106 191 63 / 0.14);
+  /* Battlefield roles — information, not decoration: every unit carries one. */
+  --role-character: #e6b850;
+  --role-battleline: #6abf3f;
+  --role-transport: #5db0e8;
+  --role-other: #b99cf0;
+  --role-fortification: #9aacb8;
 }
 
 :root[data-theme='light'] {
@@ -29,6 +38,13 @@
   --danger: #b3261e;
   --warning: #8a5a00;
   --ok: #2f7a15;
+  --surface-sunken: #e9eee8;
+  --accent-soft: rgb(47 122 21 / 0.12);
+  --role-character: #8a6a00;
+  --role-battleline: #2f7a15;
+  --role-transport: #1c6ea4;
+  --role-other: #6741b5;
+  --role-fortification: #5b6f7c;
 }
 
 @media (prefers-color-scheme: light) {
@@ -45,6 +61,13 @@
     --danger: #b3261e;
     --warning: #8a5a00;
     --ok: #2f7a15;
+    --surface-sunken: #e9eee8;
+    --accent-soft: rgb(47 122 21 / 0.12);
+    --role-character: #8a6a00;
+    --role-battleline: #2f7a15;
+    --role-transport: #1c6ea4;
+    --role-other: #6741b5;
+    --role-fortification: #5b6f7c;
   }
 }
 

@@ -24,6 +24,9 @@ available" toast on open; tap Reload first.
 - [ ] **Mission deck** is there on first start without doing anything (the build ships it):
       the Data screen's deck card shows 25 primary · 18 secondary · 6 deployments · 6 twists.
       **Reload the shipped deck** re-imports it (this replaces card edits).
+- [ ] **Stratagems**: Data → Stratagems → **Import Stratagems.csv** (open the linked file in a
+      browser, save it, pick it) or **Fetch through my endpoint** → "Imported N stratagems (10
+      Core)". Play Mode's stratagem panel fills in.
 - [ ] Fallback: **Import saved page** — open the Wahapedia mission-deck page on the PC, save it
       as HTML, import the file. Expect "Imported 25 primary, 18 secondary missions".
 - [ ] **Browse cards**: Primary tab grouped by disposition, Secondary tab shows 4 "Fixed-eligible"
@@ -39,9 +42,21 @@ available" toast on open; tap Reload first.
 - [ ] **Detachment** select lists every detachment with its DP; picking one changes the DP shown.
 - [ ] **Army configuration**: pick a Force Disposition; the toggles (Legends etc.) are checkboxes
       and default off. Changing the **Limit** keeps the battle size in step (no "pts at most 0").
-- [ ] **Add unit** → search → pick. Tap the unit → editor. Build the spec §9 20-model unit with the
-      steppers (16 + 2 special + 2 leader models). Unit shows **180 pts** and no errors.
-- [ ] Add a **third** special-weapon model → a specific error names the cap. Remove it.
+- [ ] **Add unit** → the picker groups units by role (coloured headings, role chips to filter),
+      each row shows points at every size and the stat line; **i** opens abilities and weapons.
+      Search matches keywords too. Tap a row → it is added.
+- [ ] The roster is grouped **By role** with a subtotal per group and a coloured stripe per card;
+      every card shows the stat line and the loadout roll-up. **My order** shows the flat list with
+      ↑ ↓ arrows. The choice survives a reload. The sticky summary (badge, points meter, DP,
+      detachment and its Force Dispositions) stays in view while scrolling.
+- [ ] Tap **Edit** → editor: stat line on top, loadout groups on the left, the **Datasheet** panel
+      (weapons carried with counts, abilities, detachment rules that name this unit with a
+      detachment chip) below on the phone and beside on a PC. Build the spec §9 20-model unit
+      with the steppers (16 + 2 special + 2 leader models). Unit shows **180 pts** and no errors.
+- [ ] Caps are enforced in the editor: a group reads "n / max" and turns **full**; the **+** of an
+      option at its cap is greyed (a second special weapon of the same kind at 10–19 models). If a
+      cap the data hides somewhere else would be broken, tapping + shows "At the limit the data
+      allows" instead of adding. Grow to 20 models → the same + works again.
 - [ ] Add a Character; **Warlord** button appears only on Characters; tapping it sets the chip and
       clears the Warlord errors. Tap again to unset.
 - [ ] **Attach to**: the Character's select lists only units it may lead; attach it. The unit card
@@ -75,9 +90,17 @@ available" toast on open; tap Reload first.
 - [ ] **Mission setup**: your disposition prefilled from the roster; pick the opponent's → both
       primaries derived. **Draw** deployment, **Roll D6** central objectives, **Roll off** attacker,
       choose Tactical. Try Fixed: two fixed-eligible picks, no duplicates.
-- [ ] Game screen: round 1, your Command phase, you have 1 CP. **Next** walks
-      Command → Movement → Shooting → Charge → Fight → opponent's turn (they gain 1 CP) → round 2.
-      **Prev** goes back and takes the CP back. Screen does not dim while the game is open.
+- [ ] Game screen: round 1, your Command phase, **both** players have 1 CP (11e "Gain Core CP":
+      both gain 1 CP in every Command phase). **Next** walks Command → Movement → Shooting →
+      Charge → Fight → opponent's turn (both gain 1 CP again) → round 2. **Prev** goes back and
+      takes that CP back from both. Screen does not dim while the game is open.
+- [ ] **Battle-shock step** panel in your Command phase: "no tests this turn" at full strength;
+      after removing more than half of a unit's models it lists the unit with its Ld; **Failed**
+      marks it Battle-shocked, **Passed** clears it.
+- [ ] **Stratagems** panel (needs the import under Data): "Now" lists the Core and detachment
+      stratagems timed for this phase and turn, "All" the whole set; CP chip, WHEN line, tap the
+      name for TARGET / EFFECT. **Use** takes the CP and shows "Used ✓" for this phase (once per
+      phase); tap again to take it back. Greyed when you cannot afford it.
 - [ ] CP / Primary / Secondary steppers for both players; totals update; never below zero.
 - [ ] **Mission panel**: only the primary's blocks for this round are active; tap a "+N VP" line →
       Primary VP rises, "−" undoes. **Draw 2** → two secondaries appear with deck count 16.
@@ -87,8 +110,9 @@ available" toast on open; tap Reload first.
 - [ ] **Card trackers**: under the primary and each active secondary, a **− N +** counter and a
       note field. + twice, type a note, **Undo** → the counter goes back, the note stays.
       Both survive a reload.
-- [ ] Army: unit cards show models alive / total, current model's wounds for multi-wound models,
-      leaders nested inside their unit.
+- [ ] Army: unit cards carry a role stripe and the stat line (a single model's W cell reads
+      current/total and turns amber when hurt), models alive / total, current model's wounds for
+      multi-wound models, leaders nested inside their unit.
 - [ ] **−1 model** on a single-type unit removes one; on a mixed unit the quick button is
       **−1 <plain model>** (largest group first, the sergeant last) and **Remove models…** lists each
       model type with −1 / +1 (and −1 W / +1 W for multi-wound). Remove one special-weapon model.
@@ -96,7 +120,9 @@ available" toast on open; tap Reload first.
       clears the status and logs "arrives from …".
 - [ ] Tap the unit name → datasheet: the weapons table counts follow the survivors (one fewer of
       that weapon); "Other profiles" folds away wargear nobody carries; abilities with "once per
-      battle" have a **used** checkbox that strikes them through.
+      battle" have a **used** checkbox that strikes them through. Detachment rules that name the
+      unit's keywords appear first with a detachment chip; taken enhancements with their text;
+      **Stratagems for this unit** lists the ones whose TARGET names its keywords.
 - [ ] Damage a multi-wound model to 0 → model removed, no carry-over; last model → unit
       "✕ Destroyed", **Revive** restores it.
 - [ ] Statuses under **More…**: Battle-shocked etc. toggle; Advanced / Fell back clear at end of turn.

@@ -3,7 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
 import type { Datasheet } from '@/data/model'
+import { ROLE_ORDER, roleHeading, roleKey, type RoleKey } from '@/roster/roles'
+import { StatStrip } from './StatStrip'
 import './Datasheets.css'
+import './Units.css'
 
 /** Cheapest listed points, which is what a browse list wants to show. */
 export function startingPoints(sheet: Datasheet): number | undefined {
@@ -18,23 +21,18 @@ export function Datasheets() {
   const { catalogueId } = useParams<{ catalogueId: string }>()
   const [record, setRecord] = useState<CatalogueRecord | null>(null)
   const [query, setQuery] = useState('')
-  const [role, setRole] = useState<string>('all')
+  const [role, setRole] = useState<RoleKey | 'all'>('all')
 
   useEffect(() => {
     if (!catalogueId) return
     void getCatalogue(catalogueId).then((r) => setRecord(r ?? null))
   }, [catalogueId])
 
-  const roles = useMemo(() => {
-    if (!record) return []
-    return [...new Set(record.parsed.datasheets.map((d) => d.role).filter(Boolean))].sort() as string[]
-  }, [record])
-
   const shown = useMemo(() => {
     if (!record) return []
     const needle = query.trim().toLowerCase()
     return record.parsed.datasheets.filter((sheet) => {
-      if (role !== 'all' && sheet.role !== role) return false
+      if (role !== 'all' && roleKey(sheet.role) !== role) return false
       if (!needle) return true
       return (
         sheet.name.toLowerCase().includes(needle) ||
@@ -44,6 +42,10 @@ export function Datasheets() {
   }, [record, query, role])
 
   if (!record) return <p>Loading…</p>
+
+  const all = record.parsed.datasheets
+  const present = ROLE_ORDER.filter((key) => all.some((d) => roleKey(d.role) === key))
+  const roleName = (key: RoleKey) => all.find((d) => roleKey(d.role) === key)?.role
 
   return (
     <section className="sheets">
@@ -59,42 +61,67 @@ export function Datasheets() {
       />
 
       <div className="sheets__roles" role="group" aria-label="Filter by role">
-        {['all', ...roles].map((option) => (
+        <button
+          className={`sheets__role${role === 'all' ? ' sheets__role--on' : ''}`}
+          aria-pressed={role === 'all'}
+          onClick={() => setRole('all')}
+        >
+          All
+        </button>
+        {present.map((key) => (
           <button
-            key={option}
-            className={`sheets__role${role === option ? ' sheets__role--on' : ''}`}
-            aria-pressed={role === option}
-            onClick={() => setRole(option)}
+            key={key}
+            className={`sheets__role role--${key}${role === key ? ' sheets__role--on' : ''}`}
+            aria-pressed={role === key}
+            onClick={() => setRole(key)}
           >
-            {option === 'all' ? 'All' : option}
+            <span className="role-tag">{roleHeading(key, roleName(key))}</span>
           </button>
         ))}
       </div>
 
       <p className="sheets__count">
-        {shown.length} of {record.parsed.datasheets.length} datasheets
+        {shown.length} of {all.length} datasheets
       </p>
 
-      <ul className="sheets__list">
-        {shown.map((sheet) => {
-          const points = startingPoints(sheet)
-          return (
-            <li key={sheet.id}>
-              <Link
-                className="sheets__item tap"
-                to={`/datasheets/${encodeURIComponent(record.id)}/${encodeURIComponent(sheet.id)}`}
-              >
-                <span className="sheets__name">
-                  {sheet.name}
-                  {sheet.variant && <span className="sheets__variant">{sheet.variant}</span>}
-                  {sheet.library && <span className="sheets__variant" title={`From ${sheet.library}`}>linked</span>}
-                </span>
-                <span className="sheets__points">{points === undefined ? '—' : `${points} pts`}</span>
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
+      {ROLE_ORDER.filter((key) => shown.some((d) => roleKey(d.role) === key)).map((key) => {
+        const group = shown.filter((d) => roleKey(d.role) === key)
+        return (
+          <section key={key} className={`unitgroup role--${key}`}>
+            <div className="unitgroup__head">
+              <h3>{roleHeading(key, roleName(key))}</h3>
+              <span className="unitgroup__sum">{group.length}</span>
+            </div>
+            <ul className="sheets__list">
+              {group.map((sheet) => {
+                const points = startingPoints(sheet)
+                return (
+                  <li key={sheet.id}>
+                    <Link
+                      className={`sheets__item tap role-stripe role--${key}`}
+                      to={`/datasheets/${encodeURIComponent(record.id)}/${encodeURIComponent(sheet.id)}`}
+                    >
+                      <span className="sheets__main">
+                        <span className="sheets__name">
+                          {sheet.name}
+                          {sheet.variant && <span className="sheets__variant">{sheet.variant}</span>}
+                          {sheet.library && (
+                            <span className="sheets__variant" title={`From ${sheet.library}`}>
+                              linked
+                            </span>
+                          )}
+                        </span>
+                        <StatStrip stats={sheet.stats} firstOnly />
+                      </span>
+                      <span className="sheets__points">{points === undefined ? '—' : `${points} pts`}</span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )
+      })}
     </section>
   )
 }

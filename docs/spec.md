@@ -132,7 +132,7 @@ Errors (illegal) vs warnings (legal but suspicious, e.g. points left over > 50, 
 
 ### 6.2 Game flow tracker
 - Battle round (1–5) and phase tracker (Command → Movement → Shooting → Charge → Fight; plus "opponent's turn" state). Big Next/Prev buttons.
-- **CP** counter (auto +1 at your Command phase, editable), **VP** counters for primary, secondaries, and total for both players (opponent's VP tracked as a plain number).
+- **CP** counter (auto +1 for **both** players in every Command phase — the 11e Core Rules "Gain Core CP" step gives both players 1 CP in each player's Command phase, verified 2026-09-13; editable), **VP** counters for primary, secondaries, and total for both players (opponent's VP tracked as a plain number).
 - **Secondary missions (Tactical)** — implement exactly as CA 2026-27 states (all numbers configurable in mission data):
   - Start of your Command phase: **draw two** cards face-up; they join any still-active cards (no hand-size cap).
   - Resolve **WHEN DRAWN** rules immediately (prompt for unit/objective selections; offer the reshuffle/redraw buttons only when the card allows it).

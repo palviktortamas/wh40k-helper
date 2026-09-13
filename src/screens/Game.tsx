@@ -9,6 +9,7 @@ import {
   LAST_ROUND,
   PHASE_LABELS,
   STATUS_LABELS,
+  belowHalfStrength,
   defaultCasualtyGroup,
   inReserves,
   modelsAlive,
@@ -26,8 +27,16 @@ import { getOverrides, getRemindersEnabled, setRemindersEnabled } from '@/remind
 import type { ReminderOverride } from '@/reminders/types'
 import { getMissionDeck } from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
+import { getStratagemSet } from '@/stratagems/store'
+import { forDetachment } from '@/stratagems/select'
+import type { StratagemSet } from '@/stratagems/types'
+import type { Datasheet } from '@/data/model'
+import { roleKey } from '@/roster/roles'
+import { GameStratagems } from './GameStratagems'
+import { StatStrip } from './StatStrip'
 import './Rosters.css'
 import './Game.css'
+import './Units.css'
 
 const STATUSES: UnitStatus[] = ['battleShocked', 'advanced', 'fellBack', 'reserves', 'deepStrike', 'embarked']
 
@@ -45,6 +54,7 @@ export function Game() {
   const [deck, setDeck] = useState<MissionDeck | null>(null)
   const [overrides, setOverrides] = useState<Map<string, ReminderOverride>>(new Map())
   const [remindersOn, setRemindersOn] = useState(true)
+  const [stratagemSet, setStratagemSet] = useState<StratagemSet | null>(null)
 
   useEffect(() => {
     if (!gameId) return
@@ -55,6 +65,7 @@ export function Game() {
     })
     void getOverrides().then(setOverrides)
     void getRemindersEnabled().then(setRemindersOn)
+    void getStratagemSet().then((s) => setStratagemSet(s ?? null))
   }, [gameId])
 
   const toggleReminders = useCallback(() => {
@@ -90,6 +101,8 @@ export function Game() {
           game={game}
           unit={unit}
           sheets={sheets}
+          catalogue={catalogue?.parsed}
+          stratagems={stratagemSet ? forDetachment(stratagemSet.stratagems, game.detachmentName) : []}
           dispatch={dispatch}
           onBack={() => setOpenUnit(null)}
         />
@@ -116,10 +129,10 @@ export function Game() {
 
   const renderUnit = (unit: GameUnit, leader = false) => (
     <>
-      <UnitCard unit={unit} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(unit.id)} leader={leader} />
+      <UnitCard unit={unit} sheet={sheets.get(unit.entryId)} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(unit.id)} leader={leader} />
       {(leadersOf.get(unit.id) ?? []).map((l) => (
-        <div key={l.id} className={`unit__leader ${l.destroyed ? 'unit--dead' : ''}`}>
-          <UnitCard unit={l} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(l.id)} leader />
+        <div key={l.id} className={`unit__leader role-stripe role--character ${l.destroyed ? 'unit--dead' : ''}`}>
+          <UnitCard unit={l} sheet={sheets.get(l.entryId)} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(l.id)} leader />
         </div>
       ))}
     </>
@@ -218,6 +231,10 @@ export function Game() {
       )}
 
       {catalogue && (
+        <BattleShockStep game={game} sheets={sheets} dispatch={dispatch} />
+      )}
+
+      {catalogue && (
         <GameReminders
           game={game}
           catalogue={catalogue.parsed}
@@ -235,10 +252,20 @@ export function Game() {
         </>
       )}
 
-      <h3 className="play__heading">Army</h3>
+      <GameStratagems game={game} set={stratagemSet} dispatch={dispatch} />
+
+      <h3 className="play__heading">
+        Army{' '}
+        <span className="muted">
+          — {game.units.filter((u) => !u.destroyed).length} of {game.units.length} units standing
+        </span>
+      </h3>
       <ul className="units">
         {topLevel.map((unit) => (
-          <li key={unit.id} className={`units__item unit ${unit.destroyed ? 'unit--dead' : ''}`}>
+          <li
+            key={unit.id}
+            className={`units__item unit role-stripe role--${roleKey(sheets.get(unit.entryId)?.role)} ${unit.destroyed ? 'unit--dead' : ''}`}
+          >
             {renderUnit(unit)}
             {(passengersOf.get(unit.id) ?? []).map((passenger) => (
               <div key={passenger.id} className={`unit__leader unit__passenger ${passenger.destroyed ? 'unit--dead' : ''}`}>
@@ -316,14 +343,82 @@ function Counter({
   )
 }
 
+/**
+ * The Battle-shock step of your Command phase (11e Core Rules): units below
+ * half-strength, and units already Battle-shocked, take a Battle-shock test.
+ * Listed with their Leadership so the roll needs no datasheet lookup; tapping
+ * records the result as the unit's status.
+ */
+function BattleShockStep({
+  game,
+  sheets,
+  dispatch,
+}: {
+  game: GameModel
+  sheets: Map<string, Datasheet>
+  dispatch: (action: GameAction) => void
+}) {
+  if (game.turn !== 'me' || game.phase !== 'command') return null
+  const testing = game.units.filter(
+    (u) => !u.destroyed && !inReserves(u) && (belowHalfStrength(u) || u.statuses.includes('battleShocked')),
+  )
+  return (
+    <section className="shock" aria-label="Battle-shock step">
+      <h3 className="play__heading">
+        Battle-shock step{' '}
+        <span className="muted">— {testing.length === 0 ? 'no tests this turn' : `${testing.length} to test`}</span>
+      </h3>
+      {testing.length > 0 && (
+        <ul className="shock__list">
+          {testing.map((u) => {
+            const shocked = u.statuses.includes('battleShocked')
+            const ld = sheets.get(u.entryId)?.stats[0]?.ld
+            return (
+              <li key={u.id} className="shock__row">
+                <span className="shock__unit">
+                  <strong>{u.name}</strong>
+                  <span className="muted">
+                    {' '}
+                    {modelsAlive(u)}/{modelsTotal(u)} models{ld ? ` · Ld ${ld}` : ''}
+                    {shocked ? ' · currently Battle-shocked' : ' · below half-strength'}
+                  </span>
+                </span>
+                <span className="shock__actions">
+                  <button
+                    className={`chip chip--button ${shocked ? 'chip--on' : ''}`}
+                    aria-pressed={shocked}
+                    onClick={() => dispatch({ type: 'toggleStatus', unitId: u.id, status: 'battleShocked' })}
+                  >
+                    {shocked ? 'Failed — shocked' : 'Failed'}
+                  </button>
+                  {shocked && (
+                    <button
+                      className="chip chip--button"
+                      onClick={() => dispatch({ type: 'toggleStatus', unitId: u.id, status: 'battleShocked' })}
+                    >
+                      Passed
+                    </button>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 function UnitCard({
   unit,
+  sheet,
   game,
   dispatch,
   onOpen,
   leader = false,
 }: {
   unit: GameUnit
+  sheet: Datasheet | undefined
   game: GameModel
   dispatch: (action: GameAction) => void
   onOpen: () => void
@@ -363,6 +458,13 @@ function UnitCard({
           {unit.destroyed && <span className="chip chip--error">✕ Destroyed</span>}
           {damaged && <span className="chip chip--warn">⚠ Damaged</span>}
         </span>
+        {sheet && !unit.destroyed && (
+          <StatStrip
+            stats={sheet.stats}
+            firstOnly
+            {...(single && single.total === 1 ? { wounds: { current: single.currentWounds, total: single.wounds } } : {})}
+          />
+        )}
         <span className="unit__stats">
           <span>
             <strong>{alive}</strong>/{total} models

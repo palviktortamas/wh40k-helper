@@ -155,6 +155,20 @@ export const inReserves = (unit: GameUnit): boolean =>
   unit.statuses.some((s) => RESERVE_STATUSES.includes(s))
 
 /**
+ * Below Half-strength (Core Rules): a multi-model unit with fewer than half its
+ * starting models left; a single-model unit with fewer than half its wounds.
+ * These units take a Battle-shock test in the Battle-shock step of their
+ * controller's Command phase.
+ */
+export function belowHalfStrength(unit: GameUnit): boolean {
+  if (unit.destroyed) return false
+  const total = modelsTotal(unit)
+  if (total > 1) return modelsAlive(unit) * 2 < total
+  const group = unit.models.find((g) => g.alive > 0)
+  return group ? group.currentWounds * 2 < group.wounds : false
+}
+
+/**
  * Which model dies when the player does not say (spec §6.3: plain models
  * first, then specials, the unit's own character last). Model groups have no
  * role flag, so the order is by size: the largest living group is the plain
@@ -183,6 +197,11 @@ export type GameState = {
    * (`round:turn:owner:id`, or `battle:owner:id` for once-per-battle ones).
    */
   remindersDone?: Record<string, true>
+  /**
+   * Stratagems used, keyed `round:turn:phase:id` — each Stratagem may be used
+   * once per phase (Core Rules). Absent on games from before the stratagem list.
+   */
+  stratagemsUsed?: Record<string, true>
 }
 
 export type LogEntry = {

@@ -71,7 +71,7 @@ function weaponsOf(model: Selection): { name: string; perModel: number }[] {
   return [...counts.entries()].map(([name, perModel]) => ({ name, perModel }))
 }
 
-function modelGroups(unit: Selection, sheet: Datasheet | undefined): ModelGroup[] {
+export function modelGroups(unit: Selection, sheet: Datasheet | undefined): ModelGroup[] {
   const groups: ModelGroup[] = []
   const walk = (node: Selection, multiplier: number) => {
     for (const child of node.selections) {

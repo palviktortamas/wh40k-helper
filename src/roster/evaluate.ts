@@ -105,6 +105,14 @@ export type EvaluationResult = {
   warlordSelectionId?: string
   /** Root selections whose entry carries the Character category. */
   characterSelectionIds: string[]
+  /**
+   * Per selection id: how many more copies its tightest `max` constraint allows
+   * (0 = at the limit, negative = already over). Only selections that carry a
+   * cap on themselves appear. Lets the editor stop at the limit (spec §5.2).
+   */
+  headroom: Record<string, number>
+  /** Per `${ownerSelectionId}:${groupId}`: room left in an option group's `max`. */
+  groupHeadroom: Record<string, number>
   unsupported: string[]
 }
 
@@ -144,6 +152,8 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
     unsupported,
     forceId: graph.forceEntries.find((f) => !f.hidden)?.id,
     emitted: new Set(),
+    headroom: new Map(),
+    groupHeadroom: new Map(),
   }
 
   const roots = context.roots
@@ -240,6 +250,8 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
     characterSelectionIds: characterCategory
       ? roots.filter((r) => r.categoryIds.has(characterCategory)).map((r) => r.selection.id)
       : [],
+    headroom: Object.fromEntries(context.headroom),
+    groupHeadroom: Object.fromEntries(context.groupHeadroom),
     unsupported,
   }
 
@@ -293,6 +305,9 @@ type Context = {
   forceId: string | undefined
   /** Army-wide constraints already reported, so seven copies give one message. */
   emitted: Set<string>
+  /** How many more of each selection its tightest `max` allows (see EvaluationResult.headroom). */
+  headroom: Map<string, number>
+  groupHeadroom: Map<string, number>
   /**
    * Set while a group's own modifiers are evaluated against the selection that
    * owns the group. A group is not a selection, so for its conditions the owner
@@ -936,6 +951,12 @@ const isCostField = (field: string): boolean =>
 
 const ARMY_WIDE = new Set(['roster', 'force', 'primary-catalogue'])
 
+/** Keeps the smallest room seen for a key. */
+const tighten = (map: Map<string, number>, key: string, room: number): void => {
+  const known = map.get(key)
+  if (known === undefined || room < known) map.set(key, room)
+}
+
 function checkHidden(node: Node, issues: ValidationIssue[]): void {
   if (!node.hidden) return
   issues.push({
@@ -957,6 +978,27 @@ function checkConstraints(node: Node, context: Context, issues: ValidationIssue[
     const childId =
       constraint.childId ?? (constraint.field === 'selections' ? node.entry.id : 'any')
     const actual = queryValue(node, { ...toQuery(constraint), childId }, context)
+
+    // Remember how much room a cap leaves on this selection itself, so the
+    // editor can stop the "+" button at the limit instead of offering an error.
+    if (constraint.type === 'max' && constraint.field === 'selections' && childId === node.entry.id && !node.virtual) {
+      const room = constraint.value - actual
+      tighten(context.headroom, node.selection.id, room)
+      // A cap that reaches beyond the parent ("max 1 rokkit launcha per unit")
+      // is also a cap on every option that brings this one with it: one more
+      // "Boy w/ Rokkit launcha" is one more rokkit launcha in the unit.
+      if (constraint.scope !== 'parent' && constraint.scope !== 'self') {
+        for (let a = node.parent; a && a.entry.id !== constraint.scope; a = a.parent) {
+          if (a.absolute <= 0) break
+          const perCopy = node.absolute / a.absolute
+          if (perCopy <= 0) break
+          tighten(context.headroom, a.selection.id, Math.floor(room / perCopy))
+          if (constraint.scope === 'unit' || constraint.scope === 'model-or-unit') {
+            if (!a.parent) break
+          }
+        }
+      }
+    }
 
     const broken =
       constraint.type === 'max' ? actual > constraint.value : actual < constraint.value
@@ -1013,6 +1055,12 @@ function checkGroupConstraints(node: Node, context: Context, issues: ValidationI
     for (const constraint of ctx.constraints.values()) {
       if (constraint.value < 0) continue
       const actual = countInGroup(node, ctx, constraint.includeChildSelections ?? false)
+      if (constraint.type === 'max') {
+        const key = `${node.selection.id}:${ctx.group.id}`
+        const room = constraint.value - actual
+        const known = context.groupHeadroom.get(key)
+        if (known === undefined || room < known) context.groupHeadroom.set(key, room)
+      }
       const broken =
         constraint.type === 'max' ? actual > constraint.value : actual < constraint.value
       if (!broken) continue

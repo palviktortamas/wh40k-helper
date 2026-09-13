@@ -1,0 +1,110 @@
+/* Stratagems at the table: the WHEN line is the thing you scan for. */
+
+.strats__panel {
+  margin: 0.75rem 0;
+  padding: 0.625rem 0.875rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.strats__panel .play__heading {
+  margin: 0;
+}
+
+.strats__empty,
+.strats__rules {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+}
+
+.strats {
+  list-style: none;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.strat {
+  padding: 0.5rem 0.625rem;
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  border-left: 3px solid var(--accent);
+}
+
+.strat--later {
+  border-left-color: var(--border);
+}
+
+.strat--used {
+  border-left-color: var(--text-muted);
+}
+
+.strat--used .strat__name,
+.strat--used .strat__line {
+  opacity: 0.6;
+}
+
+.strat__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.strat__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  text-align: left;
+}
+
+.strat__toggle {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+}
+
+.strat__cat {
+  font-weight: 400;
+  font-size: 0.8125rem;
+}
+
+.strat__use {
+  min-height: 40px;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+.strat__when {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.strat__line {
+  margin: 0.125rem 0 0;
+}
+
+.strat__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.strat__body .abilities__text {
+  color: var(--text);
+}
+
+.strat__legend {
+  font-style: italic;
+}
+
+.strats--compact .strat {
+  border-left-color: var(--border);
+}

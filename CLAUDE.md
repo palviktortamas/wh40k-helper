@@ -10,13 +10,16 @@ never published, no backend, no accounts, no telemetry.
 2. [docs/PROGRESS.md](docs/PROGRESS.md) — what is built, what was learned the hard way, and what
    is next. **Update it at the end of every working session** so the next agent can continue.
 
-**Current state (2026-09-13, late night):** All six phases are built: data layer, list builder,
-Play Mode, Missions, Reminders, and the Phase 6 polish — linked library catalogues (some factions
-keep every datasheet in a `Library` file), "Update all" with a roster diff, and two more factions
-passing every suite. Everything was walked through in headless Chrome (recipe in the journal).
-The owner has checked the app on the phone. The sync/proxy Worker is **deferred by the owner**
-("not needed now, maybe later") — do not push for it. Still open: a real game to tune the reminder
-defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
+**Current state (2026-09-13, night 2):** All six phases are built, plus the owner's feedback
+round: role-grouped list builder with stats on every card, caps enforced in the unit editor
+(evaluator `headroom`), detachment rules shown on the units they name, stat strips and a
+Battle-shock step at the table, the 11e CP rule (both players gain 1 CP every Command phase), and
+stratagems imported from Wahapedia's export (Dexie v8) into a per-phase panel. Everything was
+walked through in headless Chrome on the real catalogue (recipe in the journal). The owner has
+checked the app on the phone. The sync/proxy Worker is **deferred by the owner** ("not needed
+now, maybe later") — do not push for it. Still open: whether the build may ship `Stratagems.csv`
+like the mission deck (ask; the 2026-09-13 exception covers the deck only), a real game to tune
+the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json`, one catalogue
 `.json`, its `.yaml`, and linked libraries as `lib-*.json` (see `test/fixtures.ts`).

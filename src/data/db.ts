@@ -5,6 +5,7 @@ import type { Roster } from '@/roster/types'
 import type { Game } from '@/play/types'
 import type { MissionDeck } from '@/missions/types'
 import type { ReminderOverride } from '@/reminders/types'
+import type { StratagemSet } from '@/stratagems/types'
 
 /**
  * All app state lives in IndexedDB — localStorage is never used for primary
@@ -72,6 +73,7 @@ const db = new Dexie('wh40k-helper') as Dexie & {
   games: EntityTable<Game, 'id'>
   missions: EntityTable<MissionDeck, 'id'>
   reminderOverrides: EntityTable<ReminderOverride, 'id'>
+  stratagems: EntityTable<StratagemSet, 'id'>
 }
 
 db.version(1).stores({
@@ -156,6 +158,19 @@ db.version(7).stores({
   games: 'id, rosterId, status, updatedAt',
   missions: 'id',
   reminderOverrides: 'id',
+})
+
+/** v8: the imported stratagem set (Wahapedia export). */
+db.version(8).stores({
+  settings: 'key',
+  catalogues: 'id, name',
+  health: 'catalogueId',
+  overrides: 'key',
+  rosters: 'id, catalogueId, updatedAt',
+  games: 'id, rosterId, status, updatedAt',
+  missions: 'id',
+  reminderOverrides: 'id',
+  stratagems: 'id',
 })
 
 export { db }

@@ -52,6 +52,8 @@ export type GameAction =
   | { type: 'arrive'; unitId: string }
   // Reminders (spec §6.4): tick one off; a once-per-battle one also marks the ability used.
   | { type: 'checkReminder'; key: string; label: string; unitId?: string; abilityId?: string; once?: 'battle' | 'turn' }
+  // Stratagems: once per phase (Core Rules); using one spends its CP, tapping again takes it back.
+  | { type: 'useStratagem'; key: string; id: string; name: string; cp: number }
   | { type: 'undo' }
   | { type: 'endGame' }
 
@@ -83,6 +85,7 @@ const snapshot = (game: Game): GameState => ({
   })),
   vpByRound: { ...game.vpByRound },
   ...(game.remindersDone ? { remindersDone: { ...game.remindersDone } } : {}),
+  ...(game.stratagemsUsed ? { stratagemsUsed: { ...game.stratagemsUsed } } : {}),
 })
 
 const other = (side: Side): Side => (side === 'me' ? 'opponent' : 'me')
@@ -163,11 +166,28 @@ function advance(game: Game): Game {
       `${secondPlayer === 'me' ? 'Your' : "Opponent's"} turn`,
     )
   }
-  // Each player gains 1 CP at the start of their Command phase (Core Rules).
-  const key = next.turn
-  next = { ...next, [key]: { ...next[key], cp: next[key].cp + 1 } }
-  return withLog(next, `${key === 'me' ? 'You gain' : 'Opponent gains'} 1 CP`)
+  return grantCoreCp(next)
 }
+
+/**
+ * 11th edition Core Rules, Command phase, "Gain Core CP" step: *both* players
+ * gain 1 CP in every Command phase — the active player's and the opponent's
+ * alike (verified 2026-09-13). Not "the active player gains 1 CP".
+ */
+function grantCoreCp(game: Game): Game {
+  const next: Game = {
+    ...game,
+    me: { ...game.me, cp: game.me.cp + 1 },
+    opponent: { ...game.opponent, cp: game.opponent.cp + 1 },
+  }
+  return withLog(next, 'Command phase: both players gain 1 CP')
+}
+
+const takeBackCoreCp = (game: Game): Game => ({
+  ...game,
+  me: { ...game.me, cp: Math.max(0, game.me.cp - 1) },
+  opponent: { ...game.opponent, cp: Math.max(0, game.opponent.cp - 1) },
+})
 
 function retreat(game: Game): Game {
   const index = PHASES.indexOf(game.phase)
@@ -176,9 +196,8 @@ function retreat(game: Game): Game {
     return withLog({ ...game, phase }, `Back to ${PHASE_LABELS[phase]} phase`)
   }
   if (game.round === 1 && game.turn === game.firstTurn) return game
-  // Back into the previous turn's Fight phase; the CP that turn granted is taken back.
-  const key = game.turn
-  let next: Game = { ...game, [key]: { ...game[key], cp: Math.max(0, game[key].cp - 1) } }
+  // Back into the previous turn's Fight phase; the CP this Command phase granted both players is taken back.
+  let next: Game = takeBackCoreCp(game)
   if (game.turn === game.firstTurn) {
     const round = game.round - 1
     const { [round]: _dropped, ...vpByRound } = next.vpByRound
@@ -495,6 +514,23 @@ function applyAction(game: Game, action: GameAction): Game {
       return withLog(
         next,
         `${unitName(g, action.unitId)}: ${has ? 'no longer' : 'now'} ${STATUS_LABELS[action.status]}`,
+      )
+    }
+    case 'useStratagem': {
+      const g = remember(game)
+      const used = Boolean(g.stratagemsUsed?.[action.key])
+      const { [action.key]: _old, ...rest } = g.stratagemsUsed ?? {}
+      void _old
+      // Using a Stratagem spends its CP; tapping again takes both back.
+      const cp = Math.max(0, g.me.cp + (used ? action.cp : -action.cp))
+      const next: Game = {
+        ...g,
+        me: { ...g.me, cp },
+        stratagemsUsed: used ? rest : { ...rest, [action.key]: true },
+      }
+      return withLog(
+        next,
+        used ? `${action.name} taken back (+${action.cp} CP)` : `Stratagem: ${action.name} (−${action.cp} CP)`,
       )
     }
     case 'toggleOnce': {

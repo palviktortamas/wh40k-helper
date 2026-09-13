@@ -16,6 +16,8 @@
 .shell__main {
   flex: 1;
   overflow-y: auto;
+  /* Wide tables scroll inside their own box; the page itself never scrolls sideways. */
+  overflow-x: hidden;
   padding: 1rem 1rem 1.5rem;
   -webkit-overflow-scrolling: touch;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildGameUnits } from './snapshot'
-import { weaponCounts } from '@/screens/GameUnitSheet'
+import { weaponCounts } from '@/play/weapons'
 import type { ParsedCatalogue } from '@/data/model'
 import type { Roster, Selection } from '@/roster/types'
 import type { Validation } from '@/roster/store'
