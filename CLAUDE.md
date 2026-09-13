@@ -14,9 +14,9 @@ never published, no backend, no accounts, no telemetry.
 Play Mode, Missions, Reminders, and the Phase 6 polish — linked library catalogues (some factions
 keep every datasheet in a `Library` file), "Update all" with a roster diff, and two more factions
 passing every suite. Everything was walked through in headless Chrome (recipe in the journal).
-Waiting on the owner: deploying the sync/proxy Worker (`worker/README.md`), a check on the actual
-phone with `docs/TESTING.md`, a real game to tune the reminder defaults, and which factions come
-next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
+The owner has checked the app on the phone. The sync/proxy Worker is **deferred by the owner**
+("not needed now, maybe later") — do not push for it. Still open: a real game to tune the reminder
+defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json`, one catalogue
 `.json`, its `.yaml`, and linked libraries as `lib-*.json` (see `test/fixtures.ts`).

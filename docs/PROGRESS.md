@@ -493,9 +493,13 @@ walked through in headless Chrome:
 
 ### Step 2 - Phase 3 leftovers
 
-- **Deploy the sync Worker** (owner, ~5 min, `worker/README.md`) and sync PC ↔ phone once;
-  fix whatever that shows. Then consider syncing on opening the Rosters screen (spec allows it
-  "once trusted").
+- **Sync Worker — deferred by the owner** (late 2026-09-13: "not needed now, maybe later"). The
+  client and `worker/` stay as they are; do not push for deployment. When the owner picks it up:
+  deploy per `worker/README.md`, sync PC ↔ phone once, fix what that shows, then consider syncing
+  on opening the Rosters screen (spec allows it "once trusted"). The endpoint proxy for the
+  mission deck and Wahapedia rules text (Phase 1b) wait for the same moment.
+- **Phone check done by the owner** (late 2026-09-13) after all six phases were built, with no
+  problems reported. The shipped mission deck arrived after that check.
 - ~~Model-removal default order~~ and ~~Reserves "arrive"~~ — done 2026-09-13 night (see Phase 4
   notes). The default is by group size; if a faction has a mixed unit whose plain models are not
   the largest group, that unit needs the "Remove models…" panel, which is still there.
