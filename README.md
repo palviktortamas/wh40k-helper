@@ -27,15 +27,16 @@ Pushing to `main` redeploys to GitHub Pages in about a minute. An installed PWA 
 
 ## Status
 
-Bootstrapping. See [docs/spec.md](docs/spec.md) for the full specification and the phase plan.
+See [docs/spec.md](docs/spec.md) for the full specification and the phase plan, and
+[docs/PROGRESS.md](docs/PROGRESS.md) for what is actually built.
 
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Source verification | done (spec Appendix A) |
 | — | PWA scaffold + Pages deploy | done |
 | 1 | Data layer + datasheet browser | done |
-| 2 | List Builder + validation | built; review fixes pending |
-| 3 | Play Mode core | blocked on Phase 2 fixes |
+| 2 | List Builder + validation | done |
+| 3 | Play Mode core | built; awaiting a session on a phone |
 | 4 | Missions (CA 2026-27) | not started |
 | 5 | Reminders | not started |
 | 6 | Polish / second faction | not started |

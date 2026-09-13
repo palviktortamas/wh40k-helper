@@ -10,10 +10,10 @@ never published, no backend, no accounts, no telemetry.
 2. [docs/PROGRESS.md](docs/PROGRESS.md) — what is built, what was learned the hard way, and what
    is next. **Update it at the end of every working session** so the next agent can continue.
 
-**Current state (2026-09-13):** Phases 1 and 2 are built and deployed, but a review found bugs in
-the constraint evaluator that produce false "Legal" badges. Phase 3 is blocked behind fixing them.
-Start at "Next → Step 1" in the progress journal, and write the failing regression test before
-touching the evaluator.
+**Current state (2026-09-13, evening):** Phases 1–3 are built. The Phase 2 review findings are
+all fixed and verified against the real catalogue by fixture-gated tests; Phase 3 (Play Mode core)
+is built and tested but **nothing has been exercised in a browser yet**. Start at "Next → Step 1"
+in the progress journal: a session on the owner's phone comes before more features.
 
 ## Hard rules
 
@@ -40,7 +40,12 @@ npm run check:data # the no-game-data guard CI also runs
 
 Node 24 is pinned in `.nvmrc`. The Claude Code Bash tool starts a non-interactive shell that does
 **not** read the profile, so prefix commands with `source ~/.bashrc` to get Node 24 instead of the
-stale machine-wide Node 18.
+stale machine-wide Node 18. Every Bash call prints a red fnm banner ("We can't find the necessary
+environment variables…"); it is noise. Heredocs and inline multi-line scripts fail silently in
+that shell — write files with the Write/Edit tools and commit with `git commit -F <file>`.
+
+Real-catalogue tests: `WH40K_FIXTURES=C:/path/with/gs.json/and/one/catalogue.json npm test`
+(Windows-style path; the fixtures live in the scratchpad, never in the tree).
 
 ## Deploying
 

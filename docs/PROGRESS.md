@@ -14,8 +14,8 @@ what was learned that the spec could not have predicted, and what comes next.
 | 0 | Source verification | done — see spec Appendix A |
 | — | Repo, PWA scaffold, Pages deploy | done |
 | 1 | Data layer + datasheet browser | done (Wahapedia enrichment deferred to 1b) |
-| 2 | List Builder + validation | built; **review found false-legal bugs, unfixed** |
-| 3 | Play Mode core | blocked on the Phase 2 review fixes |
+| 2 | List Builder + validation | done — review findings fixed 2026-09-13, verified on real data |
+| 3 | Play Mode core | **built 2026-09-13** — needs a session on the owner's phone |
 | 4 | Missions (CA 2026-27) | not started |
 | 5 | Reminders | not started |
 | 6 | Polish + second-faction test | not started |
@@ -38,10 +38,11 @@ what was learned that the spec could not have predicted, and what comes next.
 
 - TypeScript + React 19 + Vite 8 + `vite-plugin-pwa` 1.3, TypeScript 7, React Router 7.
 - Hash routing (`HashRouter`) — static host, no rewrite rules, survives PWA launch.
-- `AppShell` with a four-tab bottom bar; screens are honest placeholders naming their phase.
+- `AppShell` with a four-tab bottom bar.
 - Theme tokens in `src/index.css`: dark default, light and system variants. Settings screen is
   real (theme switcher + the About/attribution screen the spec requires).
-- Dexie at `src/data/db.ts`, version 1, `settings` store, with `getSetting`/`setSetting`.
+- Dexie at `src/data/db.ts`, currently **version 5** (v1 settings, v2 catalogues/health/overrides,
+  v3 rosters, v4 roster-shape migration, v5 games).
 - Service worker registered with `registerType: 'prompt'` → "new version available" toast via
   `src/app/useServiceWorkerUpdate.ts`. Never reloads mid-game.
 - Icons are generated from geometry by `scripts/generate-icons.mjs` (hand-rolled PNG encoder, no
@@ -52,66 +53,128 @@ what was learned that the spec could not have predicted, and what comes next.
 - `src/data/sources.ts` - source URLs and precedence. No game content, only addresses.
 - `src/data/bsdata/schema.ts` - BattleScribe v2.03 types, verified against the live files.
 - `src/data/bsdata/parse.ts` - catalogue to internal model. Keeps the raw constraint and
-  association graph untouched for the Phase 2 evaluator.
+  association graph untouched for the evaluator.
 - `src/data/mfm/parse.ts` - the MFM YAML: pricing bands, detachments, enhancements, eligibility.
 - `src/data/link/merge.ts` - name normalisation, merge, discrepancy and unmatched reporting.
 - `src/data/install.ts` - catalogue discovery and the full install pipeline.
 - `src/data/worker/` - the worker plus a typed client. The worker never touches IndexedDB; it
   returns plain data and the client persists it, so Dexie stays in one place.
-- Dexie v2 adds `catalogues`, `health` and `overrides`. Each catalogue keeps its raw source text
-  next to the parsed model so a future app version can re-parse offline.
-- Screens: a real Data screen (install/update/remove, per-source versions), a datasheet browser
-  with search and role filters, a datasheet detail view (stats, weapon tables, composition,
-  abilities, pricing bands), and a Data Health screen.
+- Each catalogue keeps its raw source text next to the parsed model so a future app version can
+  re-parse offline.
+- Screens: Data (install/update/remove, per-source versions), datasheet browser with search and
+  role filters, datasheet detail, Data Health.
 - Tests: `npm test`. Synthetic-fixture unit tests always run. Two suites are gated so CI stays
-  deterministic - set `WH40K_FIXTURES=<dir>` for the real-catalogue tests, and `WH40K_NETWORK=1`
-  for the ones that hit GitHub. Both gated suites must stay lazy: `describe.skipIf` still
-  evaluates the callback body at collection time, so reading a fixture at the top level throws
-  before the skip applies.
+  deterministic - set `WH40K_FIXTURES=<dir>` (a directory holding `gs.json` and one catalogue
+  `.json`; **use a Windows-style path such as `C:/Users/...`, Git Bash `/c/...` paths are not
+  understood by Node**) for the real-catalogue tests, and `WH40K_NETWORK=1` for the ones that hit
+  GitHub. Both gated suites must stay lazy: `describe.skipIf` still evaluates the callback body at
+  collection time, so reading a fixture at the top level throws before the skip applies.
 
 ### Phase 2 - list builder
 
 - `src/roster/types.ts` - Roster and Selection. A roster is a tree of selection instances that
-  mirrors the catalogue entry tree, so validation can always walk back to the governing entry.
-- `src/roster/resolve.ts` - flattens BSData's link graph into a buildable tree. An entry rarely
-  holds its own children: option groups and weapons arrive through `entryLink`s, and a link may
-  add its own constraints, modifiers and costs on top of the target. Memoised per catalogue.
-- `src/roster/evaluate.ts` - **the generic constraint evaluator**. Applies modifiers first (a
-  modifier can change a cost *and* a constraint's limit), then tests constraints.
-- `src/roster/defaults.ts` - `instantiate()` takes the choices the data marks mandatory, so adding
-  a unit does not open the editor on errors the user did not cause. 73 of 74 datasheets
-  instantiate clean; the one that does not is a genuine data quirk and shows as an error.
-- `src/roster/coreChecks.ts` - layer 2: points limit, exactly one Warlord, detachment chosen,
-  unspent-points warning. Each message cites its rule.
-- `src/roster/store.ts` - Dexie v3 `rosters` store, CRUD, duplicate, and the single `validate()`
-  every screen calls. Catalogue graphs are cached; re-resolving 2 MB per keystroke would blow the
-  100 ms budget.
-- `src/roster/export.ts` - plain-text export, and it states when unresolved discrepancies affect
-  the list.
-- Screens: `Rosters` (list, create, duplicate, delete, legality badge), `RosterEditor` (points
-  limit, detachment, warlord, reorder, issue list, unit picker, text export), `UnitEditor` (the
-  per-model loadout editor).
-- Tests: `src/roster/evaluate.test.ts` runs in CI on an invented catalogue and covers group
-  min/max, army-wide caps, size-dependent costs, conditional limits and Requisition Thresholds.
-  `evaluate.live.test.ts` is fixture-gated.
+  mirrors the catalogue entry tree. **`Selection.count` is per copy of the parent** (a model with
+  count 9 whose weapon child has count 1 means nine weapons); the evaluator, export, editor and
+  Play Mode all read it that way. `linkId` records which entry link an option came through;
+  `attachedTo` + `associationId` record leader attachment.
+- `src/roster/vocabulary.ts` - the handful of game-system category names the app must recognise
+  (Configuration, Character, Warlord, Epic Hero) and the association-group id → label table.
+  Game-system vocabulary, never faction vocabulary.
+- `src/roster/resolve.ts` - flattens BSData's link graph into a buildable tree, memoised per
+  catalogue. Exposes `rootEntryIds` (datasheets), `configurationEntryIds` (roster setup entries
+  from both files), `forceEntries`, `catalogueId`, and `childOptions()` for walking a resolved
+  entry's selectable children with the group they sit in.
+- `src/roster/evaluate.ts` - **the generic constraint evaluator**, rewritten after the review
+  (see "Constraint evaluator - semantics" below). `analyseRoster()` returns the evaluation plus
+  the editor's questions: `isEntryAvailable`, `isGroupAvailable`, `leaderTargets`.
+- `src/roster/defaults.ts` - `instantiate()` takes the choices the data marks mandatory;
+  `bareSelection()` for a childless pick; `isSameOption()` matches a selection to an option row
+  by link, then group, then entry.
+- `src/roster/coreChecks.ts` - layer 2: points limit (skipped when the data's own force limit is
+  live), exactly one Warlord who must be a Character, detachment chosen, Epic Hero uniqueness,
+  unattached-Leader warning, unspent-points warning, evaluator gaps. Each message cites its rule.
+- `src/roster/store.ts` - Dexie `rosters` store, CRUD, duplicate (re-points leader attachments),
+  the single `validate()` every screen calls, and the roster-shape helpers: `normaliseRoster`,
+  `withDetachment`, `withWarlord`, `withBattleSize`, `withToggle`, `detachmentOptions`,
+  `removeUnit`. Catalogue graphs are cached by id **and revision**.
+- `src/roster/export.ts` - plain-text export with evaluated unit costs, leaders nested under the
+  unit they lead, enhancements, and a plain statement of any validation gaps.
+- Screens: `Rosters`, `RosterEditor` (limit, detachment, an "Army configuration" panel with the
+  data's own toggles and setup groups, leader "Attach to" select, Warlord button on Characters
+  only, per-unit points), `UnitEditor` (availability-gated option groups, steppers, nested
+  loadouts).
+- Tests: `src/roster/evaluate.test.ts` (invented catalogue, CI) covers group min/max, army-wide
+  caps, size-dependent costs, conditional limits, Requisition Thresholds, and the three review
+  regressions. `evaluate.live.test.ts` (fixture-gated) adds: configuration normalisation, every
+  datasheet instantiates without tripping an availability gate, the flagship deep-weapon cap,
+  enhancements gated by detachment and capped, Warlord via the data's upgrade, leader
+  eligibility, army-wide caps reported once.
 
-### Constraint evaluator - the semantics that are easy to get wrong
+### Phase 3 - Play Mode core
 
-- **Option groups are not selections.** They get no node in the roster tree, yet they carry the
-  constraints behind "9-18 models" and "at most 3 special weapons". They must be evaluated
-  against the selection that *owns* them, counting the owner's children whose entry belongs to
-  that group (nested groups included). Missing this makes every unit look legal.
-- **A constraint with no `childId` counts instances of the entry that owns it.** "max 6 @force" on
-  a unit means six of *that* unit, not six of anything. Defaulting `childId` to the owning entry
-  id is what makes army-wide caps behave.
-- **Requisition Thresholds are `localConditionGroups`, not the plain `before` condition.** The
-  shape is: count the selections in a scope that individually satisfy the inner conditions, then
-  compare that count against the group's own value - "at least 3 of this entry come before this
-  one" means this is the 4th copy. A `conditionGroup` holding *only* local groups looks like an
-  empty group, so an implementation that ignores them returns true and charges the surcharge on
-  the very first unit. Verified against the official points: 20 models = 180, 10 models = 90,
-  four 10-model units = 370.
-- `before` needs a total document order across the whole roster, not sibling ordinals.
+- `src/play/types.ts` - `Game` = frozen roster snapshot + live state. `GameUnit` holds
+  `ModelGroup[]`, one per model type in the roster tree, each with total/alive, wounds per model,
+  wounds on the current model, and per-model weapons. Undo depth 30, five battle rounds.
+- `src/play/snapshot.ts` - roster + parsed catalogue + validation → units. Wounds come from the
+  stat line whose name the model name starts with (longest match), else the first line. The
+  damaged-profile threshold is parsed from an ability named "Damaged: 1-N …".
+- `src/play/actions.ts` - one pure reducer, `apply(game, action)`. Every action records the
+  previous state for undo and writes a log line. Phase/turn progression grants 1 CP at the start of
+  each Command phase and records VP at the end of each round; going back a turn takes the CP back.
+  Damage does not carry over between models. Turn-scoped statuses (Advanced, Fell back) clear when
+  the turn ends.
+- `src/play/store.ts` - Dexie v5 `games`; `newGame()` freezes the roster (recording whether it was
+  legal when started).
+- `src/play/useWakeLock.ts` - screen stays on while a game is open.
+- Screens: `Play` (continue, start from a roster — illegal lists need a confirm, history with
+  results), `Game` (tracker with big Prev/Next, two-player CP / primary VP / secondary VP,
+  undo, log, army view with leaders nested under their unit, quick "−1 model" / "−1 W" when the
+  choice is unambiguous and a per-model-type panel otherwise, status chips, destroy/revive,
+  end-of-game summary with VP by round), `GameUnitSheet` (stats, weapons table with counts from
+  the *surviving* models, abilities with once-per-battle checkboxes, attached leader merged in).
+- Tests: `src/play/actions.test.ts`, `src/play/snapshot.test.ts` on invented data.
+
+### Constraint evaluator - semantics (the things that are easy to get wrong)
+
+- **A scope query searches the scope's whole subtree.** `includeChildSelections` does not gate
+  visibility. A weapon with `max 1 @unit` two levels below the unit must be found.
+- **Counts are relative to the scope.** A node's absolute count is the product of the counts on
+  its path; a query reports `absolute / scopeAbsolute`. This is what makes per-copy counts and
+  unit-scope caps agree.
+- **Children resolve through the parent's resolved options**, matched by `linkId`, then
+  `groupId`, then entry id, so link-carried constraints/costs survive. Re-resolving the bare
+  shared entry loses 236 divergences in the current catalogue.
+- **Option groups are not selections.** They are evaluated against the owning selection; a child
+  that recorded its `groupId` counts only in that group (two sibling groups can share an option
+  list).
+- **A `selections` constraint with no `childId` counts the owning entry; a cost-typed constraint
+  with no `childId` sums everything.**
+- **`set hidden` is a legality gate**, on entries and on groups. A hidden selection, or one taken
+  from a hidden group, is an error. The editor asks `isEntryAvailable(parent, entry, group)` /
+  `isGroupAvailable` before offering anything; the unit picker asks with no parent.
+- **Requisition Thresholds are `localConditionGroups`**; `before` needs a total document order.
+- **Force entries, force category links and category entries own constraints too.** They are
+  evaluated as virtual nodes that see the whole roster. This is where the data's own points
+  limit (`pts max 0 @parent` set to 1000/2000/3000 by battle size, or incremented by the
+  "Points limit" override count), the DP budget, the Enhancements cap, the Character minimum and
+  the Warlord min/max live. `pointsLimitChecked` tells layer 2 to stand down.
+- **Roster configuration is part of the tree.** Battle Size (game system), Detachment
+  (catalogue) and Force Disposition (game system) are `Configuration`-role shared entries; the
+  roster holds one bare selection of each and the user's pick underneath. Leaf toggles ("Show
+  Legends") are on by being present. `withBattleSize` mirrors `pointsLimit` into the data's
+  battle-size option by the number in its name, using the data's own override entry (whose
+  *count* is the limit) for other values.
+- **The Warlord is the data's own `Warlord` upgrade** linked into every unit, hidden by the data
+  unless the unit is a Character; the `Warlord` category carries min 1 / max 1 at roster scope.
+  `withWarlord` adds/removes that selection.
+- **Associations** (`action: 'group'`) on a leader describe eligible units; their conditions are
+  tested against the *candidate* unit except those flagged `queryFromSelf`, which read the leader.
+  A unit's `max 1 associations childId=<group id>` counts attached leaders by label via
+  `ASSOCIATION_LABELS`. `traverseAssociationGroup` pools the leader with its bodyguard unit.
+- `instanceOf @primary-catalogue childId=<catalogue id>` compares against `graph.catalogueId`;
+  `ancestor` tests every ancestor; `forces` queries return 1 only for the app's own force entry
+  (the first non-hidden one in the game system).
+- `add error` / `add warning` modifiers become issues. Army-wide constraints report once.
 - Modifiers must all be applied before any constraint is read, because a modifier's `field` can be
   a constraint id.
 
@@ -120,8 +183,10 @@ what was learned that the spec could not have predicted, and what comes next.
 Spec section 9 asks for a 20-model unit built as "17 + 2 special + 1 leader model". In catalogue
 revision 3 that unit's first option group is capped at 18 and the leader models sit in a separate
 group of 1-2, so 17 + 2 = 19 breaks the cap. The legal 20-model build is 16 + 2 special + 2 leader
-models. The evaluator is right and the spec example is stale - it was written from the previous
-edition's datasheet. **Raised with the owner; spec not edited.**
+models (verified 2026-09-13: 180 pts, a third special weapon errors, the 4th copy pays the
+Requisition surcharge, the leader attaches, one detachment enhancement applies, over-limit
+errors from the data's own force constraint). The evaluator is right and the spec example is
+stale. **Raised with the owner; spec not edited.**
 
 ---
 
@@ -131,23 +196,26 @@ Things that cost time and are not obvious from the spec:
 
 - **`.gitignore` patterns are not anchored by default.** The rule `data/` also matched
   `src/data/`, so `db.ts` silently never got committed and CI failed on an unresolvable import.
-  Use `/data/` for repo-root-only ignores. Check `git status` after adding files under a path
-  that resembles an ignore rule.
-- **The owner's machine had Node 18.16 at `I:\Program Files\node js`,** machine-wide and not
-  user-writable. The build toolchain needs Node ≥ 20 (`diagnostics_channel.tracingChannel` for
-  workbox's glob chain, global `crypto` for terser). Resolved by installing **fnm** (user scope,
-  no admin) + Node 24, hooked into the PowerShell profile and `~/.bashrc` (a `~/.bash_profile`
-  shim had to be created — login shells skip `.bashrc` without it).
-  - The stale Node 18 is still first on the **machine** PATH and needs an elevated command to
-    remove; every shell the owner actually uses is hooked, so this is cosmetic.
-  - **The Claude Code Bash tool shell is non-interactive and reads neither profile** → prefix
-    with `source ~/.bashrc` or you silently get Node 18.
+  Use `/data/` for repo-root-only ignores.
+- **The owner's machine had Node 18.16 at `I:\Program Files\node js`,** machine-wide. Resolved by
+  installing **fnm** (user scope) + Node 24, hooked into the PowerShell profile and `~/.bashrc`.
+  - **The Claude Code Bash tool shell is non-interactive** → prefix with `source ~/.bashrc` or you
+    silently get Node 18. Every Bash call also prints a red *"We can't find the necessary
+    environment variables to replace the Node version"* banner from fnm; it is noise, not a
+    failure — read the exit code and the real output.
+  - **In this Bash tool, heredocs (`<<'EOF'`) and multi-line inline Python patches fail
+    intermittently and silently** (the command reports success but writes nothing, or bash says
+    "unexpected EOF"). Write files and patches with the Write/Edit tools, and give `git commit`
+    its message with `-F <file>` written by the Write tool.
 - **Do not blanket-`overrides` a transitive dep to work around a Node version.** Pinning
   `lru-cache` fixed workbox and broke Babel. Fix the Node version instead.
 - **TypeScript 7 removed `baseUrl`** — path aliases now resolve relative to the tsconfig.
 - **Vite 8's native config loader** needs `import pkg from './package.json' with { type: 'json' }`.
 - GitHub Actions can fail with *"job was not started because it repeatedly failed to be
   acquired"*. That is runner-allocation flake, not the build. Re-run it.
+- **Verify a root-cause attribution by execution before acting on it.** The Phase 2 review first
+  blamed the flagship false pass on link re-resolution; it was the scope-search bug. Both were
+  real, both were fixed, but a fix aimed at the wrong one would have "worked" by accident.
 
 ### Source data - corrections to spec Appendix A
 
@@ -155,215 +223,107 @@ Appendix A was written against an earlier catalogue revision. Verified 2026-09-1
 catalogue revision 3; **prefer these findings over Appendix A where they conflict**:
 
 - **Leader and Support attachment are structured data, not prose.** Selection entries carry an
-  `associations` array (`action: 'group'`, `childId: 'unit'`, `scope: 'force'`, `min`/`max`, and
-  condition groups that gate eligibility). Units declare `max 1` against association ids
-  `1556-9b56-fba6-4370` (Leader) and `7dcd-7f61-69a7-0294` (Support). Appendix A never mentions
-  this. It also means leader eligibility does **not** need the Wahapedia `Datasheets_leader` table.
-- **The MFM mirror exposes `leaderTo` and `supportTo` as structured fields.** Appendix A says
-  eligibility "appears in the notes text, not as structured fields" - no longer true.
-- **The `NDP Detachment` category no longer exists.** Do not key off it. Detachments are the
-  entries carrying a non-zero `Detachment Points` cost (type id `82ae-1066-5107-6ae0`), which
-  yields exactly 15 - the same set the MFM mirror lists. Appendix A's "BSData 17 vs MFM 15"
-  discrepancy has been resolved upstream.
-- **Extra scopes the appendix omits:** `ancestor` (352 uses), `primary-catalogue`, `model-or-unit`
-  and `upgrade` all appear as `condition.scope`. The Phase 2 evaluator must handle them.
-- **`modifier.field` can be a constraint id**, not just a named field or a cost type id - that is
-  how a constraint limit is changed conditionally (e.g. a force-wide max that drops at a smaller
-  points limit). Budget for this in the evaluator.
-- **A datasheet is a shared selection entry with a `primary` category link**, and that link is its
-  battlefield role. The entry whose role is `Configuration` is the roster's detachment picker, not
-  a unit - exclude it.
-- **BSData tags variants in brackets** ("... [Legends]", "... [Crucible]") where the mirror uses
-  the bare name; normalisation has to strip them or a fifth of the catalogue fails to join.
-- Every entry carries all eight cost types, mostly zero. Crusade and Blackstone costs are ignored.
+  `associations` array (`action: 'group'`, `childId: 'unit'`, `scope: 'force'`, `min`/`max`,
+  `label: 'Leader' | 'Supported by'`, and condition groups that gate eligibility). Units declare
+  `max 1` against association ids `1556-9b56-fba6-4370` (Leader) and `7dcd-7f61-69a7-0294`
+  (Support); **those ids are defined nowhere in either file** — the constraint's `childName` is
+  the only join to the association `label`, hence `ASSOCIATION_LABELS`.
+- **The MFM mirror exposes `leaderTo` and `supportTo` as structured fields.**
+- **The `NDP Detachment` category no longer exists.** Detachments are the entries carrying a
+  non-zero `Detachment Points` cost (type id `82ae-1066-5107-6ae0`); exactly 15, same as the MFM.
+- **Roster setup is data.** `Configuration`-role shared entries: Battle Size (with a "Battle Size"
+  group of point-limit options and an "Override points limit?" → "Points limit" numeric entry
+  whose count is the limit), Force Disposition, the "Show …" visibility toggles (game system,
+  `import: true`), and the catalogue's Detachment picker (group of 17 options, each with DP cost
+  and Force Disposition categories). The force entry "Army Roster" carries the pts / DP /
+  Enhancements limits, modified by battle size.
+- **The Warlord is an upgrade entry** (`Warlord` category, min 1 / max 1 at roster on the
+  category) linked into every unit and hidden unless the root entry is a Character.
+- **Every unit links in the whole Crusade option tree** (hundreds of upgrades under "Crusade",
+  "Battle Traits", "Relics" groups), hidden unless a Crusade force exists. The hidden-group gate is
+  what keeps the unit editor usable; do not remove it for speed.
+- **Extra scopes the appendix omits:** `ancestor` (352 uses), `primary-catalogue`,
+  `model-or-unit` and `upgrade`. `set hidden` is the most common modifier (466).
+- **`modifier.field` can be a constraint id**, a cost type id, `hidden`, `name`, `annotation`,
+  `defaultAmount`, `error`, `warning`, `category`.
+- **A datasheet is a shared selection entry with a `primary` category link**; 52 of the current
+  73 roots are of type `model`, 21 `unit`. Play Mode treats a `model` root as its own single model
+  group.
+- **BSData tags variants in brackets** ("... [Legends]", "... [Crucible]"); normalisation strips
+  them or a fifth of the catalogue fails to join.
 - Match rates after all of the above: **every detachment joins**, and ~93% of datasheets. The
-  remainder are genuinely one-sided (Crucible units absent from the MFM; Legends entries the
-  mirror does not price) and are surfaced on the Data Health screen rather than dropped.
+  remainder are genuinely one-sided and are surfaced on the Data Health screen.
 
 ### Guard design
 
 The no-game-data guard first flagged the parser and the docs for *naming* schema fields. Naming a
 field is code, not data. Format markers now only count against files that could themselves be a
-datafile (`.json`/`.yaml`/`.csv`); everything else is judged on size. Verified both ways: clean on
-the repo, and it still catches a real catalogue file dropped into the tree.
+datafile (`.json`/`.yaml`/`.csv`); everything else is judged on size.
 
 ---
 
-## Review findings - Phase 2 (2026-09-13, not yet fixed)
+## Review findings - Phase 2 (2026-09-13) — all fixed
 
-An independent review of the evaluator found real correctness bugs. **These produce false "Legal"
-badges, which is the worst failure mode this app has** - a wrong error is annoying, a wrong pass
-loses a game. Fix these before building on the evaluator.
+The independent review found 13 issues that produced false "Legal" badges. All are fixed in
+commit "Fix the evaluator's false-legal bugs from the Phase 2 review" and covered by tests;
+the semantics section above is the durable record. Summary of what changed per finding:
 
-Ranked, with what was confirmed by execution:
-
-1. **Constraints at a non-`self` scope only search the scope node and its direct children.**
-   `queryNodes` in `evaluate.ts` uses `[target, ...target.children]` when
-   `includeChildSelections` is false, but BattleScribe searches the scope's whole subtree - the
-   flag controls how nested counts roll up, not whether descendants are visible at all.
-   CONFIRMED: a weapon carrying `max 1 @unit` sits two levels below the unit (unit > model >
-   weapon), so it is never counted and the limit never fires. This is the single cause of the
-   spec's flagship case passing when it should not: a 12-model unit with two special-weapon
-   models validates as legal either way you express it. **Fix this first.**
-
-2. **`build()` re-resolves children by entry id, discarding link-carried data.**
-   `evaluate.ts` calls `graph.resolve(selection.entryId)`, which resolves the *bare shared entry*;
-   any constraints, modifiers or cost overrides carried by the `entryLink` that pulled the entry
-   into this particular parent are lost. CONFIRMED by diffing in-place resolution against
-   re-resolution across the catalogue: **236 of 19,754 child resolutions differ**, e.g. a
-   transport's weapon options lose their `max N @parent` entirely, so unlimited copies validate.
-   The fix needs care: `Selection` records `groupId` but not the link id, and the same shared
-   entry can be linked twice under one parent (see 5), so walking the parent's *resolved* children
-   needs a disambiguator.
-
-3. **`set hidden` modifiers are ignored.** Treated as presentation-only, but the data uses them as
-   its main "you may only take X if Y" gate - 448 of them, covering option-requires-sibling,
-   unit-type restrictions, per-detachment enhancement groups and Legends/Crucible toggles. The UI
-   filters only the base `hidden` flag, so all of these are offered and accepted. Compounding
-   this: `roster.detachmentId` is not a selection in the tree and the evaluator never reads it, so
-   every detachment-gated condition is structurally unevaluable even once `hidden` is implemented.
-   Making the detachment a real selection in the roster tree probably fixes both.
-
-4. **Force-entry and category-entry constraints are never evaluated.** Nothing reads
-   `categoryEntry.constraints`, `forceEntry.constraints` or `categoryLink.constraints`. That drops
-   the Enhancements cap per force, the Detachment Points budget, category caps, and a minimum
-   Character requirement. The detachment's own DP cost is also never added, so
-   `detachmentPoints` reads 0 and the budget cannot be checked regardless.
-
-5. **The same shared entry reached through two sibling groups collapses into one selection.**
-   `UnitEditor` matches `existing` by `entryId` alone and `countInGroup` ignores `groupId`, so a
-   model with two arm groups sharing a weapon list satisfies both groups with one pick (false
-   legal), or errors on both when given two (false error). One stepper drives both groups.
-
-6. **Nested counts are absolute in the evaluator but per-copy in the export.** `instantiate` gives
-   a weapon `count: 1` under a model of `count: 9`; `export.ts` multiplies child by parent, the
-   evaluator sums raw counts. Points are unaffected today because wargear is free, but any
-   unit-scope weapon count is wrong. Settle this *with* finding 1, or restoring those constraints
-   still will not catch the flagship case.
-
-7. `add error` / `add warning` modifiers are swallowed - `add` only handles categories, so the
-   error text lands in `categoryIds` and nothing is reported. Nine in the data, one of which is
-   the sole encoding of a per-N-models weapon limit.
-
-8. **Warlord is not required to be a Character.** `coreChecks.ts` only checks the id resolves, and
-   the UI offers the toggle on every unit - yet the error message already claims the rule.
-
-9. Battle-size dependent limits never apply: the data encodes battle size as a *selection*
-   ("Incursion", "Strike Force"), which this app's roster never contains because `pointsLimit` is
-   a plain number. Same root cause as 3 - some roster-level configuration has to exist as
-   selections.
-
-10. Smaller, latent: `ancestor` scope resolves to the immediate parent only (352 uses, all
-    category checks two levels up); a `forces` query returns 1 regardless of `childId`;
-    `testLocalGroup` hard-codes the candidate filter to the holding entry instead of
-    `local.childId` (harmless for all 29 current uses, not generic); army-wide errors are emitted
-    once per instance, so seven copies produce seven identical messages.
-
-11. Cost-typed constraints inherit the `childId` default meant for `selections`, so an
-    `Enhancements max 1 @self` sums only children whose entry is the character itself and can
-    never fire. Low impact today - a group cap happens to catch the same case.
-
-12. The text export prints the *base* unit cost, not the evaluated one: a 20-model unit shows a
-    header of 180 and a unit line of 90. It also labels evaluator gaps as "unresolved data
-    discrepancies", which spec 4.1 reserves for source disagreements.
-
-13. HYPOTHESIS (needs a browser, not reproduced): the cached catalogue graph in `store.ts` is
-    keyed by catalogue id, which is stable across revisions, so after a data update the same
-    session keeps validating against the old in-memory graph.
-
-**Checked and found sound:** Requisition Thresholds and size-dependent costs (1x10=90, 1x20=180,
-4x10=370, 5x10=470, 4x20=730 all match the official points); `roster`/`force` duplicate caps;
-group min/max including group modifiers; the selection-tree edits in `store.ts` and `UnitEditor`
-(no stale-closure or wrong-parent bug, ids unique, `duplicateRoster` re-ids and clears the warlord
-reference, autosave writes are ordered so there is no lost-write race).
-
-**A note on method.** The review initially attributed the flagship false pass to finding 2. It is
-actually finding 1 - the constraints in that specific case live on the entry, not the link, and
-are present. Both bugs are real and both were confirmed, but they are independent. Verify a
-root-cause attribution by execution before acting on it.
+1. subtree scope search · 2. resolve children via the parent's options + `linkId` · 3. `set hidden`
+gate + configuration in the tree · 4. force/category constraints as virtual nodes, detachment DP
+counted · 5. link/group-aware option matching · 6. per-copy counts, absolute through the tree ·
+7. `add error/warning` · 8. Warlord = data upgrade, Character required · 9. battle size in the
+tree · 10. `ancestor`, `forces`, local-group `childId`, army-wide dedupe · 11. cost-typed
+constraints default to "any" · 12. export prints evaluated costs and says "validation gaps" ·
+13. graph cache keyed by revision.
 
 ---
 
 ## Next
 
-**Start here: fix the evaluator, in this order.** Phase 3 is blocked behind it - building Play
-Mode on a validator that says "Legal" when it means "illegal" just spreads the damage. Full detail
-is in "Review findings" above; this is the plan.
+### Step 1 - a session on the owner's phone (nothing has been clicked yet)
 
-### Step 1 - the false-legal cluster (findings 1, 2 and 6, as one piece of work)
+The review fixes and Phase 3 were verified with typecheck, unit tests and fixture-gated tests on
+the real catalogue, **not in a browser**. Before building further:
 
-They are entangled: fixing the scope bug alone still leaves the flagship case wrong, because the
-count semantics in 6 hide it a second way. Do them together.
+1. Install the faction on the device, open an old roster: `normaliseRoster` must add the
+   configuration selections, convert the old detachment and warlord, and the badge should stay
+   sensible. Pick a Force Disposition (the data requires one).
+2. Build the spec §9 list with the editor: the spec's 20-model unit, leader attached via
+   "Attach to", one enhancement (appears under the unit's Enhancements group once a detachment is
+   chosen), Warlord set. Expect green.
+3. Start a game, remove models of a specific type, check the weapons table, undo, end the game.
+4. Check the unit editor's speed on a large unit — every group asks `isGroupAvailable`, which
+   re-applies group modifiers; if it lags, memoise availability per render in `UnitEditor`.
 
-1. **Scope queries must search the whole subtree.** In `evaluate.ts`, `queryNodes` currently
-   returns `[target, ...target.children]` when `includeChildSelections` is false. For any scope
-   other than `self` that is wrong - BattleScribe searches the scope's entire subtree, and the
-   flag governs how nested counts roll up. Start here; it is the smallest change with the biggest
-   correctness win.
-2. **Stop re-resolving children by entry id.** `build()` calls `graph.resolve(selection.entryId)`,
-   which loses everything the `entryLink` carried in this particular parent (236 real divergences
-   in the catalogue). Walk the *parent's already-resolved children* instead. The obstacle: a
-   `Selection` records `groupId` but not which link it came from, and one shared entry can be
-   linked twice under the same parent (finding 5), so a link-id disambiguator is needed on
-   `Selection`. That is a persisted-shape change - add a Dexie version and migrate.
-3. **Settle per-copy vs absolute counts.** `instantiate` writes a weapon `count: 1` under a model
-   of `count: 9`; the export multiplies child by parent, the evaluator sums raw counts. Pick one
-   meaning, write it down in `types.ts` next to `Selection.count`, and make all three agree.
+### Step 2 - Phase 3 leftovers
 
-**Regression test first.** Add the flagship case to `src/roster/evaluate.test.ts` with the
-invented catalogue: a unit whose special-weapon entry carries `max 1 @unit`, two of them in a
-12-model unit, expect an error. It fails today. Do not touch the evaluator until it does.
+- Transport / embarking assignment (spec §10 open question; `embarked` exists as a status only).
+- Model-removal default order (plain models first, character last) — today the user always
+  chooses when there is more than one model type.
+- Reserves "arrive" action beyond toggling the status.
+- Stratagems per detachment on the in-game datasheet (needs Wahapedia or a parse of BSData
+  rules; not in the current parsed model).
+- Weapon-profile matching is by normalised name containment; watch for false merges when two
+  profiles share a prefix.
 
-### Step 2 - make roster configuration part of the tree (findings 3 and 9)
+### Step 3 - Phase 4, Missions
 
-`roster.detachmentId` and `roster.pointsLimit` live outside the selection tree, so no
-detachment-gated or battle-size-gated condition can ever be evaluated. Represent both as real
-selections and a cluster of findings resolves at once. Then implement `set hidden` as a real
-gate (448 uses) in both the evaluator and the `UnitEditor` option lists.
-
-### Step 3 - the remaining findings
-
-4 (force/category constraints, plus adding the detachment's own DP cost so the budget is
-checkable), 5 (disambiguate by group), 7 (`add error`/`add warning`), 8 (Warlord must be a
-Character), 11, 12, and confirm 13 in a browser.
-
-### Step 4 - close the Phase 2 gaps
-
-Real gaps, not polish:
-
-- **Leader attachment UI.** The `associations` graph is parsed and stored but nothing consumes it;
-  a leader cannot be attached to a bodyguard unit. Phase 3's army view needs this, so do it before
-  starting Phase 3.
-- **Enhancements.** The cost type and entries resolve, but there is no UI to add one to a
-  character and no per-detachment limit check. Pairs naturally with Step 2.
-- **Epic Hero uniqueness and Support attachment legality** are not in `coreChecks.ts`; they may
-  already be covered by catalogue constraints - verify before writing code.
-- Per-item overrides on the Data Health screen, still unwired.
-- Roster re-validation and diff after a data update.
-
-### Then - Phase 3, Play Mode core
-
-1. Game model and Dexie store; start a game from a roster (legal, or overridden with a warning).
-2. Battle round and phase tracker, CP and VP counters for both players.
-3. Army view: per-unit models alive, wounds on the current model, damaged-profile indicator,
-   status chips. Removing models must ask which model type died so weapon counts stay right - the
-   roster tree already distinguishes them, which is what makes this possible.
-4. Datasheet view during play with loadout-aware weapon counts.
-5. Undo for the last N actions; game log; end-of-game summary; game history.
-6. Transport / embarking assignment (spec section 10 lists this as an open question).
+Needs the mission deck, which is Wahapedia-only (no CORS) → the proxy or file import (Phase 1b)
+comes first. Game setup then becomes the wizard in spec §6.1; `Game` already has a
+`firstTurn` and a `startedIllegal` flag to build on, and Force Disposition is a real roster
+selection to derive primaries from.
 
 ### Phase 1b - deferred, needs a proxy
 
 Wahapedia sends no CORS headers, so its rules text and the mission deck need the small user-owned
-Cloudflare Worker (spec 4.2) or the manual file-import flow. Not started. The app is fully usable
-for list building without it.
+Cloudflare Worker (spec 4.2) or the manual file-import flow. Not started.
 
-### Not yet built from Phase 1's own scope
+### Not yet built from Phase 1/2's own scope
 
-- "Update all" button (per-catalogue install/update works; the bulk action does not exist).
-- Re-validating an existing roster after a data update and showing a diff - needs rosters first.
-- The alias table for names normalisation cannot join. Not needed yet: every detachment joins and
-  the unmatched datasheets are genuinely one-sided.
+- "Update all" button.
+- Re-validating an existing roster after a data update and showing a diff.
+- Per-item overrides on the Data Health screen, still unwired.
+- The alias table for names normalisation cannot join.
 
 ### Open questions for the owner
 
@@ -371,3 +331,4 @@ Spec §10 lists these; still unanswered:
 
 - Which two factions come next (only needed to pick a Phase 6 test catalogue)?
 - Transports/embarking in Play Mode: v1 or slip to Phase 6?
+- Spec §9's 20-model example is stale against the data (see above): update the spec?
