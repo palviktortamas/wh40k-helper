@@ -4,7 +4,7 @@
  * frames (spec §7, "heavy parsing off the main thread").
  */
 
-import { parseCatalogue } from './bsdata/parse'
+import { PARSER_VERSION, parseCatalogue } from './bsdata/parse'
 import { parseMfm } from './mfm/parse'
 import { mergeMfm, normaliseName } from './link/merge'
 import type { MergeReport } from './link/merge'
@@ -100,8 +100,35 @@ export async function installCatalogue(
   }
 
   report({ step: 'Parsing', done: 3, total: 4 })
-  const gameSystem = (JSON.parse(gameSystemText) as GameSystemFile).gameSystem
-  const catalogue = (JSON.parse(catalogueText) as CatalogueFile).catalogue
+  const result = buildFromText(
+    { name: summary.name, ...(summary.slug ? { slug: summary.slug } : {}) },
+    { catalogue: catalogueText, gameSystem: gameSystemText, ...(mfmText ? { mfm: mfmText } : {}) },
+    Date.now(),
+  )
+  report({ step: 'Saving', done: 4, total: 4 })
+  return result
+}
+
+/**
+ * Re-parses an installed record from the raw text it kept, so a parser fix
+ * reaches the device without a download (offline-first). Keeps the original
+ * install time; the health record is recomputed from the same sources.
+ */
+export function reparseCatalogue(record: CatalogueRecord): InstallResult {
+  return buildFromText(
+    { name: record.name, ...(record.slug ? { slug: record.slug } : {}) },
+    record.raw,
+    record.installedAt,
+  )
+}
+
+function buildFromText(
+  summary: { name: string; slug?: string },
+  raw: CatalogueRecord['raw'],
+  installedAt: number,
+): InstallResult {
+  const gameSystem = (JSON.parse(raw.gameSystem) as GameSystemFile).gameSystem
+  const catalogue = (JSON.parse(raw.catalogue) as CatalogueFile).catalogue
   const parsed = parseCatalogue(gameSystem, catalogue)
   parsed.name = summary.name
   if (summary.slug) parsed.slug = summary.slug
@@ -114,14 +141,11 @@ export async function installCatalogue(
     matchedDetachments: 0,
   }
 
-  if (mfmText) {
-    const mfm = parseMfm(mfmText)
+  if (raw.mfm) {
+    const mfm = parseMfm(raw.mfm)
     mfmVersion = mfm.version
     merge = mergeMfm(parsed, mfm)
   }
-
-  report({ step: 'Saving', done: 4, total: 4 })
-  const now = Date.now()
 
   return {
     record: {
@@ -129,13 +153,10 @@ export async function installCatalogue(
       name: parsed.name,
       ...(summary.slug ? { slug: summary.slug } : {}),
       revision: parsed.revision,
-      installedAt: now,
+      installedAt,
       parsed,
-      raw: {
-        catalogue: catalogueText,
-        gameSystem: gameSystemText,
-        ...(mfmText ? { mfm: mfmText } : {}),
-      },
+      parserVersion: PARSER_VERSION,
+      raw,
       versions: {
         bsdataRevision: parsed.revision,
         ...(mfmVersion ? { mfmVersion } : {}),
@@ -143,7 +164,7 @@ export async function installCatalogue(
     },
     health: {
       catalogueId: parsed.id,
-      checkedAt: now,
+      checkedAt: Date.now(),
       discrepancies: merge.discrepancies,
       unmatched: merge.unmatched,
       matchedDatasheets: merge.matchedDatasheets,

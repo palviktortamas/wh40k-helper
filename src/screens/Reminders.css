@@ -1,0 +1,201 @@
+/* Reminders (spec §6.4): the in-game panel and the settings screen */
+
+.reminders {
+  margin: 0.75rem 0;
+  padding: 0.625rem 0.875rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.reminders__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.reminders__head .play__heading {
+  margin: 0;
+}
+
+.reminders__mute {
+  min-height: 36px;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+.reminders__empty {
+  margin: 0.5rem 0 0;
+}
+
+.reminders__group {
+  margin-top: 0.625rem;
+}
+
+.reminders__owner {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.reminders__group ul {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+
+.reminders__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.625rem;
+  align-items: start;
+  min-height: 44px;
+  padding: 0.375rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.reminders__item input {
+  width: 1.375rem;
+  height: 1.375rem;
+  margin: 0.125rem 0 0;
+  accent-color: var(--accent);
+}
+
+.reminders__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.reminders__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 600;
+}
+
+.reminders__text {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+.reminders__item--done .reminders__name,
+.reminders__item--done .reminders__text {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+/* Settings → Reminders */
+
+.remindersSettings__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.remindersSettings__controls input[type='search'],
+.remindersSettings__controls select {
+  flex: 1 1 12rem;
+  min-height: 44px;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}
+
+.remindersSettings__master {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 44px;
+  font-weight: 600;
+}
+
+.remindersSettings__master input {
+  width: 1.375rem;
+  height: 1.375rem;
+  accent-color: var(--accent);
+}
+
+.remindersSettings details {
+  margin: 0.5rem 0;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.remindersSettings summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.remindersSettings summary .muted {
+  font-weight: 400;
+  font-size: 0.875rem;
+}
+
+.reminderRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.375rem 0.625rem;
+  padding: 0.625rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.reminderRow input[type='checkbox'] {
+  width: 1.375rem;
+  height: 1.375rem;
+  margin-top: 0.125rem;
+  accent-color: var(--accent);
+}
+
+.reminderRow__name {
+  font-weight: 600;
+}
+
+.reminderRow__fields {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.reminderRow__fields select,
+.reminderRow__fields input[type='text'] {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.reminderRow__fields .muted {
+  font-size: 0.8125rem;
+}
+
+.reminderRow__reset {
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+.reminderRow--off .reminderRow__name {
+  opacity: 0.65;
+}

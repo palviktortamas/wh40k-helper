@@ -6,6 +6,7 @@
 import { db, type CatalogueRecord, type HealthRecord } from '../db'
 import type { CatalogueSummary } from '../model'
 import type { InstallResult, Progress } from '../install'
+import { PARSER_VERSION } from '../bsdata/parse'
 import type { WorkerRequest, WorkerResponse } from './dataWorker'
 
 /** Omit over a union must distribute, or the union collapses to its shared keys. */
@@ -75,6 +76,33 @@ export async function installCatalogue(
     await db.health.put(health)
   })
   return record
+}
+
+/**
+ * Re-parses every installed catalogue whose parsed model predates the current
+ * parser, from the raw text it kept — no network. Called once at app start;
+ * returns how many were refreshed. Failures leave the old record in place.
+ */
+export async function reparseStaleCatalogues(): Promise<number> {
+  const stale = (await db.catalogues.toArray()).filter((r) => r.parserVersion !== PARSER_VERSION)
+  let refreshed = 0
+  for (const record of stale) {
+    try {
+      const { record: next, health } = await request<InstallResult>(
+        { type: 'reparse', record },
+        undefined,
+        (r) => (r.type === 'install-result' ? r.result : undefined),
+      )
+      await db.transaction('rw', db.catalogues, db.health, async () => {
+        await db.catalogues.put(next)
+        await db.health.put(health)
+      })
+      refreshed++
+    } catch (error) {
+      console.warn(`Could not re-parse ${record.name}:`, error)
+    }
+  }
+  return refreshed
 }
 
 export function getInstalledCatalogues(): Promise<CatalogueRecord[]> {

@@ -11,6 +11,7 @@ import { DataHealth } from './screens/DataHealth'
 import { Datasheets } from './screens/Datasheets'
 import { DatasheetDetail } from './screens/DatasheetDetail'
 import { Settings } from './screens/Settings'
+import { Reminders } from './screens/Reminders'
 
 export function App() {
   const theme = useTheme()
@@ -32,6 +33,7 @@ export function App() {
           <Route path="/datasheets/:catalogueId/:datasheetId" element={<DatasheetDetail />} />
           <Route path="/health/:catalogueId" element={<DataHealth />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/reminders" element={<Reminders />} />
           <Route path="*" element={<Navigate to="/rosters" replace />} />
         </Route>
       </Routes>

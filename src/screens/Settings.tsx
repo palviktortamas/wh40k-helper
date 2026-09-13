@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import type { Theme } from '@/app/useTheme'
 import { getSetting } from '@/data/db'
 import {
@@ -45,6 +45,17 @@ export function Settings() {
       </fieldset>
 
       <SyncSettings />
+
+      <fieldset className="settings__group">
+        <legend>Reminders</legend>
+        <p className="settings__hint">
+          During a game the app lists what to remember in each phase — once-per-battle abilities,
+          Command-phase rules, charge and fight tricks. Choose which rules remind you and when.
+        </p>
+        <Link className="button button--quiet tap" to="/settings/reminders">
+          Set up reminders
+        </Link>
+      </fieldset>
 
       <h3>About</h3>
       <p>

@@ -116,8 +116,22 @@ export function buildGameUnits(
   validation: Validation,
 ): GameUnit[] {
   const sheets = new Map(catalogue.datasheets.map((d) => [d.id, d]))
+  const enhancementIds = new Set((catalogue.enhancements ?? []).map((e) => e.id))
+  // Enhancements are upgrade selections somewhere under the unit whose entry carries an Enhancement cost.
+  const enhancementsOf = (unit: Selection): { id: string; name: string }[] => {
+    const found: { id: string; name: string }[] = []
+    const walk = (node: Selection) => {
+      for (const child of node.selections) {
+        if (child.type === 'upgrade' && enhancementIds.has(child.entryId)) found.push({ id: child.entryId, name: child.name })
+        walk(child)
+      }
+    }
+    walk(unit)
+    return found
+  }
   return roster.selections.map((unit) => {
     const sheet = sheets.get(unit.entryId)
+    const enhancements = enhancementsOf(unit)
     const damaged = sheet?.abilities
       .map((a) => DAMAGED.exec(`${a.name} ${a.text}`)?.[1])
       .find((hit) => hit !== undefined)
@@ -137,6 +151,7 @@ export function buildGameUnits(
       statuses: [],
       destroyed: false,
       usedOnce: [],
+      ...(enhancements.length > 0 ? { enhancements } : {}),
     }
   })
 }

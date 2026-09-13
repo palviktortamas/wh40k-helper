@@ -21,6 +21,9 @@ import {
 } from '@/play/types'
 import { GameUnitSheet } from './GameUnitSheet'
 import { GameMission } from './GameMission'
+import { GameReminders } from './GameReminders'
+import { getOverrides, getRemindersEnabled, setRemindersEnabled } from '@/reminders/store'
+import type { ReminderOverride } from '@/reminders/types'
 import { getMissionDeck } from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
 import './Rosters.css'
@@ -40,6 +43,8 @@ export function Game() {
   const [openUnit, setOpenUnit] = useState<string | null>(null)
   const [showLog, setShowLog] = useState(false)
   const [deck, setDeck] = useState<MissionDeck | null>(null)
+  const [overrides, setOverrides] = useState<Map<string, ReminderOverride>>(new Map())
+  const [remindersOn, setRemindersOn] = useState(true)
 
   useEffect(() => {
     if (!gameId) return
@@ -48,7 +53,16 @@ export function Game() {
       if (g) setCatalogue((await getCatalogue(g.catalogueId)) ?? null)
       if (g?.mission) setDeck((await getMissionDeck()) ?? null)
     })
+    void getOverrides().then(setOverrides)
+    void getRemindersEnabled().then(setRemindersOn)
   }, [gameId])
+
+  const toggleReminders = useCallback(() => {
+    setRemindersOn((on) => {
+      void setRemindersEnabled(!on)
+      return !on
+    })
+  }, [])
 
   useWakeLock(game?.status === 'active')
 
@@ -201,6 +215,17 @@ export function Game() {
             </li>
           ))}
         </ol>
+      )}
+
+      {catalogue && (
+        <GameReminders
+          game={game}
+          catalogue={catalogue.parsed}
+          overrides={overrides}
+          enabled={remindersOn}
+          onToggleEnabled={toggleReminders}
+          dispatch={dispatch}
+        />
       )}
 
       {game.mission && deck && (

@@ -91,6 +91,12 @@ available" toast on open; tap Reload first.
 - [ ] Statuses under **More…**: Battle-shocked etc. toggle; Advanced / Fell back clear at end of turn.
 - [ ] Transport: **Embark a unit** select on a transport, the unit moves inside it with an
       "Embarked" label; **Disembark**; destroy the transport → passengers spill out (log line).
+- [ ] **Reminders** panel (between the tools and the Mission): in your Command phase it lists
+      Command-phase and once-per-battle rules grouped by Army / detachment / unit; **Next** into
+      Movement swaps the list (army-wide rules, arrival-from-Reserves rules). Tick one → strikes
+      through, log says "done"; tick a **once per battle** one → chip says "used" and the same
+      ability is ticked on the unit's datasheet. **Silence** hides the list, **Unmute** restores.
+      On the opponent's Charge phase, "when charged" rules appear.
 - [ ] **Undo** reverts the last action, repeatedly. **Log** lists everything newest first.
 - [ ] **End game** → summary with result, VP by round, units lost; **Reopen game** undoes it.
       History on the Play tab shows Won/Lost/Draw; Delete asks first.
@@ -98,5 +104,11 @@ available" toast on open; tap Reload first.
 ## 5. Settings
 
 - [ ] Theme switch: dark / light / system, persists after reload.
+- [ ] **Set up reminders**: groups for Army rules, each detachment, Enhancements and every unit;
+      search narrows them. Turn a passive rule on, change its "when" and text → "edited" chip,
+      **Reset to default** appears; both survive a reload and show up in the next game.
+      The master checkbox silences reminders in games.
+- [ ] After this update the app re-parses installed factions once at start (no download): the
+      datasheet view of a unit shows only its own abilities, not hundreds of Crusade upgrades.
 - [ ] Sync section: saving URL + passphrase persists; a wrong URL gives a readable error.
 - [ ] About shows version and build commit.

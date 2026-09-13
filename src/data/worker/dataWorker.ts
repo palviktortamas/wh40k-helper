@@ -7,13 +7,15 @@
  * persists it, which keeps Dexie in one place and the worker easy to test.
  */
 
-import { installCatalogue, listAvailableCatalogues, type Progress } from '../install'
+import { installCatalogue, listAvailableCatalogues, reparseCatalogue, type Progress } from '../install'
+import type { CatalogueRecord } from '../db'
 import type { CatalogueSummary } from '../model'
 import type { InstallResult } from '../install'
 
 export type WorkerRequest =
   | { id: number; type: 'list' }
   | { id: number; type: 'install'; summary: CatalogueSummary }
+  | { id: number; type: 'reparse'; record: CatalogueRecord }
 
 export type WorkerResponse =
   | { id: number; type: 'progress'; progress: Progress }
@@ -29,6 +31,10 @@ self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
     try {
       if (request.type === 'list') {
         post({ id: request.id, type: 'list-result', catalogues: await listAvailableCatalogues() })
+        return
+      }
+      if (request.type === 'reparse') {
+        post({ id: request.id, type: 'install-result', result: reparseCatalogue(request.record) })
         return
       }
       const result = await installCatalogue(request.summary, (progress) =>

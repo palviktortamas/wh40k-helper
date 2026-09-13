@@ -277,6 +277,25 @@ describe('game actions', () => {
   })
 })
 
+describe('reminders in a game', () => {
+  it('ticks a reminder, locks a once-per-battle one as the ability used, and undoes', () => {
+    let g = apply(game(), { type: 'checkReminder', key: '1:me:a:ab1', label: 'Dig In', unitId: 'a', abilityId: 'ab1' })
+    expect(g.remindersDone).toEqual({ '1:me:a:ab1': true })
+    expect(g.units[0]!.usedOnce).toEqual([])
+    // The very first tick undoes to "nothing ticked", not to a stale map.
+    expect(apply(g, { type: 'undo' }).remindersDone).toBeUndefined()
+    g = apply(g, { type: 'checkReminder', key: 'battle:a:ab2', label: 'Shout', unitId: 'a', abilityId: 'ab2', once: 'battle' })
+    expect(g.units[0]!.usedOnce).toEqual(['ab2'])
+    expect(g.log.at(-1)!.text).toMatch(/Shout used \(once per battle\)/)
+    // Ticking again unticks and frees the ability.
+    g = apply(g, { type: 'checkReminder', key: 'battle:a:ab2', label: 'Shout', unitId: 'a', abilityId: 'ab2', once: 'battle' })
+    expect(g.units[0]!.usedOnce).toEqual([])
+    expect(g.remindersDone).toEqual({ '1:me:a:ab1': true })
+    g = apply(g, { type: 'undo' })
+    expect(g.units[0]!.usedOnce).toEqual(['ab2'])
+  })
+})
+
 describe('default casualty order', () => {
   it('takes the largest living group first and the lone model last', () => {
     const u = unit('a', [

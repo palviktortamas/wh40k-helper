@@ -17,7 +17,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 2 | List Builder + validation | done — review findings fixed 2026-09-13, verified on real data |
 | 3 | Play Mode core | **built 2026-09-13** — needs a session on the owner's phone |
 | 4 | Missions (CA 2026-27) | **built 2026-09-13** — import, browser, setup wizard, scoring, Tactical deck, card editor, card-state trackers; WHEN DRAWN unit picks and twist automation remain |
-| 5 | Reminders | not started |
+| 5 | Reminders | **built 2026-09-13 (late night)** — heuristics, per-rule overrides, in-game phase panel; needs a real game to tune the defaults |
 | 6 | Polish + second-faction test | not started |
 
 ---
@@ -186,6 +186,58 @@ what was learned that the spec could not have predicted, and what comes next.
 - Walked through again in headless Chrome (driver #4 in the scratchpad): edit → save → reload →
   Data line; "−1 Boy" default; Deep Strike → Arrive; counter +2, note, undo keeps the note; both
   survive a reload; no console errors.
+
+### Phase 5 - Reminders (spec §6.4)
+
+- `src/reminders/types.ts` - the spec's trigger list (`start_of_battle` … `custom`), `Reminder`
+  (stable id = the BSData profile/rule/entry id, owner unit/detachment/army, trigger, one-line
+  text, `once: 'battle' | 'turn'`, enabled) and `ReminderOverride`.
+- `src/reminders/heuristics.ts` - **keyword defaults**, generic game vocabulary only: an ordered
+  regex table where the specific moment wins over the phase it happens in ("selected as the
+  target" → `when_targeted` before "Shooting phase"; "arrives from Reserves"; "opponent's …
+  phase"; "end of your turn"), `once per battle` / `once per turn` detection, HTML and `**bold**`
+  stripped, text = first sentence cut to 140 chars. A rule with neither a moment nor a limit is
+  `custom` and **starts disabled** — that is what keeps the panel glanceable (Leader, Support,
+  invulnerable saves, Deadly Demise…). A once-per-battle rule with no phase becomes an "any time,
+  once" reminder shown in the Command phase.
+- `src/reminders/derive.ts` - `remindersForGame(game, catalogue, overrides)`: each living unit's
+  datasheet abilities and taken enhancements (owner unit), the detachment's rules (owner
+  detachment, matched by `game.detachmentName`), and the `faction`/`core` rules every datasheet
+  links to **once** as army rules. `remindersForCatalogue` lists everything for the settings
+  screen. `showsNow` maps phase × turn → triggers (your Command: command/start-of-battle in round
+  1/once-per-*/custom; Movement: movement + arriving from Reserves; Fight: fight + end of turn;
+  opponent's phases: `opponent_turn` always, `when_targeted` in their Shooting and Fight,
+  `when_charged` in their Charge, `fight_phase` in their Fight). `doneKey` is per round+turn+owner,
+  or `battle:` for once-per-battle; `isDone` also honours the datasheet's "used" checkbox.
+- Overrides: Dexie **v7** `reminderOverrides` keyed by rule id (`src/reminders/store.ts`), plus
+  the master switch in `settings` (`reminders.enabled`). Overrides survive data updates and apply
+  to every copy of a datasheet.
+- Data model additions: `Detachment.rules` (the detachment entry's own `rules` + rule infoLinks)
+  and `ParsedCatalogue.enhancements` (every upgrade entry with an Enhancement cost, text from its
+  Abilities profile, keyed by entry id). `GameUnit.enhancements` is filled at snapshot time from
+  the roster's upgrade selections whose `entryId` is an enhancement.
+- **Parser fix found on the way (PARSER_VERSION 2):** `collectProfiles` followed entry links into
+  shared *groups* — the Crusade tree, Enhancements, Warlord — so every datasheet carried ~150
+  abilities that were not its own (14 000 for the test faction; the datasheet screens showed them
+  too). Datasheet abilities now come from the entry, its models and its infoLinks only; weapons
+  still follow group links. `reparseStaleCatalogues()` runs once at app start and re-parses any
+  installed record whose `parserVersion` is older **from the raw text it kept** — no download,
+  works offline. Bump `PARSER_VERSION` whenever the parsed shape or content changes.
+- Screens: `GameReminders` (panel between the tools and the Mission section: "Reminders — X
+  phase", grouped by Army / detachment / unit, checkbox per item, once-per-battle chip turns into
+  "used" and locks, "on the table" hint on arrival reminders for units not in Reserves,
+  Silence/Unmute master switch); Settings → **Set up reminders** → `Reminders` screen (faction
+  select when several are installed, search, groups as `<details>`, per rule: on/off, trigger
+  select, text input saved on blur, "edited" chip and Reset to default).
+- Reducer: `checkReminder` toggles `GameState.remindersDone[key]`; for a once-per-battle unit
+  reminder it also syncs `usedOnce` so the datasheet checkbox agrees; undoable, logged.
+- Tests: `heuristics.test.ts`, `derive.test.ts`, reducer case in `actions.test.ts`; fixture-gated
+  `heuristics.live.test.ts` (prints the trigger histogram, asserts >60% of rules get a real
+  trigger and once-per-battle is caught) and a live parser test for detachment rules /
+  enhancement text.
+- Walked through in headless Chrome (driver #5): settings list (90 groups for the test faction),
+  search, enable a passive rule with a new trigger and text → survives reload; game panel per
+  phase on both turns, tick, undo, silence; no console errors.
 
 ### Constraint evaluator - semantics (the things that are easy to get wrong)
 
@@ -414,6 +466,23 @@ Built (see "Phase 4 - Missions (core)"), including the card editor and the card-
   Communications (swap primaries) are shown as text, not applied automatically.
 - The Data screen's "Refresh through my endpoint" is untested until the owner deploys the Worker.
 - Secondary scoring for the opponent is a plain number (spec §6.2 says so); fine.
+
+### Step 4 - Phase 5 leftovers
+
+Built (see "Phase 5 - Reminders"). What a real game will tell:
+
+- **Tune the heuristics** with the owner: which defaults are wrong or noisy. The Reminders
+  settings screen is the escape hatch meanwhile. Candidates: core-rule abilities (Deep Strike,
+  Scouts, Stealth…) currently land as *army* rules because BSData links them as shared rules;
+  showing them per unit would need the parser to keep the link per datasheet (it does — they
+  are in `sheet.abilities` with kind `faction`; `derive.ts` chooses to pool them).
+- **Stratagems** are still not in the data (BSData has none); reminders for them would need
+  Wahapedia's stratagem export through the Worker (Phase 1b).
+- **Weapon keywords** (spec lists them as reminder sources) are not reminders yet — Sustained
+  Hits, Lethal Hits etc. are visible in the weapons table; a per-unit "keywords in play" line in
+  the Shooting/Fight panel would be the cheap version.
+- The panel shows every copy of a datasheet separately; a "×2" merge for identical units would
+  shorten it.
 
 ### Phase 1b - deferred, needs a proxy
 

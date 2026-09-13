@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { reparseStaleCatalogues } from '@/data/worker/client'
 import { useServiceWorkerUpdate } from './useServiceWorkerUpdate'
 import './AppShell.css'
 
@@ -16,6 +18,11 @@ type Props = {
 
 export function AppShell({ context }: Props) {
   const sw = useServiceWorkerUpdate()
+
+  // A parser fix reaches installed factions from their stored raw text — offline, once per start.
+  useEffect(() => {
+    void reparseStaleCatalogues()
+  }, [])
 
   return (
     <div className="shell">

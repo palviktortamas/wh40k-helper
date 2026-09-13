@@ -127,6 +127,8 @@ export type Detachment = {
   /** Force Dispositions this detachment can field, e.g. Take and Hold. */
   forceDispositions: string[]
   enhancements: Enhancement[]
+  /** The detachment's own rules, as BSData attaches them to the entry. Absent on catalogues parsed before Phase 5. */
+  rules?: Ability[]
   sources: SourceId[]
 }
 
@@ -143,6 +145,12 @@ export type ParsedCatalogue = {
   detachments: Detachment[]
   /** Rules text shared across the catalogue, keyed by BSData rule id. */
   rules: Ability[]
+  /**
+   * Every enhancement in the catalogue with its rules text, by entry id (the
+   * roster's `entryId` for a taken enhancement). Absent on catalogues parsed
+   * before Phase 5.
+   */
+  enhancements?: Ability[]
   /** Constructs the parser met but does not yet model, for the Data Health screen. */
   unsupported: string[]
 }

@@ -33,6 +33,14 @@ import type {
 const PROFILE_UNIT = 'unit'
 const PROFILE_RANGED = 'ranged weapons'
 const PROFILE_MELEE = 'melee weapons'
+/**
+ * Bump when the parsed model changes shape or content; installed catalogues
+ * with an older number are re-parsed from their stored raw text at app start.
+ * 2: datasheet abilities no longer follow group links (Crusade tree), detachment
+ *    rules and enhancement texts added (Phase 5).
+ */
+export const PARSER_VERSION = 2
+
 const PROFILE_ABILITIES = 'abilities'
 const PROFILE_TRANSPORT = 'transport'
 
@@ -111,6 +119,14 @@ function collectProfiles(
   index: Index,
   seen: Set<string>,
   depth = 0,
+  /**
+   * Whether to follow entry links that point at shared *groups*. A datasheet's
+   * own abilities must not: those links are the option trees every unit shares
+   * (Crusade upgrades, Enhancements, the Warlord pick), hidden until a
+   * condition holds, and following them made every datasheet carry hundreds of
+   * abilities that are not its own. Weapons still need them.
+   */
+  followGroupLinks = true,
 ): Profile[] {
   if (depth > 8) return []
   const out: Profile[] = []
@@ -138,12 +154,13 @@ function collectProfiles(
   }
 
   const visitLink = (link: EntryLink) => {
+    if (link.type !== 'selectionEntry' && !followGroupLinks) return
     const target =
       link.type === 'selectionEntry'
         ? index.entries.get(link.targetId)
         : index.groups.get(link.targetId)
     if (!target) return
-    out.push(...collectProfiles(target, index, seen, depth + 1))
+    out.push(...collectProfiles(target, index, seen, depth + 1, followGroupLinks))
     for (const child of link.selectionEntries ?? []) visitEntry(child)
     for (const nested of link.entryLinks ?? []) visitLink(nested)
   }
@@ -218,6 +235,8 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
   const profiles = collectProfiles(entry, index, new Set())
   const byType = (name: string) =>
     profiles.filter((p) => (p.typeName ?? '').toLowerCase() === name)
+  // Abilities come from the entry, its models and its infoLinks only — see collectProfiles.
+  const ownProfiles = collectProfiles(entry, index, new Set(), 0, false)
 
   const categoryNames = (entry.categoryLinks ?? []).map(
     (l) => index.categories.get(l.targetId)?.name ?? l.name ?? '',
@@ -232,7 +251,9 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
     .map((n) => n.slice(FACTION_PREFIX.length).trim())
   const keywords = categoryNames.filter((n) => n && !n.toLowerCase().startsWith(FACTION_PREFIX))
 
-  const abilities: Ability[] = byType(PROFILE_ABILITIES).map((p) => ({
+  const abilities: Ability[] = ownProfiles
+    .filter((p) => (p.typeName ?? '').toLowerCase() === PROFILE_ABILITIES)
+    .map((p) => ({
     id: p.id,
     name: p.name,
     kind: 'datasheet',
@@ -307,6 +328,15 @@ function collectDetachments(cat: Catalogue, index: Index): Detachment[] {
         dp,
         forceDispositions: dispositions,
         enhancements: [],
+        // The detachment's own rules hang off the entry (Phase 5 reminders read them).
+        rules: [
+          ...(entry.rules ?? []).map((r) => ({ id: r.id, name: r.name, kind: 'detachment' as const, text: r.description ?? '' })),
+          ...(entry.infoLinks ?? [])
+            .filter((l) => l.type === 'rule')
+            .map((l) => index.rules.get(l.targetId))
+            .filter((r): r is NonNullable<typeof r> => Boolean(r))
+            .map((r) => ({ id: r.id, name: r.name, kind: 'detachment' as const, text: r.description ?? '' })),
+        ],
         sources: ['bsdata'],
       })
     }
@@ -316,6 +346,42 @@ function collectDetachments(cat: Catalogue, index: Index): Detachment[] {
 
   visit(cat)
   return detachments
+}
+
+/**
+ * Enhancements are the upgrade entries carrying an Enhancement cost, wherever
+ * they sit in the tree; their rules text is an Abilities profile on the entry
+ * (or reached through an infoLink). Keyed by entry id — the roster's `entryId`
+ * for a taken enhancement — so Play Mode can find the text for a unit's picks.
+ */
+function collectEnhancements(cat: Catalogue, index: Index): Ability[] {
+  const out: Ability[] = []
+  const seen = new Set<string>()
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const child of node) visit(child)
+      return
+    }
+    if (!node || typeof node !== 'object') return
+    const entry = node as SelectionEntry
+    const cost = entry.costs?.find((c) => c.typeId === COST_TYPE.enhancements)?.value
+    if (cost !== undefined && cost > 0 && entry.id && entry.name && !seen.has(entry.id)) {
+      seen.add(entry.id)
+      const profiles = collectProfiles(entry, index, new Set())
+      const ability = profiles.find((p) => (p.typeName ?? '').toLowerCase() === PROFILE_ABILITIES)
+      const rule = (entry.rules ?? [])[0]
+      out.push({
+        id: entry.id,
+        name: entry.name,
+        kind: 'enhancement',
+        text: (ability && characteristic(ability, 'Description')) ?? rule?.description ?? '',
+      })
+    }
+    for (const value of Object.values(node as Record<string, unknown>))
+      if (value && typeof value === 'object') visit(value)
+  }
+  visit(cat)
+  return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
 export function parseCatalogue(gs: GameSystem, cat: Catalogue): ParsedCatalogue {
@@ -352,6 +418,7 @@ export function parseCatalogue(gs: GameSystem, cat: Catalogue): ParsedCatalogue 
     datasheets,
     detachments,
     rules,
+    enhancements: collectEnhancements(cat, index),
     unsupported,
   }
 }

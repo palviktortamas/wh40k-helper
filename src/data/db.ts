@@ -4,6 +4,7 @@ import type { Discrepancy, Unmatched } from './link/merge'
 import type { Roster } from '@/roster/types'
 import type { Game } from '@/play/types'
 import type { MissionDeck } from '@/missions/types'
+import type { ReminderOverride } from '@/reminders/types'
 
 /**
  * All app state lives in IndexedDB — localStorage is never used for primary
@@ -28,6 +29,8 @@ export type CatalogueRecord = {
   revision: number
   installedAt: number
   parsed: ParsedCatalogue
+  /** `PARSER_VERSION` that produced `parsed`; older records are re-parsed from `raw` at app start. */
+  parserVersion?: number
   /** Source file text, kept verbatim for re-parsing. */
   raw: { catalogue: string; gameSystem: string; mfm?: string }
   versions: { bsdataRevision: number; mfmVersion?: string }
@@ -62,6 +65,7 @@ const db = new Dexie('wh40k-helper') as Dexie & {
   rosters: EntityTable<Roster, 'id'>
   games: EntityTable<Game, 'id'>
   missions: EntityTable<MissionDeck, 'id'>
+  reminderOverrides: EntityTable<ReminderOverride, 'id'>
 }
 
 db.version(1).stores({
@@ -134,6 +138,18 @@ db.version(6).stores({
   rosters: 'id, catalogueId, updatedAt',
   games: 'id, rosterId, status, updatedAt',
   missions: 'id',
+})
+
+/** v7: per-rule reminder overrides (Phase 5). */
+db.version(7).stores({
+  settings: 'key',
+  catalogues: 'id, name',
+  health: 'catalogueId',
+  overrides: 'key',
+  rosters: 'id, catalogueId, updatedAt',
+  games: 'id, rosterId, status, updatedAt',
+  missions: 'id',
+  reminderOverrides: 'id',
 })
 
 export { db }

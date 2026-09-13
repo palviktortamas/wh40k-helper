@@ -79,6 +79,8 @@ export type GameUnit = {
   /** Ids of once-per-battle abilities already used. */
   usedOnce: string[]
   note?: string
+  /** Enhancements taken on this unit (catalogue entry id + name), for the reminders. */
+  enhancements?: { id: string; name: string }[]
 }
 
 export type PlayerScore = {
@@ -176,6 +178,11 @@ export type GameState = {
   vpByRound: Record<number, { me: number; opponent: number }>
   /** Absent on games started before the mission deck existed. */
   mission?: MissionState
+  /**
+   * Reminders ticked off (spec §6.4), keyed by the reminder's done-key
+   * (`round:turn:owner:id`, or `battle:owner:id` for once-per-battle ones).
+   */
+  remindersDone?: Record<string, true>
 }
 
 export type LogEntry = {

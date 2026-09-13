@@ -49,6 +49,15 @@ describe.skipIf(!available)('live source files', () => {
     expect(withWeapons.length / parsed.datasheets.length).toBeGreaterThan(0.9)
   })
 
+  it('finds detachment rules and enhancement text for the reminders (Phase 5)', () => {
+    const parsed = parseCatalogue(loadGameSystem(), loadCatalogue())
+    const withRules = parsed.detachments.filter((d) => (d.rules ?? []).some((r) => r.text.length > 20))
+    expect(withRules.length).toBe(parsed.detachments.length)
+    expect((parsed.enhancements ?? []).length).toBeGreaterThan(10)
+    const withText = (parsed.enhancements ?? []).filter((e) => e.text.length > 20)
+    expect(withText.length / parsed.enhancements!.length).toBeGreaterThan(0.9)
+  })
+
   it('does not mistake the roster configuration entry for a unit', () => {
     const parsed = parseCatalogue(loadGameSystem(), loadCatalogue())
     expect(parsed.datasheets.every((d) => d.role !== 'Configuration')).toBe(true)

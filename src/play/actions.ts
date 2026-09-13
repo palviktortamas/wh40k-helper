@@ -50,6 +50,8 @@ export type GameAction =
   | { type: 'adjustCardCounter'; cardId: string; label: string; delta: number }
   | { type: 'setCardNote'; cardId: string; note: string }
   | { type: 'arrive'; unitId: string }
+  // Reminders (spec §6.4): tick one off; a once-per-battle one also marks the ability used.
+  | { type: 'checkReminder'; key: string; label: string; unitId?: string; abilityId?: string; once?: 'battle' | 'turn' }
   | { type: 'undo' }
   | { type: 'endGame' }
 
@@ -80,6 +82,7 @@ const snapshot = (game: Game): GameState => ({
     usedOnce: [...u.usedOnce],
   })),
   vpByRound: { ...game.vpByRound },
+  ...(game.remindersDone ? { remindersDone: { ...game.remindersDone } } : {}),
 })
 
 const other = (side: Side): Side => (side === 'me' ? 'opponent' : 'me')
@@ -352,6 +355,26 @@ function applyAction(game: Game, action: GameAction): Game {
         cardNotes: action.note ? { ...rest, [action.cardId]: action.note } : rest,
       }))
     }
+    case 'checkReminder': {
+      const g = remember(game)
+      const done = Boolean(g.remindersDone?.[action.key])
+      const { [action.key]: _old, ...rest } = g.remindersDone ?? {}
+      void _old
+      let next: Game = { ...g, remindersDone: done ? rest : { ...rest, [action.key]: true } }
+      // A once-per-battle reminder and the datasheet's "used" checkbox are the same fact.
+      if (action.once === 'battle' && action.unitId && action.abilityId) {
+        const { unitId, abilityId } = action
+        next = updateUnit(next, unitId, (u) => ({
+          ...u,
+          usedOnce: done ? u.usedOnce.filter((id) => id !== abilityId) : [...new Set([...u.usedOnce, abilityId])],
+        }))
+      }
+      const who = action.unitId ? `${unitName(g, action.unitId)}: ` : ''
+      return withLog(
+        next,
+        `${who}${action.label} ${done ? 'unticked' : action.once === 'battle' ? 'used (once per battle)' : 'done'}`,
+      )
+    }
     case 'arrive': {
       const unit = game.units.find((u) => u.id === action.unitId)
       if (!unit || !unit.statuses.some((s) => RESERVE_STATUSES.includes(s))) return game
@@ -492,8 +515,10 @@ function applyAction(game: Game, action: GameAction): Game {
     case 'undo': {
       const previous = game.undo[game.undo.length - 1]
       if (!previous) return game
-      const { result: _result, ...rest } = game
+      // Optional state keys must not survive from the current game when the snapshot lacks them.
+      const { result: _result, remindersDone: _ticks, ...rest } = game
       void _result
+      void _ticks
       // Notes are not undo steps, so undo leaves the notes as they are now.
       const notes = new Map(game.units.map((u) => [u.id, u.note]))
       const units = previous.units.map((u) => {
