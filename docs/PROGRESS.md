@@ -95,7 +95,7 @@ what was learned that the spec could not have predicted, and what comes next.
   min/max, army-wide caps, size-dependent costs, conditional limits and Requisition Thresholds.
   `evaluate.live.test.ts` is fixture-gated.
 
-### Constraint evaluator - the two things that are easy to get wrong
+### Constraint evaluator - the semantics that are easy to get wrong
 
 - **Option groups are not selections.** They get no node in the roster tree, yet they carry the
   constraints behind "9-18 models" and "at most 3 special weapons". They must be evaluated
