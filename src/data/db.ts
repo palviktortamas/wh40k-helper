@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type { ParsedCatalogue } from './model'
 import type { Discrepancy, Unmatched } from './link/merge'
+import type { Roster } from '@/roster/types'
 
 /**
  * All app state lives in IndexedDB — localStorage is never used for primary
@@ -56,6 +57,7 @@ const db = new Dexie('wh40k-helper') as Dexie & {
   catalogues: EntityTable<CatalogueRecord, 'id'>
   health: EntityTable<HealthRecord, 'catalogueId'>
   overrides: EntityTable<OverrideRecord, 'key'>
+  rosters: EntityTable<Roster, 'id'>
 }
 
 db.version(1).stores({
@@ -67,6 +69,14 @@ db.version(2).stores({
   catalogues: 'id, name',
   health: 'catalogueId',
   overrides: 'key',
+})
+
+db.version(3).stores({
+  settings: 'key',
+  catalogues: 'id, name',
+  health: 'catalogueId',
+  overrides: 'key',
+  rosters: 'id, catalogueId, updatedAt',
 })
 
 export { db }

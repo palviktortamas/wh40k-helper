@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './app/AppShell'
 import { useTheme } from './app/useTheme'
 import { Rosters } from './screens/Rosters'
+import { RosterEditor } from './screens/RosterEditor'
 import { Play } from './screens/Play'
 import { Data } from './screens/Data'
 import { DataHealth } from './screens/DataHealth'
@@ -20,6 +21,7 @@ export function App() {
         <Route element={<AppShell context={theme} />}>
           <Route index element={<Navigate to="/rosters" replace />} />
           <Route path="/rosters" element={<Rosters />} />
+          <Route path="/rosters/:rosterId" element={<RosterEditor />} />
           <Route path="/play" element={<Play />} />
           <Route path="/data" element={<Data />} />
           <Route path="/datasheets/:catalogueId" element={<Datasheets />} />

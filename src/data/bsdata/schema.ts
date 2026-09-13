@@ -126,6 +126,11 @@ export type ConditionGroup = {
   localConditionGroups?: LocalConditionGroup[]
 }
 
+/**
+ * Counts the selections in `scope` that individually satisfy `conditions`, then
+ * compares that count against `value`. Requisition Thresholds are encoded this
+ * way: "at least 3 of this entry come before this one".
+ */
 export type LocalConditionGroup = {
   type: string
   field: string
@@ -134,6 +139,8 @@ export type LocalConditionGroup = {
   childId?: string
   repeats?: number
   includeChildSelections?: boolean
+  includeChildForces?: boolean
+  conditions?: Condition[]
 }
 
 export type ModifierType =
