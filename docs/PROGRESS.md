@@ -14,8 +14,8 @@ what was learned that the spec could not have predicted, and what comes next.
 | 0 | Source verification | done — see spec Appendix A |
 | — | Repo, PWA scaffold, Pages deploy | done |
 | 1 | Data layer + datasheet browser | done (Wahapedia enrichment deferred to 1b) |
-| 2 | List Builder + validation | next |
-| 3 | Play Mode core | not started |
+| 2 | List Builder + validation | done (leaders/enhancements deferred, see below) |
+| 3 | Play Mode core | next |
 | 4 | Missions (CA 2026-27) | not started |
 | 5 | Reminders | not started |
 | 6 | Polish + second-faction test | not started |
@@ -68,6 +68,60 @@ what was learned that the spec could not have predicted, and what comes next.
   for the ones that hit GitHub. Both gated suites must stay lazy: `describe.skipIf` still
   evaluates the callback body at collection time, so reading a fixture at the top level throws
   before the skip applies.
+
+### Phase 2 - list builder
+
+- `src/roster/types.ts` - Roster and Selection. A roster is a tree of selection instances that
+  mirrors the catalogue entry tree, so validation can always walk back to the governing entry.
+- `src/roster/resolve.ts` - flattens BSData's link graph into a buildable tree. An entry rarely
+  holds its own children: option groups and weapons arrive through `entryLink`s, and a link may
+  add its own constraints, modifiers and costs on top of the target. Memoised per catalogue.
+- `src/roster/evaluate.ts` - **the generic constraint evaluator**. Applies modifiers first (a
+  modifier can change a cost *and* a constraint's limit), then tests constraints.
+- `src/roster/defaults.ts` - `instantiate()` takes the choices the data marks mandatory, so adding
+  a unit does not open the editor on errors the user did not cause. 73 of 74 datasheets
+  instantiate clean; the one that does not is a genuine data quirk and shows as an error.
+- `src/roster/coreChecks.ts` - layer 2: points limit, exactly one Warlord, detachment chosen,
+  unspent-points warning. Each message cites its rule.
+- `src/roster/store.ts` - Dexie v3 `rosters` store, CRUD, duplicate, and the single `validate()`
+  every screen calls. Catalogue graphs are cached; re-resolving 2 MB per keystroke would blow the
+  100 ms budget.
+- `src/roster/export.ts` - plain-text export, and it states when unresolved discrepancies affect
+  the list.
+- Screens: `Rosters` (list, create, duplicate, delete, legality badge), `RosterEditor` (points
+  limit, detachment, warlord, reorder, issue list, unit picker, text export), `UnitEditor` (the
+  per-model loadout editor).
+- Tests: `src/roster/evaluate.test.ts` runs in CI on an invented catalogue and covers group
+  min/max, army-wide caps, size-dependent costs, conditional limits and Requisition Thresholds.
+  `evaluate.live.test.ts` is fixture-gated.
+
+### Constraint evaluator - the two things that are easy to get wrong
+
+- **Option groups are not selections.** They get no node in the roster tree, yet they carry the
+  constraints behind "9-18 models" and "at most 3 special weapons". They must be evaluated
+  against the selection that *owns* them, counting the owner's children whose entry belongs to
+  that group (nested groups included). Missing this makes every unit look legal.
+- **A constraint with no `childId` counts instances of the entry that owns it.** "max 6 @force" on
+  a unit means six of *that* unit, not six of anything. Defaulting `childId` to the owning entry
+  id is what makes army-wide caps behave.
+- **Requisition Thresholds are `localConditionGroups`, not the plain `before` condition.** The
+  shape is: count the selections in a scope that individually satisfy the inner conditions, then
+  compare that count against the group's own value - "at least 3 of this entry come before this
+  one" means this is the 4th copy. A `conditionGroup` holding *only* local groups looks like an
+  empty group, so an implementation that ignores them returns true and charges the surcharge on
+  the very first unit. Verified against the official points: 20 models = 180, 10 models = 90,
+  four 10-model units = 370.
+- `before` needs a total document order across the whole roster, not sibling ordinals.
+- Modifiers must all be applied before any constraint is read, because a modifier's `field` can be
+  a constraint id.
+
+### The spec's own acceptance example no longer matches the data
+
+Spec section 9 asks for a 20-model unit built as "17 + 2 special + 1 leader model". In catalogue
+revision 3 that unit's first option group is capped at 18 and the leader models sit in a separate
+group of 1-2, so 17 + 2 = 19 breaks the cap. The legal 20-model build is 16 + 2 special + 2 leader
+models. The evaluator is right and the spec example is stale - it was written from the previous
+edition's datasheet. **Raised with the owner; spec not edited.**
 
 ---
 
@@ -137,25 +191,29 @@ the repo, and it still catches a real catalogue file dropped into the tree.
 
 ## Next
 
-**Phase 2 - List Builder.** The generic BattleScribe constraint evaluator is the centre of it;
-everything else is UI on top.
+**Phase 3 - Play Mode core.** Runs a game from a saved roster.
 
-1. **Constraint evaluator.** Implement the vocabulary in spec Appendix A.1 *plus* the corrections
-   above. Start with the subset the data actually uses and log unsupported constructs rather than
-   failing silently. `before` (ordinal position among siblings) is how Requisition Thresholds
-   work; `modifier.field` pointing at a constraint id is how conditional limits work.
-2. Roster model and Dexie store; create/duplicate/rename/delete; points limit presets.
-3. Per-model loadout editor - the hard requirement in spec 5.2. Model slots with individual
-   equipment, enforcing "1 in 10 may take ...".
-4. Leader attachment from the `associations` graph; enhancements; warlord toggle.
-5. Hard-coded 11e core checks as the second layer (spec 5.3), each error citing its rule.
-6. Plain-text roster export; backup export/import.
-7. Wire the per-item overrides on the Data Health screen - deferred from Phase 1 deliberately,
-   since an override only means something once a roster total depends on it.
+1. Game model and Dexie store; start a game from a roster (legal, or overridden with a warning).
+2. Battle round and phase tracker, CP and VP counters for both players.
+3. Army view: per-unit models alive, wounds on the current model, damaged-profile indicator,
+   status chips. Removing models must ask which model type died so weapon counts stay right -
+   the roster tree already distinguishes them, which is what makes this possible.
+4. Datasheet view during play with loadout-aware weapon counts.
+5. Undo for the last N actions; game log; end-of-game summary; game history.
 
-Acceptance target (spec 9): a legal 2000-pt list whose 20-model unit carries the exact loadout the
-spec names, with a leader attached, one enhancement and a warlord - green badge; and each of the
-four illegal variations producing a specific error that names its rule.
+### Still open from Phase 2
+
+These are real gaps, not polish:
+
+- **Leader attachment UI.** The `associations` graph is parsed and stored but nothing consumes it
+  yet; a leader cannot be attached to a bodyguard unit. Needed properly by Phase 3's army view.
+- **Enhancements.** The cost type and the entries resolve, but there is no UI to add one to a
+  character, and no check of the per-detachment limit.
+- **Epic Hero uniqueness and Support attachment legality** are not in `coreChecks.ts`; they may
+  already be enforced by catalogue constraints, which has not been verified.
+- **Transport / embarking** assignment (spec section 10 lists this as an open question).
+- Per-item overrides on the Data Health screen, still unwired.
+- Roster re-validation and diff after a data update.
 
 ### Phase 1b - deferred, needs a proxy
 
