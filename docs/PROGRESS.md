@@ -14,8 +14,8 @@ what was learned that the spec could not have predicted, and what comes next.
 | 0 | Source verification | done — see spec Appendix A |
 | — | Repo, PWA scaffold, Pages deploy | done |
 | 1 | Data layer + datasheet browser | done (Wahapedia enrichment deferred to 1b) |
-| 2 | List Builder + validation | done (leaders/enhancements deferred, see below) |
-| 3 | Play Mode core | next |
+| 2 | List Builder + validation | built; **review found false-legal bugs, unfixed** |
+| 3 | Play Mode core | blocked on the Phase 2 review fixes |
 | 4 | Missions (CA 2026-27) | not started |
 | 5 | Reminders | not started |
 | 6 | Polish + second-faction test | not started |
@@ -186,6 +186,101 @@ The no-game-data guard first flagged the parser and the docs for *naming* schema
 field is code, not data. Format markers now only count against files that could themselves be a
 datafile (`.json`/`.yaml`/`.csv`); everything else is judged on size. Verified both ways: clean on
 the repo, and it still catches a real catalogue file dropped into the tree.
+
+---
+
+## Review findings - Phase 2 (2026-09-13, not yet fixed)
+
+An independent review of the evaluator found real correctness bugs. **These produce false "Legal"
+badges, which is the worst failure mode this app has** - a wrong error is annoying, a wrong pass
+loses a game. Fix these before building on the evaluator.
+
+Ranked, with what was confirmed by execution:
+
+1. **Constraints at a non-`self` scope only search the scope node and its direct children.**
+   `queryNodes` in `evaluate.ts` uses `[target, ...target.children]` when
+   `includeChildSelections` is false, but BattleScribe searches the scope's whole subtree - the
+   flag controls how nested counts roll up, not whether descendants are visible at all.
+   CONFIRMED: a weapon carrying `max 1 @unit` sits two levels below the unit (unit > model >
+   weapon), so it is never counted and the limit never fires. This is the single cause of the
+   spec's flagship case passing when it should not: a 12-model unit with two special-weapon
+   models validates as legal either way you express it. **Fix this first.**
+
+2. **`build()` re-resolves children by entry id, discarding link-carried data.**
+   `evaluate.ts` calls `graph.resolve(selection.entryId)`, which resolves the *bare shared entry*;
+   any constraints, modifiers or cost overrides carried by the `entryLink` that pulled the entry
+   into this particular parent are lost. CONFIRMED by diffing in-place resolution against
+   re-resolution across the catalogue: **236 of 19,754 child resolutions differ**, e.g. a
+   transport's weapon options lose their `max N @parent` entirely, so unlimited copies validate.
+   The fix needs care: `Selection` records `groupId` but not the link id, and the same shared
+   entry can be linked twice under one parent (see 5), so walking the parent's *resolved* children
+   needs a disambiguator.
+
+3. **`set hidden` modifiers are ignored.** Treated as presentation-only, but the data uses them as
+   its main "you may only take X if Y" gate - 448 of them, covering option-requires-sibling,
+   unit-type restrictions, per-detachment enhancement groups and Legends/Crucible toggles. The UI
+   filters only the base `hidden` flag, so all of these are offered and accepted. Compounding
+   this: `roster.detachmentId` is not a selection in the tree and the evaluator never reads it, so
+   every detachment-gated condition is structurally unevaluable even once `hidden` is implemented.
+   Making the detachment a real selection in the roster tree probably fixes both.
+
+4. **Force-entry and category-entry constraints are never evaluated.** Nothing reads
+   `categoryEntry.constraints`, `forceEntry.constraints` or `categoryLink.constraints`. That drops
+   the Enhancements cap per force, the Detachment Points budget, category caps, and a minimum
+   Character requirement. The detachment's own DP cost is also never added, so
+   `detachmentPoints` reads 0 and the budget cannot be checked regardless.
+
+5. **The same shared entry reached through two sibling groups collapses into one selection.**
+   `UnitEditor` matches `existing` by `entryId` alone and `countInGroup` ignores `groupId`, so a
+   model with two arm groups sharing a weapon list satisfies both groups with one pick (false
+   legal), or errors on both when given two (false error). One stepper drives both groups.
+
+6. **Nested counts are absolute in the evaluator but per-copy in the export.** `instantiate` gives
+   a weapon `count: 1` under a model of `count: 9`; `export.ts` multiplies child by parent, the
+   evaluator sums raw counts. Points are unaffected today because wargear is free, but any
+   unit-scope weapon count is wrong. Settle this *with* finding 1, or restoring those constraints
+   still will not catch the flagship case.
+
+7. `add error` / `add warning` modifiers are swallowed - `add` only handles categories, so the
+   error text lands in `categoryIds` and nothing is reported. Nine in the data, one of which is
+   the sole encoding of a per-N-models weapon limit.
+
+8. **Warlord is not required to be a Character.** `coreChecks.ts` only checks the id resolves, and
+   the UI offers the toggle on every unit - yet the error message already claims the rule.
+
+9. Battle-size dependent limits never apply: the data encodes battle size as a *selection*
+   ("Incursion", "Strike Force"), which this app's roster never contains because `pointsLimit` is
+   a plain number. Same root cause as 3 - some roster-level configuration has to exist as
+   selections.
+
+10. Smaller, latent: `ancestor` scope resolves to the immediate parent only (352 uses, all
+    category checks two levels up); a `forces` query returns 1 regardless of `childId`;
+    `testLocalGroup` hard-codes the candidate filter to the holding entry instead of
+    `local.childId` (harmless for all 29 current uses, not generic); army-wide errors are emitted
+    once per instance, so seven copies produce seven identical messages.
+
+11. Cost-typed constraints inherit the `childId` default meant for `selections`, so an
+    `Enhancements max 1 @self` sums only children whose entry is the character itself and can
+    never fire. Low impact today - a group cap happens to catch the same case.
+
+12. The text export prints the *base* unit cost, not the evaluated one: a 20-model unit shows a
+    header of 180 and a unit line of 90. It also labels evaluator gaps as "unresolved data
+    discrepancies", which spec 4.1 reserves for source disagreements.
+
+13. HYPOTHESIS (needs a browser, not reproduced): the cached catalogue graph in `store.ts` is
+    keyed by catalogue id, which is stable across revisions, so after a data update the same
+    session keeps validating against the old in-memory graph.
+
+**Checked and found sound:** Requisition Thresholds and size-dependent costs (1x10=90, 1x20=180,
+4x10=370, 5x10=470, 4x20=730 all match the official points); `roster`/`force` duplicate caps;
+group min/max including group modifiers; the selection-tree edits in `store.ts` and `UnitEditor`
+(no stale-closure or wrong-parent bug, ids unique, `duplicateRoster` re-ids and clears the warlord
+reference, autosave writes are ordered so there is no lost-write race).
+
+**A note on method.** The review initially attributed the flagship false pass to finding 2. It is
+actually finding 1 - the constraints in that specific case live on the entry, not the link, and
+are present. Both bugs are real and both were confirmed, but they are independent. Verify a
+root-cause attribution by execution before acting on it.
 
 ---
 
