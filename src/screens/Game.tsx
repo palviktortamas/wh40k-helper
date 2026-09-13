@@ -1,0 +1,517 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { getCatalogue } from '@/data/worker/client'
+import type { CatalogueRecord } from '@/data/db'
+import { apply, isBattleOver, type GameAction } from '@/play/actions'
+import { getGame, saveGame } from '@/play/store'
+import { useWakeLock } from '@/play/useWakeLock'
+import {
+  LAST_ROUND,
+  PHASE_LABELS,
+  STATUS_LABELS,
+  modelsAlive,
+  modelsTotal,
+  totalVp,
+  type Game as GameModel,
+  type GameUnit,
+  type Side,
+  type UnitStatus,
+} from '@/play/types'
+import { GameUnitSheet } from './GameUnitSheet'
+import './Rosters.css'
+import './Game.css'
+
+const STATUSES: UnitStatus[] = ['battleShocked', 'advanced', 'fellBack', 'reserves', 'deepStrike', 'embarked']
+
+/**
+ * The table screen (spec §6.2–6.3): round and phase tracker, CP/VP for both
+ * players, and the army view with per-model wound tracking. Every change goes
+ * through `apply`, so undo and the log come for free.
+ */
+export function Game() {
+  const { gameId } = useParams<{ gameId: string }>()
+  const [game, setGame] = useState<GameModel | null>(null)
+  const [catalogue, setCatalogue] = useState<CatalogueRecord | null>(null)
+  const [openUnit, setOpenUnit] = useState<string | null>(null)
+  const [showLog, setShowLog] = useState(false)
+
+  useEffect(() => {
+    if (!gameId) return
+    void getGame(gameId).then(async (g) => {
+      setGame(g ?? null)
+      if (g) setCatalogue((await getCatalogue(g.catalogueId)) ?? null)
+    })
+  }, [gameId])
+
+  useWakeLock(game?.status === 'active')
+
+  const dispatch = useCallback((action: GameAction) => {
+    setGame((current) => {
+      if (!current) return current
+      const next = apply(current, action)
+      if (next !== current) void saveGame(next)
+      return next
+    })
+  }, [])
+
+  const sheets = useMemo(
+    () => new Map((catalogue?.parsed.datasheets ?? []).map((d) => [d.id, d])),
+    [catalogue],
+  )
+
+  if (!game) return <p>Loading…</p>
+
+  if (openUnit) {
+    const unit = game.units.find((u) => u.id === openUnit)
+    if (unit) {
+      return (
+        <GameUnitSheet
+          game={game}
+          unit={unit}
+          sheets={sheets}
+          dispatch={dispatch}
+          onBack={() => setOpenUnit(null)}
+        />
+      )
+    }
+  }
+
+  if (game.status === 'finished') return <Summary game={game} dispatch={dispatch} />
+
+  const leadersOf = new Map<string, GameUnit[]>()
+  for (const unit of game.units) {
+    if (!unit.leaderOf) continue
+    leadersOf.set(unit.leaderOf, [...(leadersOf.get(unit.leaderOf) ?? []), unit])
+  }
+  const topLevel = game.units.filter((u) => !u.leaderOf || !game.units.some((t) => t.id === u.leaderOf))
+  const over = isBattleOver(game)
+
+  return (
+    <section className="game">
+      <Link className="sheet__back tap" to="/play">
+        ‹ Play
+      </Link>
+
+      <header className="game__head">
+        <div>
+          <h2>
+            {game.rosterName} <span className="muted">vs {game.opponentName}</span>
+          </h2>
+          <p className="muted game__meta">
+            {game.factionName}
+            {game.detachmentName ? ` · ${game.detachmentName}` : ''}
+            {game.startedIllegal ? ' · started with validation errors' : ''}
+          </p>
+        </div>
+      </header>
+
+      <div className={`tracker ${game.turn === 'me' ? 'tracker--me' : 'tracker--them'}`}>
+        <div className="tracker__round">
+          <span className="tracker__label">Battle round</span>
+          <strong>
+            {Math.min(game.round, LAST_ROUND)} / {LAST_ROUND}
+          </strong>
+        </div>
+        <div className="tracker__phase">
+          <span className="tracker__label">{game.turn === 'me' ? 'Your turn' : `${game.opponentName}'s turn`}</span>
+          <strong>{PHASE_LABELS[game.phase]} phase</strong>
+        </div>
+        <div className="tracker__nav">
+          <button
+            className="button button--quiet tracker__btn"
+            onClick={() => dispatch({ type: 'prevPhase' })}
+            disabled={game.round === 1 && game.turn === game.firstTurn && game.phase === 'command'}
+            aria-label="Previous phase"
+          >
+            ‹ Prev
+          </button>
+          {over ? (
+            <button className="button tracker__btn" onClick={() => dispatch({ type: 'endGame' })}>
+              End game
+            </button>
+          ) : (
+            <button className="button tracker__btn" onClick={() => dispatch({ type: 'nextPhase' })} aria-label="Next phase">
+              Next ›
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="score">
+        <ScoreColumn label="You" side="me" game={game} dispatch={dispatch} />
+        <ScoreColumn label={game.opponentName} side="opponent" game={game} dispatch={dispatch} />
+      </div>
+
+      <div className="rosters__controls game__tools">
+        <button
+          className="button button--quiet"
+          disabled={game.undo.length === 0}
+          onClick={() => dispatch({ type: 'undo' })}
+        >
+          ↶ Undo
+        </button>
+        <button className="button button--quiet" onClick={() => setShowLog((s) => !s)}>
+          {showLog ? 'Hide log' : `Log (${game.log.length})`}
+        </button>
+        {!over && (
+          <button
+            className="button button--quiet"
+            onClick={() => {
+              if (confirm('End the game now and record the result?')) dispatch({ type: 'endGame' })
+            }}
+          >
+            End game
+          </button>
+        )}
+      </div>
+
+      {showLog && (
+        <ol className="log">
+          {[...game.log].reverse().map((entry, i) => (
+            <li key={i}>
+              <span className="muted">
+                R{entry.round} {PHASE_LABELS[entry.phase].slice(0, 3)}
+              </span>{' '}
+              {entry.text}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <h3 className="play__heading">Army</h3>
+      <ul className="units">
+        {topLevel.map((unit) => (
+          <li key={unit.id} className={`units__item unit ${unit.destroyed ? 'unit--dead' : ''}`}>
+            <UnitCard unit={unit} dispatch={dispatch} onOpen={() => setOpenUnit(unit.id)} />
+            {(leadersOf.get(unit.id) ?? []).map((leader) => (
+              <div key={leader.id} className={`unit__leader ${leader.destroyed ? 'unit--dead' : ''}`}>
+                <UnitCard unit={leader} dispatch={dispatch} onOpen={() => setOpenUnit(leader.id)} leader />
+              </div>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function ScoreColumn({
+  label,
+  side,
+  game,
+  dispatch,
+}: {
+  label: string
+  side: Side
+  game: GameModel
+  dispatch: (action: GameAction) => void
+}) {
+  const score = game[side]
+  return (
+    <div className={`score__col ${game.turn === side ? 'score__col--active' : ''}`}>
+      <h3>{label}</h3>
+      <Counter
+        label="CP"
+        value={score.cp}
+        onChange={(delta) => dispatch({ type: 'adjustCp', side, delta })}
+      />
+      <Counter
+        label="Primary"
+        value={score.vpPrimary}
+        onChange={(delta) => dispatch({ type: 'adjustVp', side, kind: 'primary', delta })}
+      />
+      <Counter
+        label="Secondary"
+        value={score.vpSecondary}
+        onChange={(delta) => dispatch({ type: 'adjustVp', side, kind: 'secondary', delta })}
+      />
+      <p className="score__total">
+        <span className="tracker__label">Total VP</span>
+        <strong>{totalVp(score)}</strong>
+      </p>
+    </div>
+  )
+}
+
+function Counter({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (delta: number) => void
+}) {
+  return (
+    <div className="counter">
+      <span className="counter__label">{label}</span>
+      <div className="stepper">
+        <button aria-label={`${label} minus one`} onClick={() => onChange(-1)}>
+          −
+        </button>
+        <span className="stepper__value">{value}</span>
+        <button aria-label={`${label} plus one`} onClick={() => onChange(1)}>
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function UnitCard({
+  unit,
+  dispatch,
+  onOpen,
+  leader = false,
+}: {
+  unit: GameUnit
+  dispatch: (action: GameAction) => void
+  onOpen: () => void
+  leader?: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const alive = modelsAlive(unit)
+  const total = modelsTotal(unit)
+  const living = unit.models.filter((g) => g.alive > 0)
+  const single = living.length === 1 ? living[0] : undefined
+  // The damaged profile applies once the (single) model is at or below the threshold.
+  const damaged =
+    unit.damagedAt !== undefined &&
+    !unit.destroyed &&
+    unit.models.some((g) => g.alive === 1 && g.total === 1 && g.currentWounds <= unit.damagedAt!)
+
+  return (
+    <div className="unit__body">
+      <button className="units__main" onClick={onOpen}>
+        <span className="units__name">
+          {leader && <span className="chip">Leader</span>}
+          {unit.name}
+          {unit.isWarlord && <span className="chip">Warlord</span>}
+          {unit.destroyed && <span className="chip chip--error">✕ Destroyed</span>}
+          {damaged && <span className="chip chip--warn">⚠ Damaged</span>}
+        </span>
+        <span className="unit__stats">
+          <span>
+            <strong>{alive}</strong>/{total} models
+          </span>
+          {living.map((g) =>
+            g.wounds > 1 ? (
+              <span key={g.id}>
+                {living.length > 1 ? `${g.name}: ` : ''}
+                <strong>{g.currentWounds}</strong>/{g.wounds} W
+              </span>
+            ) : null,
+          )}
+        </span>
+        {unit.statuses.length > 0 && (
+          <span className="unit__chips">
+            {unit.statuses.map((s) => (
+              <span key={s} className="chip chip--status">
+                {STATUS_LABELS[s]}
+              </span>
+            ))}
+          </span>
+        )}
+      </button>
+
+      {!unit.destroyed && (
+        <div className="unit__quick">
+          {single ? (
+            <>
+              <button
+                className="button button--quiet"
+                onClick={() => dispatch({ type: 'removeModel', unitId: unit.id, groupId: single.id })}
+              >
+                −1 model
+              </button>
+              {single.wounds > 1 && (
+                <button
+                  className="button button--quiet"
+                  onClick={() => dispatch({ type: 'damage', unitId: unit.id, groupId: single.id, amount: 1 })}
+                >
+                  −1 W
+                </button>
+              )}
+            </>
+          ) : (
+            <button className="button button--quiet" onClick={() => setExpanded((e) => !e)}>
+              {expanded ? 'Done' : 'Remove models…'}
+            </button>
+          )}
+          <button className="button button--quiet" onClick={() => setExpanded((e) => !e)}>
+            {expanded ? 'Less' : 'More…'}
+          </button>
+        </div>
+      )}
+
+      {expanded && (
+        <div className="unit__more">
+          {/* Which model died matters: the weapons table follows the survivors. */}
+          <ul className="models">
+            {unit.models.map((g) => (
+              <li key={g.id} className="models__row">
+                <span className="models__name">
+                  {g.name}
+                  <span className="muted">
+                    {' '}
+                    {g.alive}/{g.total}
+                    {g.wounds > 1 && g.alive > 0 ? ` · ${g.currentWounds}/${g.wounds} W` : ''}
+                  </span>
+                </span>
+                <span className="models__actions">
+                  <button
+                    aria-label={`Remove one ${g.name}`}
+                    disabled={g.alive === 0}
+                    onClick={() => dispatch({ type: 'removeModel', unitId: unit.id, groupId: g.id })}
+                  >
+                    −1
+                  </button>
+                  {g.wounds > 1 && (
+                    <>
+                      <button
+                        aria-label={`One wound to ${g.name}`}
+                        disabled={g.alive === 0}
+                        onClick={() => dispatch({ type: 'damage', unitId: unit.id, groupId: g.id, amount: 1 })}
+                      >
+                        −1 W
+                      </button>
+                      <button
+                        aria-label={`Heal one wound on ${g.name}`}
+                        disabled={g.alive === 0 || g.currentWounds >= g.wounds}
+                        onClick={() => dispatch({ type: 'healModel', unitId: unit.id, groupId: g.id, amount: 1 })}
+                      >
+                        +1 W
+                      </button>
+                    </>
+                  )}
+                  <button
+                    aria-label={`Return one ${g.name}`}
+                    disabled={g.alive >= g.total}
+                    onClick={() => dispatch({ type: 'addModel', unitId: unit.id, groupId: g.id })}
+                  >
+                    +1
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="unit__chips unit__toggles">
+            {STATUSES.map((status) => {
+              const on = unit.statuses.includes(status)
+              return (
+                <button
+                  key={status}
+                  className={`chip chip--button ${on ? 'chip--on' : ''}`}
+                  aria-pressed={on}
+                  onClick={() => dispatch({ type: 'toggleStatus', unitId: unit.id, status })}
+                >
+                  {on ? '✓ ' : ''}
+                  {STATUS_LABELS[status]}
+                </button>
+              )
+            })}
+          </div>
+          <div className="rosters__controls">
+            {unit.destroyed ? (
+              <button className="button button--quiet" onClick={() => dispatch({ type: 'revive', unitId: unit.id })}>
+                Revive at full strength
+              </button>
+            ) : (
+              <button className="button button--quiet" onClick={() => dispatch({ type: 'destroy', unitId: unit.id })}>
+                Mark destroyed
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {unit.destroyed && !expanded && (
+        <div className="unit__quick">
+          <button className="button button--quiet" onClick={() => dispatch({ type: 'revive', unitId: unit.id })}>
+            Revive
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Summary({ game, dispatch }: { game: GameModel; dispatch: (action: GameAction) => void }) {
+  const result = game.result
+  const rounds = Object.keys(game.vpByRound)
+    .map(Number)
+    .sort((a, b) => a - b)
+  const destroyed = game.units.filter((u) => u.destroyed)
+  return (
+    <section className="game">
+      <Link className="sheet__back tap" to="/play">
+        ‹ Play
+      </Link>
+      <h2>
+        {result?.winner === 'me' ? 'Victory' : result?.winner === 'opponent' ? 'Defeat' : 'Draw'}
+      </h2>
+      <p className="muted">
+        {game.rosterName} vs {game.opponentName}
+        {game.opponentFaction ? ` (${game.opponentFaction})` : ''} · ended{' '}
+        {new Date(result?.endedAt ?? game.updatedAt).toLocaleString()}
+      </p>
+      <p className="summary__score">
+        <strong>{result?.me ?? totalVp(game.me)}</strong> – <strong>{result?.opponent ?? totalVp(game.opponent)}</strong> VP
+      </p>
+
+      <div className="sheet__scroll">
+        <table className="sheet__table sheet__table--stats">
+          <thead>
+            <tr>
+              <th scope="col">Round</th>
+              {rounds.map((r) => (
+                <th key={r} scope="col">
+                  {r}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">You</th>
+              {rounds.map((r) => (
+                <td key={r}>{game.vpByRound[r]?.me}</td>
+              ))}
+            </tr>
+            <tr>
+              <th scope="row">{game.opponentName}</th>
+              {rounds.map((r) => (
+                <td key={r}>{game.vpByRound[r]?.opponent}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Your army</h3>
+      <p className="muted">
+        {game.units.length - destroyed.length} of {game.units.length} units survived
+        {destroyed.length > 0 ? ` — lost: ${destroyed.map((u) => u.name).join(', ')}` : ''}.
+      </p>
+
+      <div className="rosters__controls">
+        <button className="button button--quiet" onClick={() => dispatch({ type: 'undo' })}>
+          ↶ Reopen game
+        </button>
+      </div>
+
+      <details className="config">
+        <summary>Game log ({game.log.length})</summary>
+        <ol className="log">
+          {game.log.map((entry, i) => (
+            <li key={i}>
+              <span className="muted">
+                R{entry.round} {PHASE_LABELS[entry.phase].slice(0, 3)}
+              </span>{' '}
+              {entry.text}
+            </li>
+          ))}
+        </ol>
+      </details>
+    </section>
+  )
+}

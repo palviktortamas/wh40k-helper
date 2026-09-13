@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import type { ParsedCatalogue } from './model'
 import type { Discrepancy, Unmatched } from './link/merge'
 import type { Roster } from '@/roster/types'
+import type { Game } from '@/play/types'
 
 /**
  * All app state lives in IndexedDB — localStorage is never used for primary
@@ -58,6 +59,7 @@ const db = new Dexie('wh40k-helper') as Dexie & {
   health: EntityTable<HealthRecord, 'catalogueId'>
   overrides: EntityTable<OverrideRecord, 'key'>
   rosters: EntityTable<Roster, 'id'>
+  games: EntityTable<Game, 'id'>
 }
 
 db.version(1).stores({
@@ -110,6 +112,16 @@ db.version(4)
         delete roster['warlordSelectionId']
       }),
   )
+
+/** v5: Play Mode games (Phase 3). */
+db.version(5).stores({
+  settings: 'key',
+  catalogues: 'id, name',
+  health: 'catalogueId',
+  overrides: 'key',
+  rosters: 'id, catalogueId, updatedAt',
+  games: 'id, rosterId, status, updatedAt',
+})
 
 export { db }
 
