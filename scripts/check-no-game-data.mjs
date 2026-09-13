@@ -1,6 +1,12 @@
 // Guards the acceptance criterion "a fresh clone contains no game data": the
 // repository and the deployed bundle must hold code only.
 //
+// One exception, decided by the owner on 2026-09-13: the deployed bundle may
+// carry the Chapter Approved mission deck page (`missions-ca-*.html`), fetched
+// from Wahapedia at build time by scripts/fetch-mission-deck.mjs. It is never
+// committed (git-ignored under public/) and it is HTML, so the format markers
+// below do not apply to it; its size stays well under the code-file limit.
+//
 // The check is structural on purpose — it looks for the *shape* of the source
 // formats, never for unit names, so the guard itself stays free of GW content.
 //

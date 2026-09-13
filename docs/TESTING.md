@@ -21,7 +21,10 @@ available" toast on open; tap Reload first.
       New roster with it → the Detachment select lists only that faction's detachments → add a
       Character → its Enhancements are offered once a detachment is chosen. Nothing Ork-specific
       breaks: datasheets, editor, Play Mode, reminders all work for it.
-- [ ] **Mission deck → Import saved page**: on the PC, open the Wahapedia mission-deck page, save it
+- [ ] **Mission deck** is there on first start without doing anything (the build ships it):
+      the Data screen's deck card shows 25 primary · 18 secondary · 6 deployments · 6 twists.
+      **Reload the shipped deck** re-imports it (this replaces card edits).
+- [ ] Fallback: **Import saved page** — open the Wahapedia mission-deck page on the PC, save it
       as HTML, import the file. Expect "Imported 25 primary, 18 secondary missions".
 - [ ] **Browse cards**: Primary tab grouped by disposition, Secondary tab shows 4 "Fixed-eligible"
       chips, Deployment tab shows the six maps, Dispositions tab shows the 5×5 pairing table.

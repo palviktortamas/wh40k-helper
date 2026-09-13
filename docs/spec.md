@@ -1,8 +1,9 @@
 # Warhammer 40,000 (11th Edition) Play Helper — Specification
 
-Version 0.6 — 2026-09-13 (v0.5: Phase 0 source verification added as Appendix A; v0.6: §9 example
+Version 0.7 — 2026-09-13 (v0.5: Phase 0 source verification added as Appendix A; v0.6: §9 example
 corrected to the current data, transports decided for v1, §4.4 cross-device transfer and sync added,
-desktop usability added to §3)
+desktop usability added to §3; v0.7: the mission deck ships with the build — fetched from Wahapedia
+at deploy time, never committed — per the owner's decision; §6.1 and §10 note it)
 Audience: Claude Code (implementer). Owner: a single private user; app is never published.
 
 ---
@@ -120,7 +121,7 @@ Errors (illegal) vs warnings (legal but suspicious, e.g. points left over > 50, 
 
 ### 6.1 Game setup
 - Start from a roster (must be legal; allow override with a warning). Enter opponent name/faction (free text), points size, who has first turn (or "roll off" later).
-- **Mission data** comes from the Chapter Approved 2026-27 Mission Deck, which Wahapedia publishes in full at `https://wahapedia.ru/wh40k11ed/the-rules/mission-deck-2026-27/` (including a working reference mission generator whose behaviour the app should mirror). Claude Code converts the deck **once** into a bundled JSON file (`missions-ca-2026-27.json`) with a documented schema, and the app also offers an in-app editor so the owner can fix typos or add house rules. Deck contents to encode:
+- **Mission data** comes from the Chapter Approved 2026-27 Mission Deck, which Wahapedia publishes in full at `https://wahapedia.ru/wh40k11ed/the-rules/mission-deck-2026-27/` (including a working reference mission generator whose behaviour the app should mirror). The deploy workflow fetches that page into the build (`missions-ca-2026-27.html`, git-ignored — the repo itself holds no card text) and the app converts it on the device with a documented schema, importing it on first start; a saved copy of the page can also be imported by hand, or fetched through the owner's endpoint. The app also offers an in-app editor so the owner can fix typos or add house rules. *(v0.7: the owner decided on 2026-09-13 that the deployed app may ship the deck.)* Deck contents to encode:
   - **5 Force Disposition cards** (Take and Hold, Purge the Foe, Disruption, Reconnaissance, Priority Assets). Each maps the *opponent's* Force Disposition → *your* Primary Mission (5×5 = 25 primaries, 30 cards incl. duplicates). The player's available Force Dispositions come from their detachment (MFM/BSData).
   - **25 Primary Missions**, each with scoring blocks: applicability window (e.g. "First and second battle round", "Second battle round onwards", "End of the battle"), timing ("End of your turn" / "End of your Command phase (or end of your turn in BR5)"), condition text, VP value, cumulative bonuses, OR alternatives, and optional **Objective Actions** (starts / units / use limit / completes / effect / restrictions) and start-of-battle or start-of-turn setup steps (e.g. Punishment's *condemned* units, Locate and Deny's operation markers).
   - **6 Deployment cards** (Tipping Point, Sweeping Engagement, Search and Destroy, Hammer and Anvil, Dawn of War, Crucible of Battle) — name + card image URL (images shown from Wahapedia, cached for offline).
@@ -187,7 +188,7 @@ Each phase must end with the app runnable on the owner's phone (deployed to the 
 
 ## 10. Open questions / assumptions (for the owner to confirm)
 
-1. **Missions**: bundled from Wahapedia's published deck (§6.1); the owner only proofreads. If a future deck (2027-28) appears, the same JSON schema is refilled.
+1. **Missions**: shipped with the build from Wahapedia's published deck (§6.1), fetched at deploy time and never committed — **decided 2026-09-13**; the owner only proofreads. If a future deck (2027-28) appears, the fetch script's URL and the parser's section names are what change.
 2. **Opponent tracking**: only the opponent's VP/CP numbers, not their army (assumed).
 3. **Hosting**: GitHub Pages (decided). Owner creates the public repo and enables Pages; Claude Code adds the deploy workflow.
 4. **Transports/embarking** in Play Mode: **decided v1 (2026-09-13).** Units embark in and disembark from a transport during play; embarked units are shown under their transport; capacity is shown from the datasheet as a reminder, not enforced (the capacity text mixes model counts and keywords).

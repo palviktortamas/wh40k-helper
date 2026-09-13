@@ -11,7 +11,7 @@ import type { CatalogueRecord, HealthRecord } from '@/data/db'
 import type { CatalogueSummary } from '@/data/model'
 import type { Progress } from '@/data/install'
 import { SOURCE_HOMEPAGES, SOURCE_LABELS } from '@/data/sources'
-import { fetchMissionDeckViaEndpoint, getMissionDeck, importMissionDeckHtml } from '@/missions/store'
+import { fetchMissionDeckViaEndpoint, getMissionDeck, importBundledMissionDeck, importMissionDeckHtml } from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
 import { getSyncConfig } from '@/sync/client'
 import { graphFor, listRosters, normaliseRoster, validate } from '@/roster/store'
@@ -314,7 +314,10 @@ function MissionDeckSection() {
             {deck.editedAt ? ` · edited locally ${formatDate(deck.editedAt)} — importing again replaces the edits` : ''}
           </p>
         ) : (
-          <p className="data__meta">Not imported yet. Play Mode's mission setup needs it.</p>
+          <p className="data__meta">
+            Not imported yet. Play Mode's mission setup needs it — the app ships the deck and loads it
+            on first start; if that did not happen, load it below.
+          </p>
         )}
         {message && (
           <p className="data__meta" role="status">
@@ -327,6 +330,19 @@ function MissionDeckSection() {
               Browse cards
             </Link>
           )}
+          <button
+            className={`data__button${deck ? ' data__button--quiet' : ''}`}
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const imported = await importBundledMissionDeck()
+                if (!imported) throw new Error('This build carries no mission deck — import the saved page or fetch through your endpoint.')
+                return imported
+              })
+            }
+          >
+            {busy ? 'Working…' : deck ? 'Reload the shipped deck' : 'Load the shipped deck'}
+          </button>
           <button
             className="data__button data__button--quiet"
             disabled={busy || !endpoint}
@@ -350,8 +366,8 @@ function MissionDeckSection() {
         </div>
         {!endpoint && !deck && (
           <p className="data__meta">
-            No endpoint configured: open the deck page in a browser, save it as HTML, and import the
-            file here.
+            Without an endpoint you can also open the deck page in a browser, save it as HTML, and
+            import the file here.
           </p>
         )}
       </div>

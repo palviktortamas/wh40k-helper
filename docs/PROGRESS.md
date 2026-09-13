@@ -147,9 +147,16 @@ what was learned that the spec could not have predicted, and what comes next.
   pairings; section boundaries are `<h2 id>`s and each deck sits in `.Columns2` wrappers — the
   interactive generator after the twist deck repeats every card and must not be read).
   Schema in `src/missions/types.ts`; `blockApplies()` reads a block header's round wording.
-- Import paths (Data screen → Mission deck): **through the owner's endpoint** — the Worker gained
-  `GET /proxy?url=` restricted to `wahapedia.ru` — or **"Import saved page"** (save the page as
-  HTML in a browser, pick the file). Dexie v6 `missions` store, one record.
+- Import paths (Data screen → Mission deck): **shipped with the build** (since 2026-09-13, late
+  night, on the owner's say-so: `scripts/fetch-mission-deck.mjs` runs in the deploy workflow,
+  saves Wahapedia's page to `public/missions-ca-2026-27.html` — git-ignored, so the text never
+  enters the repo — and `ensureMissionDeck()` imports it at app start when the device has none;
+  the Data screen has "Load / Reload the shipped deck"; a dev server has no deck unless the
+  script is run locally), **through the owner's endpoint** — the Worker gained `GET /proxy?url=`
+  restricted to `wahapedia.ru` — or **"Import saved page"** (save the page as HTML in a browser,
+  pick the file). Dexie v6 `missions` store, one record. The bundled page is a same-origin fetch
+  the service worker precaches, so it also works offline; a failed fetch in CI is a warning and
+  the app falls back to the other two paths.
 - Screens: `Missions` (cards by deck, deployment maps from Wahapedia's image URLs), `MissionSetup`
   (the battle sequence as a form: dispositions → derived primaries via the disposition card rows,
   deployment/twist draw or pick, D6 for central objectives, roll-off for attacker, Fixed or

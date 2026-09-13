@@ -43,3 +43,6 @@ Orks.json
 "Warhammer 40,000.json"
 *-mfm.yaml
 missions-ca-*.json
+
+# The mission deck fetched from Wahapedia at build time (scripts/fetch-mission-deck.mjs); never committed.
+/public/missions-ca-*.html

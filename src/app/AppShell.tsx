@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { reparseStaleCatalogues } from '@/data/worker/client'
+import { ensureMissionDeck } from '@/missions/store'
 import { useServiceWorkerUpdate } from './useServiceWorkerUpdate'
 import './AppShell.css'
 
@@ -20,8 +21,10 @@ export function AppShell({ context }: Props) {
   const sw = useServiceWorkerUpdate()
 
   // A parser fix reaches installed factions from their stored raw text — offline, once per start.
+  // The mission deck the build shipped is imported the first time the app runs.
   useEffect(() => {
     void reparseStaleCatalogues()
+    void ensureMissionDeck()
   }, [])
 
   return (

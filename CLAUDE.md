@@ -26,7 +26,10 @@ raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json`, 
 - **No game data in this repo, ever.** Not unit names, ability text, points, or catalogues. The
   app downloads everything to the device at runtime. `npm run check:data` enforces this in CI —
   it matches source-format *markers*, never GW content. Scratch downloads go in the scratchpad
-  directory, never in the working tree.
+  directory, never in the working tree. **One owner-approved exception (2026-09-13):** the
+  deployed build ships the Chapter Approved mission deck. The deploy workflow fetches Wahapedia's
+  deck page into `public/missions-ca-2026-27.html` (git-ignored, exists only in a build) and the
+  app imports it on first start. The page itself is still never committed.
 - **Nothing may be Ork-specific.** Orks are the v1 test faction; adding a faction must be a data
   install, not a code change. No faction names in code, no special-cased branches.
 - **Offline-first.** The only network calls are the data updates on the Data screen and, when the

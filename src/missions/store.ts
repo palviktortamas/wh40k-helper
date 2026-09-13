@@ -40,6 +40,39 @@ export async function importMissionDeckHtml(html: string, sourceUrl = DECK_SOURC
   return deck
 }
 
+/** Where the build puts the deck page it fetched from Wahapedia (scripts/fetch-mission-deck.mjs). */
+export const BUNDLED_DECK_PATH = `${import.meta.env.BASE_URL}missions-ca-2026-27.html`
+
+/**
+ * Imports the deck the build shipped with the app, if this build has one. A
+ * same-origin fetch, so it works offline once the service worker has cached
+ * the page. Returns undefined when the build carries no deck (a dev server, or
+ * a deploy where the fetch failed) — the manual import is still there.
+ */
+export async function importBundledMissionDeck(): Promise<MissionDeck | undefined> {
+  let response: Response
+  try {
+    response = await fetch(BUNDLED_DECK_PATH, { headers: { accept: 'text/html' } })
+  } catch {
+    return undefined
+  }
+  if (!response.ok) return undefined
+  const html = await response.text()
+  // A single-page app answers every path with index.html; only the deck page has cards.
+  if (!html.includes('cgCardCA7')) return undefined
+  return importMissionDeckHtml(html)
+}
+
+/** On start: bring in the shipped deck when the device has none yet. */
+export async function ensureMissionDeck(): Promise<void> {
+  if (await getMissionDeck()) return
+  try {
+    await importBundledMissionDeck()
+  } catch (error) {
+    console.warn('Bundled mission deck could not be imported:', error)
+  }
+}
+
 /** Fetches the published page through the owner's endpoint and imports it. */
 export async function fetchMissionDeckViaEndpoint(): Promise<MissionDeck> {
   const { url, passphrase } = await getSyncConfig()

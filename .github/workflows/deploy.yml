@@ -35,6 +35,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Fetch the mission deck into the build (never committed)
+        run: node scripts/fetch-mission-deck.mjs
+
       - name: Build
         run: npm run build
 
