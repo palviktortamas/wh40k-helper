@@ -34,8 +34,8 @@ Bootstrapping. See [docs/spec.md](docs/spec.md) for the full specification and t
 | 0 | Source verification | done (spec Appendix A) |
 | — | PWA scaffold + Pages deploy | done |
 | 1 | Data layer + datasheet browser | done |
-| 2 | List Builder + validation | done |
-| 3 | Play Mode core | next |
+| 2 | List Builder + validation | built; review fixes pending |
+| 3 | Play Mode core | blocked on Phase 2 fixes |
 | 4 | Missions (CA 2026-27) | not started |
 | 5 | Reminders | not started |
 | 6 | Polish / second faction | not started |

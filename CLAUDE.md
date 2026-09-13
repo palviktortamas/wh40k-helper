@@ -10,6 +10,11 @@ never published, no backend, no accounts, no telemetry.
 2. [docs/PROGRESS.md](docs/PROGRESS.md) — what is built, what was learned the hard way, and what
    is next. **Update it at the end of every working session** so the next agent can continue.
 
+**Current state (2026-09-13):** Phases 1 and 2 are built and deployed, but a review found bugs in
+the constraint evaluator that produce false "Legal" badges. Phase 3 is blocked behind fixing them.
+Start at "Next → Step 1" in the progress journal, and write the failing regression test before
+touching the evaluator.
+
 ## Hard rules
 
 - **No game data in this repo, ever.** Not unit names, ability text, points, or catalogues. The

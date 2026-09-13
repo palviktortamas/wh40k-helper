@@ -286,29 +286,71 @@ root-cause attribution by execution before acting on it.
 
 ## Next
 
-**Phase 3 - Play Mode core.** Runs a game from a saved roster.
+**Start here: fix the evaluator, in this order.** Phase 3 is blocked behind it - building Play
+Mode on a validator that says "Legal" when it means "illegal" just spreads the damage. Full detail
+is in "Review findings" above; this is the plan.
+
+### Step 1 - the false-legal cluster (findings 1, 2 and 6, as one piece of work)
+
+They are entangled: fixing the scope bug alone still leaves the flagship case wrong, because the
+count semantics in 6 hide it a second way. Do them together.
+
+1. **Scope queries must search the whole subtree.** In `evaluate.ts`, `queryNodes` currently
+   returns `[target, ...target.children]` when `includeChildSelections` is false. For any scope
+   other than `self` that is wrong - BattleScribe searches the scope's entire subtree, and the
+   flag governs how nested counts roll up. Start here; it is the smallest change with the biggest
+   correctness win.
+2. **Stop re-resolving children by entry id.** `build()` calls `graph.resolve(selection.entryId)`,
+   which loses everything the `entryLink` carried in this particular parent (236 real divergences
+   in the catalogue). Walk the *parent's already-resolved children* instead. The obstacle: a
+   `Selection` records `groupId` but not which link it came from, and one shared entry can be
+   linked twice under the same parent (finding 5), so a link-id disambiguator is needed on
+   `Selection`. That is a persisted-shape change - add a Dexie version and migrate.
+3. **Settle per-copy vs absolute counts.** `instantiate` writes a weapon `count: 1` under a model
+   of `count: 9`; the export multiplies child by parent, the evaluator sums raw counts. Pick one
+   meaning, write it down in `types.ts` next to `Selection.count`, and make all three agree.
+
+**Regression test first.** Add the flagship case to `src/roster/evaluate.test.ts` with the
+invented catalogue: a unit whose special-weapon entry carries `max 1 @unit`, two of them in a
+12-model unit, expect an error. It fails today. Do not touch the evaluator until it does.
+
+### Step 2 - make roster configuration part of the tree (findings 3 and 9)
+
+`roster.detachmentId` and `roster.pointsLimit` live outside the selection tree, so no
+detachment-gated or battle-size-gated condition can ever be evaluated. Represent both as real
+selections and a cluster of findings resolves at once. Then implement `set hidden` as a real
+gate (448 uses) in both the evaluator and the `UnitEditor` option lists.
+
+### Step 3 - the remaining findings
+
+4 (force/category constraints, plus adding the detachment's own DP cost so the budget is
+checkable), 5 (disambiguate by group), 7 (`add error`/`add warning`), 8 (Warlord must be a
+Character), 11, 12, and confirm 13 in a browser.
+
+### Step 4 - close the Phase 2 gaps
+
+Real gaps, not polish:
+
+- **Leader attachment UI.** The `associations` graph is parsed and stored but nothing consumes it;
+  a leader cannot be attached to a bodyguard unit. Phase 3's army view needs this, so do it before
+  starting Phase 3.
+- **Enhancements.** The cost type and entries resolve, but there is no UI to add one to a
+  character and no per-detachment limit check. Pairs naturally with Step 2.
+- **Epic Hero uniqueness and Support attachment legality** are not in `coreChecks.ts`; they may
+  already be covered by catalogue constraints - verify before writing code.
+- Per-item overrides on the Data Health screen, still unwired.
+- Roster re-validation and diff after a data update.
+
+### Then - Phase 3, Play Mode core
 
 1. Game model and Dexie store; start a game from a roster (legal, or overridden with a warning).
 2. Battle round and phase tracker, CP and VP counters for both players.
 3. Army view: per-unit models alive, wounds on the current model, damaged-profile indicator,
-   status chips. Removing models must ask which model type died so weapon counts stay right -
-   the roster tree already distinguishes them, which is what makes this possible.
+   status chips. Removing models must ask which model type died so weapon counts stay right - the
+   roster tree already distinguishes them, which is what makes this possible.
 4. Datasheet view during play with loadout-aware weapon counts.
 5. Undo for the last N actions; game log; end-of-game summary; game history.
-
-### Still open from Phase 2
-
-These are real gaps, not polish:
-
-- **Leader attachment UI.** The `associations` graph is parsed and stored but nothing consumes it
-  yet; a leader cannot be attached to a bodyguard unit. Needed properly by Phase 3's army view.
-- **Enhancements.** The cost type and the entries resolve, but there is no UI to add one to a
-  character, and no check of the per-detachment limit.
-- **Epic Hero uniqueness and Support attachment legality** are not in `coreChecks.ts`; they may
-  already be enforced by catalogue constraints, which has not been verified.
-- **Transport / embarking** assignment (spec section 10 lists this as an open question).
-- Per-item overrides on the Data Health screen, still unwired.
-- Roster re-validation and diff after a data update.
+6. Transport / embarking assignment (spec section 10 lists this as an open question).
 
 ### Phase 1b - deferred, needs a proxy
 
