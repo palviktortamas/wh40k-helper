@@ -7,12 +7,31 @@
 import { db } from '@/data/db'
 import { getSyncConfig } from '@/sync/client'
 import { DECK_SOURCE_URL, parseMissionDeckHtml } from './parseDeck'
-import { DECK_ID, type MissionDeck } from './types'
+import { DECK_ID, type MissionCard, type MissionDeck } from './types'
 
 export const getMissionDeck = (): Promise<MissionDeck | undefined> => db.missions.get(DECK_ID)
 
 export async function saveMissionDeck(deck: MissionDeck): Promise<void> {
   await db.missions.put(deck)
+}
+
+/**
+ * The in-app editor (spec §6.1): replaces one card, matched by id in whichever
+ * deck it sits in, and saves. Card ids are stable across re-imports (they are
+ * slugs of the printed name), so a game in progress keeps pointing at the card.
+ */
+export async function updateMissionCard(deck: MissionDeck, card: MissionCard): Promise<MissionDeck> {
+  const swap = <T extends MissionCard>(cards: T[]): T[] =>
+    cards.map((c) => (c.id === card.id ? ({ ...c, ...card } as T) : c))
+  const next: MissionDeck = {
+    ...deck,
+    editedAt: Date.now(),
+    primaries: swap(deck.primaries),
+    secondaries: swap(deck.secondaries),
+    twists: swap(deck.twists),
+  }
+  await saveMissionDeck(next)
+  return next
 }
 
 export async function importMissionDeckHtml(html: string, sourceUrl = DECK_SOURCE_URL): Promise<MissionDeck> {

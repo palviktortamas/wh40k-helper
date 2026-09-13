@@ -8,6 +8,7 @@ import {
   LAST_ROUND,
   PHASES,
   PHASE_LABELS,
+  RESERVE_STATUSES,
   SECONDARY_ROUND_CAP,
   STATUS_LABELS,
   TACTICAL_DRAW,
@@ -46,6 +47,9 @@ export type GameAction =
   | { type: 'scorePrimary'; key: string; label: string; vp: number }
   | { type: 'unscorePrimary'; key: string; label: string; vp: number }
   | { type: 'shuffleWhenDrawn'; cardId: string; label: string }
+  | { type: 'adjustCardCounter'; cardId: string; label: string; delta: number }
+  | { type: 'setCardNote'; cardId: string; note: string }
+  | { type: 'arrive'; unitId: string }
   | { type: 'undo' }
   | { type: 'endGame' }
 
@@ -64,6 +68,8 @@ const snapshot = (game: Game): GameState => ({
           active: [...game.mission.active],
           discarded: [...game.mission.discarded],
           primaryScored: { ...game.mission.primaryScored },
+          cardCounters: { ...game.mission.cardCounters },
+          cardNotes: { ...game.mission.cardNotes },
         },
       }
     : {}),
@@ -327,6 +333,36 @@ function applyAction(game: Game, action: GameAction): Game {
       }
       return withLog(next, `Primary — ${action.label}: −${action.vp} VP`)
     }
+    case 'adjustCardCounter': {
+      if (!game.mission) return game
+      const g = remember(game)
+      const current = g.mission!.cardCounters?.[action.cardId] ?? 0
+      const value = Math.max(0, current + action.delta)
+      if (value === current) return game
+      const next = withMission(g, (m) => ({ ...m, cardCounters: { ...m.cardCounters, [action.cardId]: value } }))
+      return withLog(next, `${action.label}: counter ${action.delta > 0 ? '+' : ''}${action.delta} → ${value}`)
+    }
+    case 'setCardNote': {
+      // Typing is not an undo step, like a unit note.
+      if (!game.mission) return game
+      const { [action.cardId]: _old, ...rest } = game.mission.cardNotes ?? {}
+      void _old
+      return withMission(game, (m) => ({
+        ...m,
+        cardNotes: action.note ? { ...rest, [action.cardId]: action.note } : rest,
+      }))
+    }
+    case 'arrive': {
+      const unit = game.units.find((u) => u.id === action.unitId)
+      if (!unit || !unit.statuses.some((s) => RESERVE_STATUSES.includes(s))) return game
+      const g = remember(game)
+      const from = unit.statuses.includes('deepStrike') ? 'Deep Strike' : 'Strategic Reserves'
+      const next = updateUnit(g, action.unitId, (u) => ({
+        ...u,
+        statuses: u.statuses.filter((s) => !RESERVE_STATUSES.includes(s)),
+      }))
+      return withLog(next, `${unit.name} arrives from ${from}`)
+    }
     case 'embark': {
       if (action.unitId === action.transportId) return game
       const g = remember(game)
@@ -458,8 +494,27 @@ function applyAction(game: Game, action: GameAction): Game {
       if (!previous) return game
       const { result: _result, ...rest } = game
       void _result
+      // Notes are not undo steps, so undo leaves the notes as they are now.
+      const notes = new Map(game.units.map((u) => [u.id, u.note]))
+      const units = previous.units.map((u) => {
+        const { note: _stale, ...unit } = u
+        void _stale
+        const note = notes.get(u.id)
+        return note ? { ...unit, note } : unit
+      })
+      const mission =
+        previous.mission && game.mission
+          ? { ...previous.mission, cardNotes: game.mission.cardNotes ?? {} }
+          : previous.mission
       return withLog(
-        { ...rest, ...previous, status: 'active', undo: game.undo.slice(0, -1) },
+        {
+          ...rest,
+          ...previous,
+          units,
+          ...(mission ? { mission } : {}),
+          status: 'active',
+          undo: game.undo.slice(0, -1),
+        },
         'Undo',
       )
     }

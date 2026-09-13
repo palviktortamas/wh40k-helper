@@ -235,6 +235,7 @@ function MissionDeckSection() {
           <p className="data__meta">
             {deck.primaries.length} primary · {deck.secondaries.length} secondary ·{' '}
             {deck.deployments.length} deployments · {deck.twists.length} twists
+            {deck.editedAt ? ` · edited locally ${formatDate(deck.editedAt)} — importing again replaces the edits` : ''}
           </p>
         ) : (
           <p className="data__meta">Not imported yet. Play Mode's mission setup needs it.</p>

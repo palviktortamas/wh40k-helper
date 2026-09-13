@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { apply, isBattleOver } from './actions'
-import { emptyMission, totalVp, type Game, type GameUnit } from './types'
+import { defaultCasualtyGroup, emptyMission, totalVp, type Game, type GameUnit } from './types'
 
 // Everything here is invented — the repo must contain no real game data.
 
@@ -235,5 +235,61 @@ describe('game actions', () => {
     expect(g.units[0]!.usedOnce).toEqual(['ab1'])
     g = apply(g, { type: 'toggleOnce', unitId: 'a', abilityId: 'ab1', label: 'Shout' })
     expect(g.units[0]!.usedOnce).toEqual([])
+  })
+
+  it('keeps a per-card counter (undoable, never negative) and a note (not an undo step)', () => {
+    const start: Game = { ...game(), mission: { ...emptyMission(), myPrimaryId: 'p1' } }
+    let g = apply(start, { type: 'adjustCardCounter', cardId: 'p1', label: 'Markers', delta: 1 })
+    g = apply(g, { type: 'adjustCardCounter', cardId: 'p1', label: 'Markers', delta: 1 })
+    expect(g.mission!.cardCounters!.p1).toBe(2)
+    expect(g.log.at(-1)!.text).toMatch(/counter \+1 → 2/)
+    const below = apply(g, { type: 'adjustCardCounter', cardId: 'p1', label: 'Markers', delta: -5 })
+    expect(below.mission!.cardCounters!.p1).toBe(0)
+    // Undo takes the counter back.
+    expect(apply(g, { type: 'undo' }).mission!.cardCounters!.p1).toBe(1)
+    const undoDepth = g.undo.length
+    g = apply(g, { type: 'setCardNote', cardId: 'p1', note: 'Objective 3 is trapped' })
+    expect(g.mission!.cardNotes!.p1).toBe('Objective 3 is trapped')
+    expect(g.undo.length).toBe(undoDepth)
+    // Undoing the counter keeps the note typed afterwards; a unit note survives too.
+    const noted = apply(g, { type: 'setNote', unitId: 'a', note: 'holding the left flank' })
+    const undone = apply(noted, { type: 'undo' })
+    expect(undone.mission!.cardCounters!.p1).toBe(1)
+    expect(undone.mission!.cardNotes!.p1).toBe('Objective 3 is trapped')
+    expect(undone.units[0]!.note).toBe('holding the left flank')
+    g = apply(g, { type: 'setCardNote', cardId: 'p1', note: '' })
+    expect(g.mission!.cardNotes).toEqual({})
+    // Games from before the trackers have no maps at all.
+    const legacy: Game = { ...start, mission: { ...start.mission! } }
+    delete legacy.mission!.cardCounters
+    expect(apply(legacy, { type: 'adjustCardCounter', cardId: 'p1', label: 'Markers', delta: 1 }).mission!.cardCounters!.p1).toBe(1)
+  })
+
+  it('brings a unit in from Reserves or Deep Strike and says which', () => {
+    let g = apply(game(), { type: 'toggleStatus', unitId: 'a', status: 'deepStrike' })
+    expect(apply(g, { type: 'arrive', unitId: 'b' })).toBe(g) // not in reserves: no-op
+    g = apply(g, { type: 'arrive', unitId: 'a' })
+    expect(g.units[0]!.statuses).toEqual([])
+    expect(g.log.at(-1)!.text).toMatch(/arrives from Deep Strike/)
+    g = apply(g, { type: 'toggleStatus', unitId: 'a', status: 'reserves' })
+    g = apply(g, { type: 'arrive', unitId: 'a' })
+    expect(g.log.at(-1)!.text).toMatch(/arrives from Strategic Reserves/)
+  })
+})
+
+describe('default casualty order', () => {
+  it('takes the largest living group first and the lone model last', () => {
+    const u = unit('a', [
+      { id: 'sarge', total: 1, wounds: 1 },
+      { id: 'special', total: 2, wounds: 1 },
+      { id: 'plain', total: 7, wounds: 1 },
+    ])
+    expect(defaultCasualtyGroup(u)?.id).toBe('plain')
+    u.models[2]!.alive = 0
+    expect(defaultCasualtyGroup(u)?.id).toBe('special')
+    u.models[1]!.alive = 0
+    expect(defaultCasualtyGroup(u)?.id).toBe('sarge')
+    u.models[0]!.alive = 0
+    expect(defaultCasualtyGroup(u)).toBeUndefined()
   })
 })

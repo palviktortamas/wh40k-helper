@@ -17,6 +17,9 @@ available" toast on open; tap Reload first.
       as HTML, import the file. Expect "Imported 25 primary, 18 secondary missions".
 - [ ] **Browse cards**: Primary tab grouped by disposition, Secondary tab shows 4 "Fixed-eligible"
       chips, Deployment tab shows the six maps, Dispositions tab shows the 5×5 pairing table.
+- [ ] **Edit** on a card: change the name, a VP value and add a note → **Save card** → the card
+      shows the change, the header says "Edited locally", and it survives a reload. The Data screen's
+      deck line says "edited locally … importing again replaces the edits".
 
 ## 2. Rosters (list builder)
 
@@ -70,10 +73,16 @@ available" toast on open; tap Reload first.
       Tap a scoring line → Secondary VP. **Achieved — discard** removes the card.
       **Discard (+1 CP)** gives CP once per turn. **Discard & redraw (1 CP, once)** disappears after
       use. Score past 15 in a round → capped, log says so.
+- [ ] **Card trackers**: under the primary and each active secondary, a **− N +** counter and a
+      note field. + twice, type a note, **Undo** → the counter goes back, the note stays.
+      Both survive a reload.
 - [ ] Army: unit cards show models alive / total, current model's wounds for multi-wound models,
       leaders nested inside their unit.
-- [ ] **−1 model** on a single-type unit removes one; on a mixed unit **Remove models…** lists each
+- [ ] **−1 model** on a single-type unit removes one; on a mixed unit the quick button is
+      **−1 <plain model>** (largest group first, the sergeant last) and **Remove models…** lists each
       model type with −1 / +1 (and −1 W / +1 W for multi-wound). Remove one special-weapon model.
+- [ ] Toggle **Reserves** or **Deep Strike** on a unit → an **Arrive** button appears; tapping it
+      clears the status and logs "arrives from …".
 - [ ] Tap the unit name → datasheet: the weapons table counts follow the survivors (one fewer of
       that weapon); "Other profiles" folds away wargear nobody carries; abilities with "once per
       battle" have a **used** checkbox that strikes them through.

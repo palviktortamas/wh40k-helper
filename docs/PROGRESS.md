@@ -16,7 +16,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 1 | Data layer + datasheet browser | done (Wahapedia enrichment deferred to 1b) |
 | 2 | List Builder + validation | done — review findings fixed 2026-09-13, verified on real data |
 | 3 | Play Mode core | **built 2026-09-13** — needs a session on the owner's phone |
-| 4 | Missions (CA 2026-27) | **core built 2026-09-13** — import, browser, setup wizard, scoring, Tactical deck; editor and card-state trackers remain |
+| 4 | Missions (CA 2026-27) | **built 2026-09-13** — import, browser, setup wizard, scoring, Tactical deck, card editor, card-state trackers; WHEN DRAWN unit picks and twist automation remain |
 | 5 | Reminders | not started |
 | 6 | Polish + second-faction test | not started |
 
@@ -165,6 +165,27 @@ what was learned that the spec could not have predicted, and what comes next.
   `WH40K_FIXTURES`), `blockApplies` cases, and reducer tests for the deck rules.
 - Walked through in headless Chrome: file import → 25/18/6/6 cards → wizard → scoring → draw →
   achieve → discard for CP, no console errors.
+- **Card editor** (spec §6.1, 2026-09-13 night): "Edit" on any primary, secondary or twist card in
+  the Missions screen opens `MissionCardEditor` — name, legend, WHEN DRAWN, rules paragraphs,
+  objective-action rows, every scoring block (applies-in header, when, lines with VP or
+  Fixed/Tactical VP pair, cap, join, cumulative), notes; add/remove lines and blocks.
+  `updateMissionCard` swaps the card by id and stamps `deck.editedAt`; the Missions and Data
+  screens say so, and warn that a re-import replaces the edits (card ids are name slugs, so a
+  running game keeps pointing at the edited card). A `merge()` helper treats `undefined` as
+  "delete the field" because the schema is strict-optional.
+- **Card-state trackers** (spec §6.2): `MissionState.cardCounters` / `cardNotes` keyed by card id,
+  shown as a `− N +` counter and a note field under the primary and every active secondary
+  (`CardTracker` in `GameMission.tsx`). The counter is an undo step with a log line; the note is
+  not — and **undo now carries current notes forward** (card notes and unit notes), otherwise a
+  note typed after a counter change was wiped by the next undo. Old games have no maps; readers
+  default to `{}`.
+- Also from the Phase 3 leftovers: **default casualty order** — `defaultCasualtyGroup()` picks the
+  largest living model group (plain models first, the lone sergeant last), shown as a quick
+  "−1 <model>" button on mixed units next to "Remove models…" — and a **Reserves "Arrive"**
+  action that clears Reserves / Deep Strike with a log line.
+- Walked through again in headless Chrome (driver #4 in the scratchpad): edit → save → reload →
+  Data line; "−1 Boy" default; Deep Strike → Arrive; counter +2, note, undo keeps the note; both
+  survive a reload; no console errors.
 
 ### Constraint evaluator - semantics (the things that are easy to get wrong)
 
@@ -367,9 +388,9 @@ walked through in headless Chrome:
 - **Deploy the sync Worker** (owner, ~5 min, `worker/README.md`) and sync PC ↔ phone once;
   fix whatever that shows. Then consider syncing on opening the Rosters screen (spec allows it
   "once trusted").
-- Model-removal default order (plain models first, character last) — today the user always
-  chooses when there is more than one model type.
-- Reserves "arrive" action beyond toggling the status.
+- ~~Model-removal default order~~ and ~~Reserves "arrive"~~ — done 2026-09-13 night (see Phase 4
+  notes). The default is by group size; if a faction has a mixed unit whose plain models are not
+  the largest group, that unit needs the "Remove models…" panel, which is still there.
 - Stratagems per detachment on the in-game datasheet (needs Wahapedia or a parse of BSData
   rules; not in the current parsed model).
 - Weapon-profile matching (`weaponCounts` in `GameUnitSheet.tsx`): per loadout entry, exact
@@ -379,13 +400,14 @@ walked through in headless Chrome:
 
 ### Step 3 - Phase 4 leftovers
 
-The core is built (see "Phase 4 - Missions (core)"). Still to do, in rough order of value:
+Built (see "Phase 4 - Missions (core)"), including the card editor and the card-state trackers
+(2026-09-13 night). Still to do, in rough order of value:
 
-- **In-app card editor** (spec §6.1: fix typos, house rules). The deck record is plain JSON in
-  Dexie; an "Edit" on a card in the Missions screen that opens the text and VP fields is enough.
-- **Card-state trackers** (spec §6.2): operation markers, decoyed/consecrated/trapped objectives,
-  condemned units, beacon unit, guarded objectives. Today the player keeps those on the table;
-  a per-card note field plus a counter would cover most.
+- **Adding a whole house-rule card** — the editor edits existing cards only. Would need an
+  "Add card" per deck plus a delete; the Tactical deck shuffles `deck.secondaries`, so a new
+  secondary would join it automatically.
+- **Preserving edits across a re-import** — today the import replaces the deck and the edits.
+  A diff of edited cards against the fresh import, re-applied by id, would keep them.
 - **WHEN DRAWN prompts** that pick a unit or objective (Beacon, A Tempting Target, Burden of Trust)
   are shown as text; wiring them to the army list is the next step.
 - **Twist effects on setup**: Mirrored World (shared primary, D6 table) and Scrambled

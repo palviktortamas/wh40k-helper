@@ -95,6 +95,8 @@ export type MissionDeck = {
   /** Where the cards came from and when. */
   sourceUrl: string
   importedAt: number
+  /** Set when the owner edited a card in the app (spec §6.1); a re-import replaces the edits. */
+  editedAt?: number
   forceDispositions: ForceDispositionCard[]
   primaries: PrimaryMission[]
   deployments: DeploymentCard[]

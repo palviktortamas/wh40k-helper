@@ -120,6 +120,14 @@ export type MissionState = {
   secondaryThisRound: number
   /** Primary scoring lines ticked, keyed `${round}:${block}:${line}`, and how often. */
   primaryScored: Record<string, number>
+  /**
+   * Card-state trackers (spec §6.2): what a card needs the player to remember —
+   * operation markers placed, objectives consecrated, condemned units, the
+   * beacon unit — as one counter and one free-text note per card id. Absent on
+   * games from before the trackers existed.
+   */
+  cardCounters?: Record<string, number>
+  cardNotes?: Record<string, string>
 }
 
 export const SECONDARY_ROUND_CAP = 15
@@ -134,7 +142,27 @@ export const emptyMission = (): MissionState => ({
   cpForDiscardThisTurn: false,
   secondaryThisRound: 0,
   primaryScored: {},
+  cardCounters: {},
+  cardNotes: {},
 })
+
+/** Statuses that mean the unit is not on the battlefield yet. */
+export const RESERVE_STATUSES: readonly UnitStatus[] = ['reserves', 'deepStrike']
+
+export const inReserves = (unit: GameUnit): boolean =>
+  unit.statuses.some((s) => RESERVE_STATUSES.includes(s))
+
+/**
+ * Which model dies when the player does not say (spec §6.3: plain models
+ * first, then specials, the unit's own character last). Model groups have no
+ * role flag, so the order is by size: the largest living group is the plain
+ * infantry, a group of one is the sergeant. Ties keep the roster order.
+ */
+export function defaultCasualtyGroup(unit: GameUnit): ModelGroup | undefined {
+  const living = unit.models.filter((g) => g.alive > 0)
+  if (living.length === 0) return undefined
+  return living.reduce((best, g) => (g.total > best.total ? g : best))
+}
 
 /** Everything undo has to restore. */
 export type GameState = {

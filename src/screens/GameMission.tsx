@@ -107,6 +107,7 @@ export function GameMission({
               {n}
             </p>
           ))}
+          <CardTracker card={primary} game={game} dispatch={dispatch} />
         </details>
       )}
 
@@ -238,6 +239,7 @@ function SecondaryCard({
           {n}
         </p>
       ))}
+      <CardTracker card={card} game={game} dispatch={dispatch} />
       {tactical && (
         <div className="rosters__controls gameMission__cardActions">
           <button
@@ -257,5 +259,56 @@ function SecondaryCard({
         </div>
       )}
     </article>
+  )
+}
+
+/**
+ * What a card asks the player to keep track of (spec §6.2) — markers placed,
+ * objectives consecrated or trapped, condemned units, the beacon unit — as a
+ * counter that is undoable and a note that is not. Generic on purpose: the
+ * cards word these differently and the player knows which one applies.
+ */
+function CardTracker({
+  card,
+  game,
+  dispatch,
+}: {
+  card: MissionCard
+  game: Game
+  dispatch: (action: GameAction) => void
+}) {
+  const mission = game.mission!
+  const count = mission.cardCounters?.[card.id] ?? 0
+  const note = mission.cardNotes?.[card.id] ?? ''
+  const label = titleCase(card.name)
+  return (
+    <div className="cardTracker">
+      <span className="cardTracker__counter">
+        <button
+          className="button button--quiet"
+          aria-label={`${label}: counter minus one`}
+          disabled={count === 0}
+          onClick={() => dispatch({ type: 'adjustCardCounter', cardId: card.id, label, delta: -1 })}
+        >
+          −
+        </button>
+        <strong aria-live="polite">{count}</strong>
+        <button
+          className="button button--quiet"
+          aria-label={`${label}: counter plus one`}
+          onClick={() => dispatch({ type: 'adjustCardCounter', cardId: card.id, label, delta: 1 })}
+        >
+          +
+        </button>
+      </span>
+      <input
+        className="cardTracker__note"
+        type="text"
+        value={note}
+        placeholder="Markers, objectives, units to remember…"
+        aria-label={`${label}: note`}
+        onChange={(e) => dispatch({ type: 'setCardNote', cardId: card.id, note: e.target.value })}
+      />
+    </div>
   )
 }

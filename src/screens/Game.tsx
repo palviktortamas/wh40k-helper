@@ -9,6 +9,8 @@ import {
   LAST_ROUND,
   PHASE_LABELS,
   STATUS_LABELS,
+  defaultCasualtyGroup,
+  inReserves,
   modelsAlive,
   modelsTotal,
   totalVp,
@@ -319,6 +321,7 @@ function UnitCard({
   const total = modelsTotal(unit)
   const living = unit.models.filter((g) => g.alive > 0)
   const single = living.length === 1 ? living[0] : undefined
+  const fallen = single ? undefined : defaultCasualtyGroup(unit)
   // The damaged profile applies once the (single) model is at or below the threshold.
   const damaged =
     unit.damagedAt !== undefined &&
@@ -379,8 +382,26 @@ function UnitCard({
               )}
             </>
           ) : (
-            <button className="button button--quiet" onClick={() => setExpanded((e) => !e)}>
-              {expanded ? 'Done' : 'Remove models…'}
+            <>
+              {/* Spec §6.3 default order: plain models first, the unit's character last. */}
+              {fallen && (
+                <button
+                  className="button button--quiet"
+                  title={`Removes one ${fallen.name}`}
+                  onClick={() => dispatch({ type: 'removeModel', unitId: unit.id, groupId: fallen.id })}
+                >
+                  −1{' '}
+                  <span className="muted unit__quickWho">{fallen.name}</span>
+                </button>
+              )}
+              <button className="button button--quiet" onClick={() => setExpanded((e) => !e)}>
+                {expanded ? 'Done' : 'Remove models…'}
+              </button>
+            </>
+          )}
+          {inReserves(unit) && (
+            <button className="button button--quiet" onClick={() => dispatch({ type: 'arrive', unitId: unit.id })}>
+              Arrive
             </button>
           )}
           {unit.embarkedIn && (

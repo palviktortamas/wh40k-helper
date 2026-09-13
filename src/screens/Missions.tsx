@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMissionDeck } from '@/missions/store'
+import { getMissionDeck, updateMissionCard } from '@/missions/store'
+import { MissionCardEditor } from './MissionCardEditor'
 import {
   FORCE_DISPOSITIONS,
   titleCase,
@@ -25,10 +26,25 @@ const TABS: { id: Tab; label: string }[] = [
 export function Missions() {
   const [deck, setDeck] = useState<MissionDeck | null | undefined>(undefined)
   const [tab, setTab] = useState<Tab>('primaries')
+  const [editing, setEditing] = useState<string | null>(null)
 
   useEffect(() => {
     void getMissionDeck().then((d) => setDeck(d ?? null))
   }, [])
+
+  const save = async (card: MissionCard) => {
+    if (!deck) return
+    setDeck(await updateMissionCard(deck, card))
+    setEditing(null)
+  }
+
+  /** A card, or its editor while it is being edited. */
+  const editable = (card: MissionCard, meta?: string) =>
+    editing === card.id ? (
+      <MissionCardEditor key={card.id} card={card} onSave={(c) => void save(c)} onCancel={() => setEditing(null)} />
+    ) : (
+      <Card key={card.id} card={card} meta={meta} onEdit={() => setEditing(card.id)} />
+    )
 
   if (deck === undefined) return <p>Loading…</p>
   if (deck === null)
@@ -47,6 +63,10 @@ export function Missions() {
         ‹ Data
       </Link>
       <h2>Chapter Approved 2026-27</h2>
+      <p className="muted missions__hint">
+        Tap Edit on a card to fix a typo or write a house rule.
+        {deck.editedAt ? ` Edited locally — re-importing the deck replaces the edits.` : ''}
+      </p>
       <div className="sheets__roles" role="tablist">
         {TABS.map((t) => (
           <button
@@ -67,16 +87,12 @@ export function Missions() {
             <h3 className="play__heading">{d}</h3>
             {deck.primaries
               .filter((p) => p.disposition === d)
-              .map((p) => (
-                <Card key={p.id} card={p} meta={`vs ${p.opponentDisposition}`} />
-              ))}
+              .map((p) => editable(p, `vs ${p.opponentDisposition}`))}
           </section>
         ))}
       {tab === 'secondaries' &&
-        deck.secondaries.map((s) =>
-          s.fixedEligible ? <Card key={s.id} card={s} meta="Fixed-eligible" /> : <Card key={s.id} card={s} />,
-        )}
-      {tab === 'twists' && deck.twists.map((t) => <Card key={t.id} card={t} />)}
+        deck.secondaries.map((s) => editable(s, s.fixedEligible ? 'Fixed-eligible' : undefined))}
+      {tab === 'twists' && deck.twists.map((t) => editable(t))}
       {tab === 'deployments' &&
         deck.deployments.map((d) => (
           <article key={d.id} className="mission">
@@ -127,12 +143,28 @@ export function vpLabel(line: ScoreLine, mode?: 'fixed' | 'tactical'): string {
   }`
 }
 
-export function Card({ card, meta, mode }: { card: MissionCard; meta?: string; mode?: 'fixed' | 'tactical' }) {
+export function Card({
+  card,
+  meta,
+  mode,
+  onEdit,
+}: {
+  card: MissionCard
+  meta?: string | undefined
+  mode?: 'fixed' | 'tactical'
+  /** When given, the card offers an "Edit" that opens the in-app editor (spec §6.1). */
+  onEdit?: () => void
+}) {
   return (
     <article className="mission">
       <h3>
         {titleCase(card.name)}
         {meta && <span className="chip">{meta}</span>}
+        {onEdit && (
+          <button className="button button--quiet mission__edit" aria-label={`Edit ${titleCase(card.name)}`} onClick={onEdit}>
+            Edit
+          </button>
+        )}
       </h3>
       {card.legend && <p className="mission__legend">{card.legend}</p>}
       {card.whenDrawn && (

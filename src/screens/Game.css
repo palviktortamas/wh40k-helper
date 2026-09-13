@@ -322,3 +322,8 @@
 .summary__score strong {
   font-size: 2rem;
 }
+
+.unit__quickWho {
+  font-size: 0.8125rem;
+  font-weight: 400;
+}

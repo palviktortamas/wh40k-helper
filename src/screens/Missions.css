@@ -179,3 +179,137 @@
 .mission__score--done {
   border-color: var(--accent);
 }
+
+/* Card-state trackers in a game (spec §6.2) */
+.cardTracker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.625rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+
+.cardTracker__counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.cardTracker__counter strong {
+  min-width: 2ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cardTracker__note {
+  flex: 1;
+  min-width: 10rem;
+  min-height: 44px;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}
+
+/* Card editor (spec §6.1) */
+.missions__hint {
+  margin: -0.25rem 0 0.75rem;
+  font-size: 0.9375rem;
+}
+
+.mission__edit {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+}
+
+.cardEditor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.cardEditor input[type='text'],
+.cardEditor input[type='number'],
+.cardEditor textarea,
+.cardEditor select {
+  min-height: 44px;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cardEditor textarea {
+  resize: vertical;
+}
+
+.cardEditor__group {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.625rem 0.625rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.cardEditor__group legend {
+  padding: 0 0.25rem;
+  font-weight: 600;
+}
+
+.cardEditor__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.cardEditor__line {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.cardEditor__lineMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.cardEditor__lineMeta label {
+  flex: 1 1 6rem;
+  margin: 0;
+}
+
+.cardEditor__lineMeta .cardEditor__check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+}
+
+.cardEditor__lineMeta .cardEditor__check input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.cardEditor__actions {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 420px) {
+  .cardEditor__pair {
+    grid-template-columns: 1fr;
+  }
+}
