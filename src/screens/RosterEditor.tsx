@@ -389,7 +389,11 @@ export function describeLoadout(unit: Selection): string {
     }
   }
   walk(unit, 1)
-  if (counts.size === 0) return 'No models'
+  if (counts.size === 0) {
+    // A single-model datasheet: show its wargear instead.
+    const gear = unit.selections.filter((s) => s.type === 'upgrade').map((s) => s.name)
+    return gear.length > 0 ? gear.join(' · ') : unit.type === 'model' ? 'Single model' : 'No models'
+  }
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([name, count]) => `${count}× ${name}`)

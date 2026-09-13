@@ -39,6 +39,10 @@ const catalogue: ParsedCatalogue = {
         { id: 'w1', name: 'Rifle', kind: 'ranged', keywords: [] },
         { id: 'w2', name: 'Big gun', kind: 'ranged', keywords: [] },
         { id: 'w3', name: 'Knife', kind: 'melee', keywords: [] },
+        // A weapon with two firing modes, and one only reachable through a combined weapon.
+        { id: 'w5', name: '➤ Big gun - Blast', kind: 'ranged', keywords: [] },
+        { id: 'w6', name: 'Gun', kind: 'ranged', keywords: [] },
+        { id: 'w7', name: '➤ Combi-flamer - Flame', kind: 'ranged', keywords: [] },
       ],
       abilities: [],
       models: [],
@@ -66,7 +70,11 @@ const catalogue: ParsedCatalogue = {
 const squad = sel('e-squad', 'Squad', 'unit', 1, [
   sel('e-trooper', 'Trooper', 'model', 8, [sel('e-rifle', 'Rifle', 'upgrade', 1), sel('e-knife', 'Knife', 'upgrade', 1)]),
   sel('e-heavy', 'Trooper w/ Big gun', 'model', 2, [sel('e-biggun', 'Big gun', 'upgrade', 1)]),
-  sel('e-sgt', 'Sergeant', 'model', 1, [sel('e-knife', 'Knife', 'upgrade', 2)]),
+  sel('e-sgt', 'Sergeant', 'model', 1, [
+    sel('e-knife', 'Knife', 'upgrade', 2),
+    // A combined weapon: the entry is the flamer and holds the knife as a child.
+    sel('e-combi', 'Knife and Combi-flamer', 'upgrade', 1, [sel('e-knife', 'Knife', 'upgrade', 1)]),
+  ]),
 ])
 const walker = sel('e-walker', 'Walker', 'model', 1, [sel('e-cannon', 'Cannon', 'upgrade', 2)])
 const leader = sel('e-hero', 'Hero', 'model', 1)
@@ -100,7 +108,10 @@ describe('game snapshot', () => {
       ['Trooper w/ Big gun', 2, 1],
       ['Sergeant', 1, 2],
     ])
-    expect(unit.models[2]!.weapons).toEqual([{ name: 'Knife', perModel: 2 }])
+    expect(unit.models[2]!.weapons).toEqual([
+      { name: 'Knife', perModel: 3 },
+      { name: 'Combi-flamer', perModel: 1 },
+    ])
     expect(unit.points).toBe(120)
   })
 
@@ -122,11 +133,18 @@ describe('game snapshot', () => {
   it('counts weapons from the surviving models only', () => {
     const unit = units[0]!
     const full = weaponCounts(unit, catalogue.datasheets[0])
+    // "Big gun" must not be counted as "Gun"; the second firing mode of the
+    // big gun gets the big gun's count; the combined weapon's own part reaches
+    // the flamer's sub-profile while its knife child counts as a knife.
     expect(full.rows.map((r) => [r.profile.name, r.count])).toEqual([
       ['Rifle', 8],
       ['Big gun', 2],
-      ['Knife', 10],
+      ['Knife', 11],
+      ['➤ Big gun - Blast', 2],
+      ['Gun', 0],
+      ['➤ Combi-flamer - Flame', 1],
     ])
+    expect(full.unmatched).toEqual([])
     // One big-gun model dies: only its gun goes.
     const wounded = { ...unit, models: unit.models.map((m) => (m.name.includes('Big gun') ? { ...m, alive: 1 } : m)) }
     const after = weaponCounts(wounded, catalogue.datasheets[0])

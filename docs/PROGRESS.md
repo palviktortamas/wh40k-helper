@@ -280,20 +280,28 @@ constraints default to "any" · 12. export prints evaluated costs and says "vali
 
 ## Next
 
-### Step 1 - a session on the owner's phone (nothing has been clicked yet)
+### Step 1 - a session on the owner's phone
 
-The review fixes and Phase 3 were verified with typecheck, unit tests and fixture-gated tests on
-the real catalogue, **not in a browser**. Before building further:
+**Done in headless Chrome (2026-09-13, evening), not yet on a phone.** A Playwright-core driver
+against the dev server, at a 390×844 viewport, went through: install the faction from GitHub →
+new roster → detachment → the spec §9 20-model unit built with the steppers (180 pts) → a leader
+added, nominated Warlord, attached via "Attach to" → an enhancement from the detachment's group
+→ Force Disposition picked → **✓ Legal, 305 pts, no console errors** → start a game → remove one
+model of a specific type → weapons table → six phase steps → undo → log. Screens render cleanly at
+phone width. Two bugs found and fixed there, both in the in-game weapons table (see Phase 3 notes:
+name matching is now most-specific-first, and a combined-weapon container counts only the part of
+its name its children do not cover).
 
-1. Install the faction on the device, open an old roster: `normaliseRoster` must add the
-   configuration selections, convert the old detachment and warlord, and the badge should stay
-   sensible. Pick a Force Disposition (the data requires one).
-2. Build the spec §9 list with the editor: the spec's 20-model unit, leader attached via
-   "Attach to", one enhancement (appears under the unit's Enhancements group once a detachment is
-   chosen), Warlord set. Expect green.
-3. Start a game, remove models of a specific type, check the weapons table, undo, end the game.
-4. Check the unit editor's speed on a large unit — every group asks `isGroupAvailable`, which
-   re-applies group modifiers; if it lags, memoise availability per render in `UnitEditor`.
+Recipe, for the next agent: `npm install playwright-core` in the scratchpad, launch with
+`executablePath` pointing at the system Chrome, drive `http://localhost:5173/wh40k-helper/#/…`,
+screenshot to the scratchpad and Read the PNGs. The script names real units, so it lives in the
+scratchpad, never in the tree. Do **not** pass `hasTouch: true` — the first click was swallowed.
+
+Still to do **on the phone**: open an *old* roster (created before v4) and confirm
+`normaliseRoster` converts it; install-to-home-screen and offline behaviour of the new screens;
+feel of the steppers and the "Remove models…" panel with a thumb; unit-editor speed on a large
+unit (every group asks `isGroupAvailable`; memoise per render in `UnitEditor` if it lags — it did
+not in Chrome).
 
 ### Step 2 - Phase 3 leftovers
 
@@ -303,8 +311,10 @@ the real catalogue, **not in a browser**. Before building further:
 - Reserves "arrive" action beyond toggling the status.
 - Stratagems per detachment on the in-game datasheet (needs Wahapedia or a parse of BSData
   rules; not in the current parsed model).
-- Weapon-profile matching is by normalised name containment; watch for false merges when two
-  profiles share a prefix.
+- Weapon-profile matching (`weaponCounts` in `GameUnitSheet.tsx`): per loadout entry, exact
+  name or the weapon a "➤ X - Mode" sub-profile belongs to first, else whole-word containment
+  for combined weapons. Profiles no survivor carries are folded into "Other profiles".
+  Verified on the real 20-model unit after casualties; watch other factions' naming.
 
 ### Step 3 - Phase 4, Missions
 

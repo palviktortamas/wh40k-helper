@@ -12,8 +12,8 @@ never published, no backend, no accounts, no telemetry.
 
 **Current state (2026-09-13, evening):** Phases 1–3 are built. The Phase 2 review findings are
 all fixed and verified against the real catalogue by fixture-gated tests; Phase 3 (Play Mode core)
-is built and tested but **nothing has been exercised in a browser yet**. Start at "Next → Step 1"
-in the progress journal: a session on the owner's phone comes before more features.
+is built, tested, and walked through end to end in headless Chrome (recipe in the journal's
+"Next → Step 1"). What remains before more features is a check on the owner's actual phone.
 
 ## Hard rules
 

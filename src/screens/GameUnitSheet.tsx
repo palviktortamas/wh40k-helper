@@ -18,10 +18,20 @@ const ONCE_PER_BATTLE = /once per battle/i
 
 const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
+/** "➤ Rokkit Launcha - Busta" is one firing mode of the weapon "Rokkit Launcha". */
+const baseOf = (profile: WeaponProfile): string => normalise(profile.name.split(' - ')[0] ?? profile.name)
+
+const containsWord = (haystack: string, needle: string): boolean =>
+  ` ${haystack} `.includes(` ${needle} `)
+
 /**
  * Counts of each weapon the unit's *surviving* models carry, matched to the
- * datasheet's weapon profiles. A loadout name that matches no profile is kept
- * as a plain line rather than dropped.
+ * datasheet's weapon profiles. Matching is per loadout entry, most specific
+ * first, so "Shoota" never counts as a "Big Shoota":
+ * 1. the profile (or the weapon a multi-mode profile belongs to) has that name;
+ * 2. else a combined weapon ("Kustom Choppa and Kombi-skorcha") names the
+ *    weapon as a whole word.
+ * A loadout name that matches no profile is kept as a plain line rather than dropped.
  */
 export function weaponCounts(unit: GameUnit, sheet: Datasheet | undefined) {
   const carried = new Map<string, number>()
@@ -30,21 +40,20 @@ export function weaponCounts(unit: GameUnit, sheet: Datasheet | undefined) {
     for (const weapon of group.weapons)
       carried.set(weapon.name, (carried.get(weapon.name) ?? 0) + weapon.perModel * group.alive)
   }
-  const matched = new Set<string>()
-  const rows: { profile: WeaponProfile; count: number }[] = []
-  for (const profile of sheet?.weapons ?? []) {
-    const key = normalise(profile.name)
-    let count = 0
-    for (const [name, n] of carried) {
-      const loadout = normalise(name)
-      if (loadout === key || loadout.includes(key) || key.includes(loadout)) {
-        count += n
-        matched.add(name)
-      }
+  const profiles = sheet?.weapons ?? []
+  const counts = new Map<string, number>()
+  const unmatched: [string, number][] = []
+  for (const [name, n] of carried) {
+    const key = normalise(name)
+    let hits = profiles.filter((p) => normalise(p.name) === key || baseOf(p) === key)
+    if (hits.length === 0) hits = profiles.filter((p) => containsWord(key, baseOf(p)))
+    if (hits.length === 0) {
+      unmatched.push([name, n])
+      continue
     }
-    rows.push({ profile, count })
+    for (const hit of hits) counts.set(hit.id, (counts.get(hit.id) ?? 0) + n)
   }
-  const unmatched = [...carried.entries()].filter(([name]) => !matched.has(name))
+  const rows = profiles.map((profile) => ({ profile, count: counts.get(profile.id) ?? 0 }))
   return { rows, unmatched }
 }
 
@@ -211,8 +220,17 @@ export function GameUnitSheet({
 
       {sheet && <Stats sheet={sheet} />}
 
-      <WeaponTable title="Ranged weapons" rows={rows.filter((r) => r.profile.kind === 'ranged')} />
-      <WeaponTable title="Melee weapons" rows={rows.filter((r) => r.profile.kind === 'melee')} />
+      <WeaponTable title="Ranged weapons" rows={rows.filter((r) => r.profile.kind === 'ranged' && r.count > 0)} />
+      <WeaponTable title="Melee weapons" rows={rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)} />
+      {rows.some((r) => r.count === 0) && (
+        // Profiles no surviving model carries — options not taken, or the
+        // datasheet's Crusade-only wargear — stay one tap away.
+        <details className="config">
+          <summary>Other profiles on the datasheet ({rows.filter((r) => r.count === 0).length})</summary>
+          <WeaponTable title="Ranged" rows={rows.filter((r) => r.profile.kind === 'ranged' && r.count === 0)} />
+          <WeaponTable title="Melee" rows={rows.filter((r) => r.profile.kind === 'melee' && r.count === 0)} />
+        </details>
+      )}
       {unmatched.length > 0 && (
         <>
           <h3>Other wargear</h3>
