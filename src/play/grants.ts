@@ -36,8 +36,12 @@ export type WeaponGrant = {
 
 export type GrantingRule = { name: string; text: string; source: string }
 
-/** "… attacks have [X]" — with the half of the datasheet named, when it is. */
-const HAVE = /\b(?:(melee|ranged)\s+)?attacks?\s+(?:have|gain)\b([^.;]*)/gi
+/**
+ * "… attacks have [X]" — with the half of the datasheet named, when it is.
+ * Also the spelled-out form the older books use: "Ranged weapons equipped by
+ * models in the bearer's unit have the [IGNORES COVER] ability."
+ */
+const HAVE = /\b(?:(melee|ranged)\s+)?(?:attacks?|weapons?)\b[^.;]{0,70}?\s(?:have|gain)\b([^.;]*)/gi
 /** Every bracketed ability in the tail of such a phrase. */
 const ABILITY = /\[([^\]]+)\]/g
 
@@ -49,15 +53,27 @@ const ABILITY = /\[([^\]]+)\]/g
  */
 const CONDITION = /^(?:while|when|whenever|if|after|until|each time|in|on|unless|during)\b/i
 
+/**
+ * `plainText` drops the bold marks, but the sources use them to say which word
+ * is a keyword, a state or a **characteristic** — so they are parked behind a
+ * marker that survives the cleaning and put back afterwards.
+ */
+const BOLD_MARKER = '@@bold@@'
+export const plainTextKeepingBold = (text: string): string =>
+  plainText(text.split('**').join(BOLD_MARKER)).split(BOLD_MARKER).join('**')
+
+/** Bold marks are for the reader of the rule, not for the reader of the app. */
+export const unbold = (text: string): string => text.replace(/\*\*/g, '')
+
 /** Rules are written as prose, as bullet lists, or as both at once. */
-const splitClauses = (text: string): string[] =>
-  plainText(text)
+export const clausesOf = (text: string): string[] =>
+  plainTextKeepingBold(text)
     .split(/(?<=[.;:])\s+|\s+[-–—•]\s+/)
     .map((clause) => clause.trim())
     .filter(Boolean)
 
-/** The condition in front of a grant, if the clause carries one. */
-function conditionOf(prefix: string): string | undefined {
+/** The condition in front of a grant or a modifier, if the clause carries one. */
+export function conditionOf(prefix: string): string | undefined {
   const trimmed = prefix.trim().replace(/[,\s]+$/, '')
   if (!trimmed) return undefined
   // The grant's own subject ("that unit's", "this unit's") is the tail of the
@@ -65,7 +81,7 @@ function conditionOf(prefix: string): string | undefined {
   const cut = trimmed.lastIndexOf(',')
   const candidate = (cut === -1 ? trimmed : trimmed.slice(0, cut)).trim().replace(/[,\s]+$/, '')
   if (!candidate || !CONDITION.test(candidate)) return undefined
-  return candidate
+  return unbold(candidate)
 }
 
 /**
@@ -81,7 +97,7 @@ export function weaponGrants(rules: readonly GrantingRule[]): WeaponGrant[] {
     // "While a unit is worked up: - … - that unit's ranged attacks have […]" —
     // so the condition lives one clause above the grant.
     let heading: string | undefined
-    for (const clause of splitClauses(rule.text)) {
+    for (const clause of clausesOf(rule.text)) {
       if (clause.endsWith(':')) heading = conditionOf(clause.slice(0, -1))
       for (const match of clause.matchAll(HAVE)) {
         const kind = (match[1]?.toLowerCase() as GrantKind | undefined) ?? 'any'

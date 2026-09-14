@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGameUnits } from './snapshot'
+import { buildGameUnits, modelGroups } from './snapshot'
 import { weaponCounts } from '@/play/weapons'
 import type { ParsedCatalogue } from '@/data/model'
 import type { Roster, Selection } from '@/roster/types'
@@ -124,6 +124,29 @@ describe('game snapshot', () => {
       { name: 'Combi-flamer', perModel: 1 },
     ])
     expect(unit.points).toBe(120)
+  })
+
+  it('gives a model the weapon it swapped to, and not the one it swapped away', () => {
+    // A combined weapon's children are its parts — the part itself, or the
+    // choice taken in its place. Both parts chosen means the container's own
+    // name carries nothing; one part chosen leaves the other.
+    const swapped = sel('e-sgt', 'Sergeant', 'model', 1, [
+      sel('e-combi', 'Knife and Combi-flamer', 'upgrade', 1, [
+        sel('e-fist', 'Fist', 'upgrade', 1),
+        sel('e-gun', 'Carbine', 'upgrade', 1),
+      ]),
+    ])
+    expect(modelGroups(sel('e-squad', 'Squad', 'unit', 1, [swapped]), undefined)[0]!.weapons).toEqual([
+      { name: 'Fist', perModel: 1 },
+      { name: 'Carbine', perModel: 1 },
+    ])
+    const half = sel('e-sgt', 'Sergeant', 'model', 1, [
+      sel('e-combi', 'Knife and Combi-flamer', 'upgrade', 1, [sel('e-fist', 'Fist', 'upgrade', 1)]),
+    ])
+    expect(modelGroups(sel('e-squad', 'Squad', 'unit', 1, [half]), undefined)[0]!.weapons).toEqual([
+      { name: 'Combi-flamer', perModel: 1 },
+      { name: 'Fist', perModel: 1 },
+    ])
   })
 
   it('treats a single-model datasheet as its own model and reads the damaged threshold', () => {

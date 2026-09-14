@@ -311,3 +311,34 @@
 .attached__name {
   font-weight: 600;
 }
+
+/* A number a rule changed: the printed one is not what gets rolled. Marked by
+   weight and an underline as well as by colour — a phone in sunlight, and a
+   colour-blind player, must both see it. */
+.value--changed {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 0.15em;
+}
+
+/* …and one that holds only while a condition does, marked with a *. */
+.value--temporary {
+  color: var(--warning);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 0.15em;
+}
+
+.mods {
+  margin: -0.25rem 0 0.75rem;
+  padding-left: 1.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.mods__item--temporary {
+  color: var(--text-muted);
+}

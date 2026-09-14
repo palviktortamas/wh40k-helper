@@ -33,7 +33,9 @@ import type { CatalogueGraph, ResolvedEntry } from '@/roster/resolve'
 import { groupByRole, roleKey, roleOf } from '@/roster/roles'
 import { WARLORD_CATEGORY } from '@/roster/vocabulary'
 import { COST_TYPE } from '@/data/bsdata/schema'
-import { OptionTree, UnitEditor, type AttachedUnit } from './UnitEditor'
+import { OptionTree, UnitEditor, rulesAboutUnit, type AttachedUnit } from './UnitEditor'
+import { effectsFrom } from '@/play/effects'
+import type { StatMod } from '@/play/mods'
 import { scrollToTop } from './scrollToTop'
 import { StatStrip } from './StatStrip'
 import { Marked } from './Marked'
@@ -196,6 +198,13 @@ export function RosterEditor() {
   const over = validation.points > roster.pointsLimit
   const ratio = Math.min(1, validation.points / Math.max(1, roster.pointsLimit))
 
+  // The card shows the stat line the unit actually has: an enhancement's save,
+  // a detachment's +1, the same numbers the editor and the table show.
+  const modsOf = (unit: Selection): StatMod[] => {
+    const sheet = sheets.get(unit.entryId)
+    return sheet ? effectsFrom(rulesAboutUnit(sheet, unit, chosen, catalogue.parsed)).mods : []
+  }
+
   const cardFor = (unit: Selection, index: number, nested = false) => (
     <UnitCard
       key={unit.id}
@@ -210,6 +219,7 @@ export function RosterEditor() {
       unitById={unitById}
       names={names}
       enhancementIds={enhancementIds}
+      mods={modsOf(unit)}
       showArrows={view === 'order'}
       compact={view === 'compact'}
       nested={nested}
@@ -679,6 +689,7 @@ function UnitCard({
   unitById,
   names,
   enhancementIds,
+  mods,
   showArrows,
   compact,
   nested,
@@ -699,6 +710,8 @@ function UnitCard({
   /** Display name per unit id (see roster/naming.ts). */
   names: Map<string, string>
   enhancementIds: Set<string>
+  /** Characteristics the army's rules change on this unit (see play/mods.ts). */
+  mods: StatMod[]
   showArrows: boolean
   compact: boolean
   nested: boolean
@@ -759,7 +772,7 @@ function UnitCard({
             {errors > 0 && <span className="chip chip--error">✕ {errors}</span>}
           </span>
         </span>
-        {sheet && <StatStrip stats={sheet.stats} firstOnly />}
+        {sheet && <StatStrip stats={sheet.stats} firstOnly mods={mods} />}
         <span className="muted units__loadout">{describeLoadout(unit)}</span>
         {enhancements.length > 0 && (
           <span className="units__chips">

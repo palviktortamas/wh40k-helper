@@ -40,14 +40,26 @@ function statsFor(sheet: Datasheet | undefined, modelName: string) {
   return prefixed ?? sheet.stats[0]
 }
 
-const CONNECTORS = /\b(and|or|with|w\/|&)\b/gi
+/** "Kustom Choppa and Kombi-skorcha" is two weapons; "Twin big shoota" is one. */
+const splitParts = (name: string): string[] =>
+  name
+    .split(/\s+(?:and|&|with|w\/)\s+/i)
+    .map((part) => part.trim())
+    .filter(Boolean)
 
 /**
- * Weapons under a model selection, per copy of that model. An upgrade that
- * holds further upgrades is a combined weapon ("X and Y"): its children are
- * weapons in their own right, and the container counts only for whatever part
- * of its name the children do not already cover — in the data the container
- * entry can itself be the second weapon.
+ * Weapons under a model selection, per copy of that model.
+ *
+ * An upgrade that holds further upgrades is a combined weapon: its name lists
+ * the parts ("Kustom Choppa and Kombi-skorcha") and each child selection *is*
+ * one of those parts — either the part itself or the choice taken in its place
+ * (a Power Klaw where the choppa was). So a child accounts for one part of the
+ * name, whether or not it is named after it, and only the parts no child
+ * accounts for are still carried. Getting this wrong gave a model both the
+ * weapon it swapped away and the one it swapped to.
+ *
+ * Each surviving part counts as its own weapon rather than as one run-together
+ * string, which is also what the profile matcher wants.
  */
 function weaponsOf(model: Selection): { name: string; perModel: number }[] {
   const counts = new Map<string, number>()
@@ -56,13 +68,17 @@ function weaponsOf(model: Selection): { name: string; perModel: number }[] {
     for (const child of node.selections) {
       const total = child.count * multiplier
       if (child.type === 'upgrade') {
-        const parts = child.selections.filter((s) => s.type === 'upgrade')
-        if (parts.length === 0) add(child.name, total)
+        const chosen = child.selections.filter((s) => s.type === 'upgrade')
+        if (chosen.length === 0) add(child.name, total)
         else {
-          let remainder = child.name
-          for (const part of parts) remainder = remainder.replace(new RegExp(escape(part.name), 'i'), ' ')
-          remainder = remainder.replace(CONNECTORS, ' ').replace(/\s+/g, ' ').trim()
-          if (/[a-z]/i.test(remainder)) add(remainder, total)
+          const parts = splitParts(child.name)
+          // A child named after a part accounts for that part; the rest each
+          // account for one of whatever is left, in order.
+          for (const part of chosen) {
+            const named = parts.findIndex((p) => new RegExp(escape(part.name), 'i').test(p))
+            parts.splice(named === -1 ? 0 : named, 1)
+          }
+          for (const left of parts) if (/[a-z]/i.test(left)) add(left, total)
         }
       }
       walk(child, total)

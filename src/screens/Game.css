@@ -300,9 +300,10 @@
   content: '+';
 }
 
-/* Granted only while a condition holds — spelled out under the table. */
+/* Granted only while a condition holds — spelled out under the table, and in
+   the same colour as any other change that can end. */
 .weapon__kw--maybe {
-  color: var(--text-muted);
+  color: var(--warning);
   font-weight: 400;
 }
 

@@ -3,7 +3,8 @@ import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
 import { loadoutByModel, weaponCounts } from '@/play/weapons'
-import { resolveGrants, weaponGrants, type GrantingRule, type WeaponGrant } from '@/play/grants'
+import type { GrantingRule } from '@/play/grants'
+import { effectsFrom, type Effects } from '@/play/effects'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { roleKey } from '@/roster/roles'
 import { StatStrip } from './StatStrip'
@@ -129,18 +130,19 @@ function OnceBox({
 }
 
 /**
- * Every weapon ability the army's rules add to this unit's weapons: the
- * detachments that name it, its own datasheet and faction abilities, its
- * enhancements, and the states it is currently in. The datasheet prints none
- * of these, and they are what the dice actually get rolled with.
+ * Everything the army's rules change about this unit — the weapon abilities
+ * they grant and the characteristics they change — from the detachments that
+ * name it, its own datasheet and faction abilities, its enhancements, and the
+ * states it is currently in. The datasheet prints none of it, and it is what
+ * the dice actually get rolled with.
  */
-function grantsForUnit(
+function effectsForUnit(
   unit: GameUnit,
   sheet: Datasheet | undefined,
   game: Game,
   catalogue: ParsedCatalogue | undefined,
   activeMarkRules: { label: string; rules: readonly { name: string; text: string }[] }[],
-): WeaponGrant[] {
+): Effects {
   const keywords = sheet ? [...sheet.keywords, ...sheet.factionKeywords] : []
   const enhancementText = new Map((catalogue?.enhancements ?? []).map((e) => [e.id, e.text]))
   const rules: GrantingRule[] = [
@@ -163,7 +165,7 @@ function grantsForUnit(
       markRules.map((r) => ({ name: r.name, text: r.text, source: label })),
     ),
   ]
-  return resolveGrants(weaponGrants(rules), unit.marks ?? [])
+  return effectsFrom(rules, unit.marks ?? [])
 }
 
 /** The loadout split by model type, for a unit that has more than one. */
@@ -260,7 +262,7 @@ export function GameUnitSheet({
   // weapons is what you need when removing casualties or picking who shoots,
   // and a single counted table never says it.
   const loadout = loadoutByModel(unit, sheet)
-  const grants = grantsForUnit(
+  const { grants, mods } = effectsForUnit(
     unit,
     sheet,
     game,
@@ -342,6 +344,7 @@ export function GameUnitSheet({
         <StatStrip
           stats={sheet.stats}
           size="large"
+          mods={mods}
           {...(single ? { wounds: { current: single.currentWounds, total: single.wounds } } : {})}
         />
       )}
@@ -352,11 +355,13 @@ export function GameUnitSheet({
         title="Ranged weapons"
         rows={rows.filter((r) => r.profile.kind === 'ranged' && r.count > 0)}
         grants={grants}
+        mods={mods}
       />
       <WeaponTable
         title="Melee weapons"
         rows={rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)}
         grants={grants}
+        mods={mods}
       />
       {rows.some((r) => r.count === 0) && (
         // The datasheet's other options — weapons this unit can take and did
@@ -390,7 +395,7 @@ export function GameUnitSheet({
       {leaders.map((leader) => {
         const leaderSheet = sheets.get(leader.entryId)
         const leaderWeapons = weaponCounts(leader, leaderSheet)
-        const leaderGrants = grantsForUnit(leader, leaderSheet, game, catalogue, [])
+        const leaderEffects = effectsForUnit(leader, leaderSheet, game, catalogue, [])
         const leaderModel = leader.models[0]
         return (
           <section key={leader.id} className="leader">
@@ -401,6 +406,7 @@ export function GameUnitSheet({
               <StatStrip
                 stats={leaderSheet.stats}
                 size="large"
+                mods={leaderEffects.mods}
                 {...(leaderModel && leaderModel.total === 1
                   ? { wounds: { current: leaderModel.currentWounds, total: leaderModel.wounds } }
                   : {})}
@@ -409,12 +415,14 @@ export function GameUnitSheet({
             <WeaponTable
               title="Ranged weapons"
               rows={leaderWeapons.rows.filter((r) => r.profile.kind === 'ranged' && r.count > 0)}
-              grants={leaderGrants}
+              grants={leaderEffects.grants}
+              mods={leaderEffects.mods}
             />
             <WeaponTable
               title="Melee weapons"
               rows={leaderWeapons.rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)}
-              grants={leaderGrants}
+              grants={leaderEffects.grants}
+              mods={leaderEffects.mods}
             />
             {leaderSheet && (
               <Abilities unit={leader} sheet={leaderSheet} detachmentNames={game.detachmentNames} catalogue={catalogue} dispatch={dispatch} />

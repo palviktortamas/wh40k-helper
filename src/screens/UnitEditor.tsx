@@ -13,6 +13,8 @@ import { canSplit, mergeSelection, splitSelection } from '@/roster/split'
 import { roleKey } from '@/roster/roles'
 import { describeLoadout, enhancementsTaken } from './RosterEditor'
 import { StatStrip } from './StatStrip'
+import { effectsFrom } from '@/play/effects'
+import type { GrantingRule } from '@/play/grants'
 import { WeaponTable } from './WeaponTable'
 import { Marked } from './Marked'
 import './Rosters.css'
@@ -140,7 +142,13 @@ export function UnitEditor({
           </span>
         </label>
       )}
-      {sheet && <StatStrip stats={sheet.stats} size="large" />}
+      {sheet && (
+        <StatStrip
+          stats={sheet.stats}
+          size="large"
+          mods={effectsFrom(rulesAboutUnit(sheet, selection, detachments, catalogue)).mods}
+        />
+      )}
 
       {issues.length > 0 && (
         <ul className="issues">
@@ -197,6 +205,39 @@ export type AttachedUnit = {
 }
 
 /** The datasheet as the loadout stands: carried weapons with counts, abilities, detachment rules. */
+/**
+ * The rules that speak about this unit as it is being built: the detachments
+ * the army took that name it, the enhancements it has taken, and its own
+ * datasheet and faction abilities. Same list the table reads at the table.
+ */
+export function rulesAboutUnit(
+  sheet: Datasheet,
+  selection: Selection,
+  detachments: Detachment[],
+  catalogue: ParsedCatalogue,
+): GrantingRule[] {
+  const keywords = [...sheet.keywords, ...sheet.factionKeywords]
+  const enhancementIds = new Set((catalogue.enhancements ?? []).map((e) => e.id))
+  const byName = new Map((catalogue.enhancements ?? []).map((e) => [e.name, e.text]))
+  return [
+    ...detachments.flatMap((d) =>
+      (d.rules ?? [])
+        .filter((r) => ruleAppliesTo(r.text, keywords) !== false)
+        .map((rule) => ({ name: rule.name, text: rule.text, source: d.name })),
+    ),
+    ...enhancementsTaken(selection, enhancementIds).map((name) => ({
+      name,
+      text: byName.get(name) ?? '',
+      source: 'Enhancement',
+    })),
+    ...sheet.abilities.map((a) => ({
+      name: a.name,
+      text: a.text,
+      source: a.kind === 'faction' ? 'Faction rule' : 'Datasheet',
+    })),
+  ]
+}
+
 function BuiltSheet({
   selection,
   sheet,
@@ -211,6 +252,7 @@ function BuiltSheet({
   catalogue: ParsedCatalogue
 }) {
   const { rows, unmatched } = weaponCounts({ models: modelGroups(selection, sheet) }, sheet)
+  const { grants, mods } = effectsFrom(rulesAboutUnit(sheet, selection, detachments, catalogue))
   const keywords = [...sheet.keywords, ...sheet.factionKeywords]
   // Every detachment the army took can speak about this unit, so each is asked.
   const detachmentRules = detachments.flatMap((d) =>
@@ -241,8 +283,18 @@ function BuiltSheet({
 
   return (
     <div className="built">
-      <WeaponTable title="Ranged weapons" rows={carried.filter((r) => r.profile.kind === 'ranged')} />
-      <WeaponTable title="Melee weapons" rows={carried.filter((r) => r.profile.kind === 'melee')} />
+      <WeaponTable
+        title="Ranged weapons"
+        rows={carried.filter((r) => r.profile.kind === 'ranged')}
+        grants={grants}
+        mods={mods}
+      />
+      <WeaponTable
+        title="Melee weapons"
+        rows={carried.filter((r) => r.profile.kind === 'melee')}
+        grants={grants}
+        mods={mods}
+      />
       {carried.length === 0 && <p className="muted">No weapons chosen yet.</p>}
       {unmatched.length > 0 && (
         <p className="muted">

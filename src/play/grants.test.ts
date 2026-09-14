@@ -72,6 +72,24 @@ describe('weapon grants', () => {
   })
 })
 
+describe('the older, spelled-out grammar', () => {
+  it('reads an ability given to a unit’s weapons rather than to its attacks', () => {
+    const grants = weaponGrants([
+      {
+        name: 'Nebuloscope',
+        text: "Ranged weapons equipped by models in the bearer's unit have the [IGNORES COVER] ability.",
+        source: 'Enhancement',
+      },
+      { name: 'Unflinching', text: "The bearer's melee weapons have the [PRECISION] and [ANTI-INFANTRY 5+] abilities.", source: 'Enhancement' },
+    ])
+    expect(grants.map((g) => [g.keyword, g.kind])).toEqual([
+      ['IGNORES COVER', 'ranged'],
+      ['PRECISION', 'melee'],
+      ['ANTI-INFANTRY 5+', 'melee'],
+    ])
+  })
+})
+
 describe('states a unit is already in', () => {
   it('marks a grant live once its condition is a state the unit holds', () => {
     const grants = weaponGrants([

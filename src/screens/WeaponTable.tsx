@@ -1,6 +1,19 @@
 import type { WeaponRow } from '@/play/weapons'
 import { grantsFor, type WeaponGrant } from '@/play/grants'
+import { applyMod, modsFor, type StatMod } from '@/play/mods'
+import { ModList } from './StatStrip'
 import './Datasheets.css'
+
+/** One characteristic cell, changed if the rules change it. */
+function Cell({ value, mods }: { value: string | undefined; mods: readonly StatMod[] }) {
+  const applied = applyMod(value, mods)
+  return (
+    <td className={applied.changed ? (applied.temporary ? 'value--temporary' : 'value--changed') : ''}>
+      {applied.value}
+      {applied.changed && applied.temporary ? '*' : ''}
+    </td>
+  )
+}
 
 /** A grant that is in force right now — unconditional, or its condition met. */
 const live = (grant: WeaponGrant): boolean => !grant.when || grant.met === true
@@ -20,11 +33,14 @@ export function WeaponTable({
   rows,
   showCount = true,
   grants = [],
+  mods = [],
 }: {
   title: string
   rows: WeaponRow[]
   showCount?: boolean
   grants?: readonly WeaponGrant[]
+  /** Characteristics the army's rules change on these weapons. */
+  mods?: readonly StatMod[]
 }) {
   if (rows.length === 0) return null
   const kind = rows[0]!.profile.kind
@@ -38,6 +54,7 @@ export function WeaponTable({
     else if (live(grant) && !live(here[at]!)) here[at] = grant
   }
   const conditional = here.filter((g) => !live(g))
+  const modsHere = mods.filter((mod) => mod.target === kind || mod.target === 'any')
   return (
     <>
       <h3>{title}</h3>
@@ -83,12 +100,12 @@ export function WeaponTable({
                       </span>
                     )}
                   </th>
-                  <td>{profile.range ?? '—'}</td>
-                  <td>{profile.a ?? '—'}</td>
-                  <td>{profile.skill ?? '—'}</td>
-                  <td>{profile.s ?? '—'}</td>
-                  <td>{profile.ap ?? '—'}</td>
-                  <td>{profile.d ?? '—'}</td>
+                  <Cell value={profile.range} mods={absent ? [] : modsFor(modsHere, kind, 'R')} />
+                  <Cell value={profile.a} mods={absent ? [] : modsFor(modsHere, kind, 'A')} />
+                  <Cell value={profile.skill} mods={absent ? [] : modsFor(modsHere, kind, skillLabel)} />
+                  <Cell value={profile.s} mods={absent ? [] : modsFor(modsHere, kind, 'S')} />
+                  <Cell value={profile.ap} mods={absent ? [] : modsFor(modsHere, kind, 'AP')} />
+                  <Cell value={profile.d} mods={absent ? [] : modsFor(modsHere, kind, 'D')} />
                 </tr>
               )
             })}
@@ -110,7 +127,10 @@ export function WeaponTable({
           ))}
         </ul>
       )}
-      {conditional.length > 0 && <p className="grants__note">* only while the condition above holds.</p>}
+      {modsHere.length > 0 && <ModList mods={modsHere} />}
+      {(conditional.length > 0 || modsHere.some((mod) => mod.when)) && (
+        <p className="grants__note">* only while the condition above holds.</p>
+      )}
     </>
   )
 }

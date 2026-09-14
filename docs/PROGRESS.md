@@ -23,6 +23,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 8 | Several detachments per army (11e DP budget) + Necrons | **built 2026-09-14** — DP budget read from the data, checkbox picker, every consumer pluralised, Dexie v9, Necrons in the fixtures |
 | 9 | Editor round: attachment kinds, unit names, picker, unit size | **built 2026-09-14** — Leader/Support/Retainers told apart, numbered and renamable units, annotated attach control with Detach, picker stays open with counts, Reinforced toggle, compulsory loadouts can no longer be emptied |
 | 10 | Loadout round, in play | **built 2026-09-14** — weapon abilities the rules grant (with conditions, live when the state is on), profiles the unit cannot take dropped (`PARSER_VERSION` 5), loadout split by model type |
+| 11 | Characteristics the rules change | **built 2026-09-14** — stat and weapon-profile modifiers read from both grammars, shown changed (lasting) or temporary everywhere a unit is shown; combined-weapon loadout bug fixed |
 
 ---
 
@@ -916,6 +917,75 @@ factions.
 In the unit editor a Reinforced mob's "Boy" stepper is disabled with "This choice is compulsory —
 pick another instead", so the special-weapon models (which replace Boyz) cannot be added at full
 size without first shrinking the mob some other way. Worth a look next session.
+
+---
+
+## Done 2026-09-14 (night) - the numbers a unit actually has
+
+Follow-up to the loadout round, from the owner: "unit stats are still not changing — an
+enhancement that gives Boyz a 4+ save does not show; colour them differently for temporary and
+for not-default; the same when building the roster; and the Boyz loadout is still wrong."
+
+### Characteristics the rules change (`src/play/mods.ts`)
+
+The sibling of `grants.ts`, reading the other half of the same grammar:
+
+- the 11e shorthand — "This unit has 4+ **Sv**", "This model has +2\" **M**", "this model's melee
+  attacks have +1 **D**", "While this unit is riled up, +3\" **R**";
+- the spelled-out form the older text uses — "Add 2 to the Attacks characteristic of melee weapons
+  equipped by the bearer", "improve the Armour Penetration characteristic of that attack by 1".
+  Necrons are written this way, and produced *zero* modifiers until it was supported.
+
+Three signals keep it honest, and each earned its keep on the real catalogues:
+
+- the characteristic must be **bold** in the source (so "11+ models" is not a Wounds change);
+- a *unit* characteristic is taken only when the clause's subject is this unit, so "a **TRANSPORT**
+  unit this unit is embarked within has +2\" M" does not speed up the passenger;
+- armour is not a weapon: "attacks that target this unit have -1 **AP**" and "each time an attack
+  is **allocated** to this model, subtract 1 from the Damage characteristic" are skipped, as are
+  auras ("while a friendly unit is within 6\" of this model, that unit has +1 OC" is for the
+  others) and modifiers that count something ("+2 **A** for each model embarked").
+
+`applyMod` prints the result: a save is set rather than added to and the best one wins, "+1 AP" is
+one *better* (the rules' convention, not arithmetic), and a value that is not a number keeps its
+text with the change after it ("D6+1") rather than being invented.
+
+### Shown the same way everywhere
+
+`play/effects.ts` turns one list of rules into `{ grants, mods }`, and every screen that shows a
+unit uses it: the in-game sheet (and an attached Leader's), the unit editor while building, and
+the roster card. A changed number is shown changed — printing the datasheet's number would print a
+stat line the unit does not have — and marked twice over, never by colour alone:
+
+- **lasting** change: accent colour, bold, dotted underline;
+- **temporary** (a condition, a state): warning colour, dashed underline, a `*`, and a line under
+  the strip or table saying what it hangs on and which rule it came from. A state the unit is in
+  right now adds "— now".
+
+An invulnerable save that only a rule grants is a cell the datasheet does not have: it appears on
+the full sheet, where the legend explains it, and not on a card in a list.
+
+### The loadout bug behind "melee weapons are counted wrong"
+
+A combined weapon ("Kustom Choppa and Kombi-skorcha") holds one child per part, and the child is
+either the part or the choice taken in its place. `weaponsOf` used to subtract the children's
+*names* from the container's name, so a Nob who swapped his choppa for a Power Klaw kept both —
+and the leftover string "Kustom Choppa Kombi-skorcha" then matched three profiles by word, giving
+the mob phantom Kombi-skorchas and an extra Choppa each. Now each child accounts for one part,
+named after it or not, and only the parts nothing accounts for are carried, each as its own
+weapon. On the owner's mob: melee went from "17 Choppa, 2 Kustom Choppa, 2 Power Klaw" to the
+truth, "15 Choppa, 2 Power Klaw".
+
+**A game in progress keeps its snapshot** (that is the point of a snapshot), so the fix shows in
+games started after it.
+
+### Noticed, not fixed
+
+- A rule that puts a state on an *enemy* unit ("that unit has -1 Ld while zapped") reads as the
+  unit's own modifier if the player marks their own unit with that state. It is conditional and
+  names its rule, so it is legible rather than wrong-looking; tighten if it ever bites.
+- Enhancements still show up under "Other wargear" in the weapons list, because some of them are
+  weapons. Harmless, slightly noisy.
 
 ---
 
