@@ -337,8 +337,9 @@ section:has(> .summary) > .sheet__back {
 }
 
 /* The numbers you check before every change stay in view while the list
-   scrolls — but only the numbers. Stuck to the top, the widget drops the
-   detachment line and the group jumps, which on a phone were half the screen. */
+   scrolls — and only those numbers. A sticky box that changes height as it
+   sticks shortens the page under your thumb and bounces the scroll back, so
+   this one is the same size always, and the army's details sit below it. */
 .summary {
   position: sticky;
   top: 0;
@@ -352,24 +353,6 @@ section:has(> .summary) > .sheet__back {
   border-radius: 12px;
   background: var(--surface);
   box-shadow: 0 6px 16px rgb(0 0 0 / 0.18);
-}
-
-.summary--stuck {
-  padding-top: 0.375rem;
-  padding-bottom: 0.375rem;
-  border-radius: 0 0 12px 12px;
-}
-
-.summary--stuck .summary__detachment,
-.summary--stuck .summary__jump {
-  display: none;
-}
-
-/* The facts line is the first thing to go: points and legality carry it. */
-@media (max-width: 599px) {
-  .summary--stuck .summary__facts {
-    display: none;
-  }
 }
 
 .summary--over {
@@ -397,7 +380,7 @@ section:has(> .summary) > .sheet__back {
 }
 
 .summary__detachment {
-  margin: 0;
+  margin: 0 0 0.5rem;
   font-size: 0.875rem;
 }
 

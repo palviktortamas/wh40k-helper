@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
@@ -108,20 +108,6 @@ export function RosterEditor() {
     () => (roster && graph ? validate(roster, graph) : null),
     [roster, graph],
   )
-
-  // Whether the summary has scrolled off its place and is riding the top edge.
-  const summaryTop = useRef<HTMLDivElement>(null)
-  const [stuck, setStuck] = useState(false)
-  useEffect(() => {
-    const sentinel = summaryTop.current
-    if (!sentinel) return
-    const watcher = new IntersectionObserver(([entry]) => setStuck(!entry?.isIntersecting), {
-      threshold: 0,
-      rootMargin: '0px',
-    })
-    watcher.observe(sentinel)
-    return () => watcher.disconnect()
-  }, [roster?.id, editing])
 
   if (!roster || !catalogue || !graph || !validation) return <p>Loading…</p>
 
@@ -277,10 +263,10 @@ export function RosterEditor() {
         aria-label="Roster name"
       />
 
-      {/* Once the summary is stuck to the top it keeps only the line you glance
-          at — on a phone the whole widget was half the screen. */}
-      <div ref={summaryTop} aria-hidden="true" />
-      <div className={`summary ${over ? 'summary--over' : ''} ${stuck ? 'summary--stuck' : ''}`}>
+      {/* What is pinned is only what you glance at while editing: legality,
+          points, the meter. Everything else about the army scrolls with the
+          page — a widget that changes height while stuck fights the scroll. */}
+      <div className={`summary ${over ? 'summary--over' : ''}`}>
         <div className="summary__row">
           <span className={`badge ${validation.legal ? 'badge--ok' : 'badge--error'}`}>
             {validation.legal ? '✓ Legal' : `✕ ${errorCount} error${errorCount === 1 ? '' : 's'}`}
@@ -300,22 +286,23 @@ export function RosterEditor() {
         <div className={`meter ${over ? 'meter--over' : ''}`} aria-hidden="true">
           <div className="meter__fill" style={{ width: `${ratio * 100}%` }} />
         </div>
-        <p className="summary__detachment muted">
-          {catalogue.name}
-          {chosen.length > 0 ? ` · ${chosen.map((d) => d.name).join(' + ')}` : ' · no detachment chosen'}
-          {dispositions.length > 0 ? ` · ${dispositions.join(' / ')}` : ''}
-        </p>
-        {groups.length > 1 && (
-          <nav className="summary__jump" aria-label="Jump to a unit group">
-            {groups.map((g) => (
-              <a key={g.id} href={`#${g.id}`} className={`summary__jumpLink role--${g.key}`}>
-                <span className="role-tag">{g.heading}</span>
-                <span className="muted">{g.items.length}</span>
-              </a>
-            ))}
-          </nav>
-        )}
       </div>
+
+      <p className="summary__detachment muted">
+        {catalogue.name}
+        {chosen.length > 0 ? ` · ${chosen.map((d) => d.name).join(' + ')}` : ' · no detachment chosen'}
+        {dispositions.length > 0 ? ` · ${dispositions.join(' / ')}` : ''}
+      </p>
+      {groups.length > 1 && (
+        <nav className="summary__jump" aria-label="Jump to a unit group">
+          {groups.map((g) => (
+            <a key={g.id} href={`#${g.id}`} className={`summary__jumpLink role--${g.key}`}>
+              <span className="role-tag">{g.heading}</span>
+              <span className="muted">{g.items.length}</span>
+            </a>
+          ))}
+        </nav>
+      )}
 
       <div className="rosters__controls">
         <label>

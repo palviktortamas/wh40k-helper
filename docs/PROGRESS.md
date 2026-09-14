@@ -1061,11 +1061,18 @@ A stat line that wrapped read as two units. The row is now a column of *(who)* +
 of cells; the cells share the width they have (`flex: 1 1 0`) and the numbers use `clamp()` so
 they shrink with the screen instead of breaking the line. Seven cells (with Inv) fit at 390 px.
 
-### The summary condenses instead of squatting
+### The summary is slim, full stop
 
-The roster summary is still sticky — the points are what you watch while editing — but an
-IntersectionObserver sentinel above it adds `summary--stuck`, which drops the detachment line, the
-group jumps and (on a phone) the facts line: 188 px at rest, 61 px stuck.
+First attempt (same day): keep the whole widget sticky and condense it once stuck, via an
+IntersectionObserver sentinel. **That is a trap** — a sticky box keeps its space in the flow, so
+shrinking it while stuck shortens the page under the thumb, which brings the sentinel back into
+view, which un-shrinks it. A light scroll landed in that oscillation and was bounced back to the
+top; only a hard flick escaped. Reported by the owner within the hour.
+
+What is there now has no moving parts: the sticky widget holds legality, points, the facts line
+and the meter and is the same 96 px always; the detachment line and the role-group jumps moved out
+of it and scroll with the page. **Rule of thumb: never change the height of a sticky element as a
+function of scrolling past it.**
 
 ### The way back is always there
 
