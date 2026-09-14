@@ -1074,6 +1074,12 @@ and the meter and is the same 96 px always; the detachment line and the role-gro
 of it and scroll with the page. **Rule of thumb: never change the height of a sticky element as a
 function of scrolling past it.**
 
+### The bottom bar is one row
+
+Icon above label made the tab bar two rows tall for one row of information (57 px of a phone
+screen). Icon beside label now: 45 px on a phone, still clearing the 44 px touch target, and the
+labels fit unclipped down to 320 px. A pointer gets 48 px from 900 px up.
+
 ### The way back is always there
 
 `.sheet__back` is a sticky pill at the top of the scrolling area on every screen that has one. The
