@@ -313,6 +313,17 @@
 .units__attach select {
   min-height: 44px;
   font-size: 1rem;
+  width: 100%;
+}
+/* The label and its select stack; Detach sits under them as its own target. */
+.units__attachLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.units__attach .button {
+  align-self: flex-start;
+  min-height: 44px;
 }
 
 /* --- roster editor: summary, toolbar, cards ------------------------------ */
@@ -725,23 +736,20 @@
 
 /* An 11e army takes several detachments, so the budget has to be visible while
    choosing rather than discovered as an error afterwards. */
-.detachments {
-  margin: 0.75rem 0;
-  padding: 0.5rem 0.75rem 0.625rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-.detachments__head {
+.detachments summary {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
   gap: 0.5rem;
-  min-height: 32px;
+  flex-wrap: wrap;
 }
 .detachments__title {
-  margin: 0;
-  font-size: 1rem;
+  font-weight: 600;
+}
+/* The names carry the answer once the list is folded away. */
+.detachments__summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.85rem;
 }
 .detachments__budget {
   font-variant-numeric: tabular-nums;
@@ -786,4 +794,45 @@
 .detachments__blocked {
   flex: none;
   font-size: 0.8rem;
+}
+
+
+/* --- add-unit picker: running counts, and it stays open ------------------- */
+
+.picker__hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+/* How many of this datasheet the roster already holds — the answer to "did that
+   tap register?" now that picking no longer closes the list. */
+.picker__count {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* --- unit editor: the owner's own name ----------------------------------- */
+
+.editor__name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.editor__name input {
+  min-height: 44px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  color: var(--text);
+  font-size: 1rem;
 }

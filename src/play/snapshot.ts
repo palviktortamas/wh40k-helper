@@ -12,6 +12,7 @@ import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { Roster, Selection } from '@/roster/types'
 import type { Validation } from '@/roster/store'
 import type { GameUnit, ModelGroup } from './types'
+import { unitNames } from '@/roster/naming'
 
 /** "Damaged: 1-4 Wounds Remaining" — the threshold is the upper bound. */
 const DAMAGED = /damaged:\s*\d+\s*[-–]\s*(\d+)/i
@@ -116,6 +117,9 @@ export function buildGameUnits(
   validation: Validation,
 ): GameUnit[] {
   const sheets = new Map(catalogue.datasheets.map((d) => [d.id, d]))
+  // The table shows the same names the list was built with, numbering included,
+  // so "Boyz #2 is Battle-shocked" means something.
+  const names = unitNames(roster)
   const enhancementIds = new Set((catalogue.enhancements ?? []).map((e) => e.id))
   // Enhancements are upgrade selections somewhere under the unit whose entry carries an Enhancement cost.
   const enhancementsOf = (unit: Selection): { id: string; name: string }[] => {
@@ -137,7 +141,7 @@ export function buildGameUnits(
       .find((hit) => hit !== undefined)
     return {
       id: unit.id,
-      name: unit.name,
+      name: names.get(unit.id) ?? unit.name,
       entryId: unit.entryId,
       points: validation.unitPoints[unit.id] ?? 0,
       isCharacter: validation.characterSelectionIds.includes(unit.id),

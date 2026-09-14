@@ -7,6 +7,7 @@ import type { CatalogueGraph } from './resolve'
 import type { Roster, Selection } from './types'
 import type { Validation } from './store'
 import { WARLORD_CATEGORY } from './vocabulary'
+import { unitNames } from './naming'
 
 /** Collapses a selection's children into "2x Rokkit launcha, 9x Choppa". Counts are per copy of the parent. */
 function summarise(selection: Selection): string {
@@ -49,6 +50,9 @@ export function exportRosterText(
   const isWarlordMarker = (selection: Selection) =>
     warlordCategory !== undefined &&
     (graph.resolve(selection.entryId)?.categoryIds.includes(warlordCategory) ?? false)
+  // Copies of one datasheet are numbered, so a printed list can be matched to
+  // the models on the table (see roster/naming.ts).
+  const names = unitNames(roster)
   const lines: string[] = []
   lines.push(roster.name)
   lines.push(`${catalogueName} — ${validation.points}/${roster.pointsLimit} pts`)
@@ -68,7 +72,9 @@ export function exportRosterText(
     const size = models(unit).reduce((sum, m) => sum + m.count, 0)
     const warlord = validation.warlordSelectionId === unit.id ? ' [WARLORD]' : ''
     lines.push(
-      `${indent}${unit.name}${size > 1 ? ` (${size})` : ''}${points ? ` — ${points} pts` : ''}${warlord}`,
+      `${indent}${names.get(unit.id) ?? unit.name}${size > 1 ? ` (${size})` : ''}${
+        points ? ` — ${points} pts` : ''
+      }${warlord}`,
     )
     for (const model of models(unit)) {
       lines.push(`${indent}  ${model.count}x ${model.name}${model.loadout ? `: ${model.loadout}` : ''}`)

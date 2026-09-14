@@ -23,6 +23,8 @@ import {
   type Validation,
 } from '@/roster/store'
 import { exportRosterText } from '@/roster/export'
+import { unitNames } from '@/roster/naming'
+import { attachmentKind, attachmentsOf, capacityOf, heldOfKind, kindOfAssociation } from '@/roster/attachment'
 import { POINTS_PRESETS, walkSelections, type Roster, type Selection } from '@/roster/types'
 import type { CatalogueGraph, ResolvedEntry } from '@/roster/resolve'
 import { groupByRole, roleKey, roleOf } from '@/roster/roles'
@@ -105,9 +107,14 @@ export function RosterEditor() {
   const dpLeft = dpLimit === undefined ? undefined : dpLimit - validation.detachmentPoints
   const dispositions = [...new Set(chosen.flatMap((d) => d.forceDispositions))]
 
+  // Adding does not close the picker: a list usually wants three of something,
+  // and reopening between each was the whole complaint. The owner closes it.
+  /** How many of each datasheet the roster holds — the picker's running count. */
+  const picked = new Map<string, number>()
+  for (const unit of roster.selections) picked.set(unit.entryId, (picked.get(unit.entryId) ?? 0) + 1)
+
   const addUnit = (entry: ResolvedEntry) => {
     update({ ...roster, selections: [...roster.selections, instantiate(entry)] })
-    setPicking(false)
   }
 
   const editingSelection = editing ? roster.selections.find((s) => s.id === editing) : undefined
@@ -138,6 +145,7 @@ export function RosterEditor() {
         graph={graph}
         validation={validation}
         sheet={sheets.get(editingSelection.entryId)}
+        displayName={unitNames(roster).get(editingSelection.id) ?? editingSelection.name}
         detachments={chosen}
         catalogue={catalogue.parsed}
         role={roleOf(graph, editingSelection.entryId)}
@@ -157,13 +165,17 @@ export function RosterEditor() {
         validation={validation}
         sheets={sheets}
         onPick={addUnit}
-        onCancel={() => setPicking(false)}
+        onDone={() => setPicking(false)}
+        counts={picked}
+        total={roster.selections.length}
         catalogueName={catalogue.name}
       />
     )
   }
 
   const unitById = new Map(roster.selections.map((u) => [u.id, u]))
+  // Copies of one datasheet are told apart by number; the owner may rename any.
+  const names = unitNames(roster)
   const enhancementIds = new Set((catalogue.parsed.enhancements ?? []).map((e) => e.id))
   const errorCount = validation.errors.length
   const warningCount = validation.warnings.length
@@ -182,6 +194,7 @@ export function RosterEditor() {
       sheet={sheets.get(unit.entryId)}
       role={roleOf(graph, unit.entryId)}
       unitById={unitById}
+      names={names}
       enhancementIds={enhancementIds}
       showArrows={view === 'order'}
       compact={view === 'compact'}
@@ -281,14 +294,21 @@ export function RosterEditor() {
         </label>
       </div>
 
-      <div className="detachments">
-        <div className="detachments__head">
-          <h2 className="detachments__title">Detachments</h2>
-          <span className={`detachments__budget ${dpLeft !== undefined && dpLeft < 0 ? 'detachments__budget--over' : ''}`}>
+      {/* Twelve detachments is a long list to scroll past once the choice is
+          made, so it folds away and the summary carries the answer. */}
+      <details className="config detachments" open={chosen.length === 0}>
+        <summary>
+          <span className="detachments__title">Detachments</span>
+          <span className="detachments__summary muted">
+            {chosen.length > 0 ? chosen.map((d) => d.name).join(' + ') : 'none chosen'}
+          </span>
+          <span
+            className={`detachments__budget ${dpLeft !== undefined && dpLeft < 0 ? 'detachments__budget--over' : ''}`}
+          >
             {validation.detachmentPoints}
             {dpLimit === undefined ? '' : ` / ${dpLimit}`} DP
           </span>
-        </div>
+        </summary>
         <ul className="detachments__list">
           {detachments.map((option) => {
             const cost = option.entry.costs[COST_TYPE.detachmentPoints] ?? 0
@@ -318,7 +338,7 @@ export function RosterEditor() {
         {detachments.length === 0 && (
           <p className="muted">This catalogue offers no detachments the army can take.</p>
         )}
-      </div>
+      </details>
 
       {chosen
         .filter((d) => (d.rules?.length ?? 0) > 0)
@@ -555,6 +575,7 @@ function UnitCard({
   sheet,
   role,
   unitById,
+  names,
   enhancementIds,
   showArrows,
   compact,
@@ -573,6 +594,8 @@ function UnitCard({
   sheet: Datasheet | undefined
   role: string | undefined
   unitById: Map<string, Selection>
+  /** Display name per unit id (see roster/naming.ts). */
+  names: Map<string, string>
   enhancementIds: Set<string>
   showArrows: boolean
   compact: boolean
@@ -588,6 +611,11 @@ function UnitCard({
   const leading = validation.leaderTargets(unit.id)
   const canLead = leading.length > 0
   const ledBy = roster.selections.filter((l) => l.attachedTo === unit.id)
+  const shownName = names.get(unit.id) ?? unit.name
+  const nameOf = (id: string) => names.get(id) ?? unitById.get(id)?.name ?? 'a removed unit'
+  const entry = graph.resolve(unit.entryId)
+  const kind = entry ? attachmentKind(entry) : undefined
+  const kindLabel = kind?.label ?? 'Leader'
   const enhancements = enhancementsTaken(unit, enhancementIds)
   const key = roleKey(role)
 
@@ -598,11 +626,11 @@ function UnitCard({
         <button className="units__main units__main--compact" onClick={onEdit}>
           <span className="units__top">
             <span className="units__name">
-              {unit.name}
+              {shownName}
               <span className="muted units__pts">{validation.unitPoints[unit.id] ?? 0} pts</span>
             </span>
             <span className="units__chips">
-              {nested && <span className="chip">Leader</span>}
+              {nested && <span className="chip">{kindLabel}</span>}
               {isWarlord && <span className="chip chip--warlord">Warlord</span>}
               {enhancements.length > 0 && <span className="rule-chip rule-chip--enhancement">{enhancements.length}× enh.</span>}
               {errors > 0 && <span className="chip chip--error">✕ {errors}</span>}
@@ -620,11 +648,11 @@ function UnitCard({
       <button className="units__main" onClick={onEdit}>
         <span className="units__top">
           <span className="units__name">
-            {unit.name}
+            {shownName}
             <span className="muted units__pts">{validation.unitPoints[unit.id] ?? 0} pts</span>
           </span>
           <span className="units__chips">
-            {nested && <span className="chip">Leader</span>}
+            {nested && <span className="chip">{kindLabel}</span>}
             {isWarlord && <span className="chip chip--warlord">Warlord</span>}
             {errors > 0 && <span className="chip chip--error">✕ {errors}</span>}
           </span>
@@ -641,43 +669,80 @@ function UnitCard({
           </span>
         )}
         {unit.attachedTo && !nested && (
-          <span className="muted">Leads {unitById.get(unit.attachedTo)?.name ?? 'a removed unit'}</span>
+          <span className="muted">
+            {kind?.key === 'leader' ? 'Leads' : `Attached to`} {nameOf(unit.attachedTo)}
+            {kind && kind.key !== 'leader' ? ` (${kind.label})` : ''}
+          </span>
         )}
         {ledBy.length > 0 && leaders.length === 0 && (
-          <span className="muted">Led by {ledBy.map((l) => l.name).join(', ')}</span>
+          <span className="muted">Joined by {ledBy.map((l) => nameOf(l.id)).join(', ')}</span>
         )}
       </button>
 
       {canLead && (
-        <label className="units__attach">
-          Attach to
-          <select
-            value={unit.attachedTo ?? ''}
-            onChange={(e) => {
-              const targetId = e.target.value
-              const match = leading.find((l) => l.targetIds.includes(targetId))
-              const next: Selection = { ...unit }
-              if (targetId && match) {
-                next.attachedTo = targetId
-                next.associationId = match.association.id
-              } else {
+        <div className="units__attach">
+          <label className="units__attachLabel">
+            Attach as {kindLabel}
+            <select
+              value={unit.attachedTo ?? ''}
+              onChange={(e) => {
+                const targetId = e.target.value
+                const match = leading.find((l) => l.targetIds.includes(targetId))
+                const next: Selection = { ...unit }
+                if (targetId && match) {
+                  next.attachedTo = targetId
+                  next.associationId = match.association.id
+                } else {
+                  delete next.attachedTo
+                  delete next.associationId
+                }
+                update({ ...roster, selections: replaceSelection(roster.selections, unit.id, next) })
+              }}
+            >
+              <option value="">— not attached —</option>
+              {leading.flatMap((l) => {
+                // Which rule this option attaches under decides what "already
+                // taken" means: a unit may hold one Leader *and* one Support.
+                const optionKind = kindOfAssociation(l.association) ?? kind
+                const capacity = capacityOf(l.association)
+                return l.targetIds.map((id) => {
+                  const held = attachmentsOf(roster, graph, id)
+                  const sameKind = optionKind ? heldOfKind(held, optionKind, unit.id) : []
+                  const others = [...held.values()]
+                    .flatMap((slot) =>
+                      slot.units
+                        .filter((u) => u.id !== unit.id && !sameKind.includes(u))
+                        .map((u) => `${slot.kind.label}: ${nameOf(u.id)}`),
+                    )
+                  const full = sameKind.length >= capacity
+                  const note = full
+                    ? `${optionKind?.label ?? 'slot'} taken by ${sameKind.map((u) => nameOf(u.id)).join(', ')}`
+                    : others.length > 0
+                      ? `free · ${others.join(', ')}`
+                      : 'free'
+                  return (
+                    <option key={`${l.association.id}:${id}`} value={id} disabled={full}>
+                      {nameOf(id)} · {note}
+                    </option>
+                  )
+                })
+              })}
+            </select>
+          </label>
+          {unit.attachedTo && (
+            <button
+              className="button button--quiet"
+              onClick={() => {
+                const next: Selection = { ...unit }
                 delete next.attachedTo
                 delete next.associationId
-              }
-              update({ ...roster, selections: replaceSelection(roster.selections, unit.id, next) })
-            }}
-          >
-            <option value="">— not attached —</option>
-            {leading.flatMap((l) =>
-              l.targetIds.map((id) => (
-                <option key={`${l.association.id}:${id}`} value={id}>
-                  {unitById.get(id)?.name ?? id}
-                  {l.association.label && l.association.label !== 'Leader' ? ` (${l.association.label})` : ''}
-                </option>
-              )),
-            )}
-          </select>
-        </label>
+                update({ ...roster, selections: replaceSelection(roster.selections, unit.id, next) })
+              }}
+            >
+              Detach
+            </button>
+          )}
+        </div>
       )}
 
       <div className="units__actions">
@@ -688,7 +753,7 @@ function UnitCard({
           <>
             <button
               className="button button--quiet"
-              aria-label={`Move ${unit.name} up`}
+              aria-label={`Move ${shownName} up`}
               disabled={index === 0}
               onClick={() => update({ ...roster, selections: moveSelection(roster.selections, unit.id, -1) })}
             >
@@ -696,7 +761,7 @@ function UnitCard({
             </button>
             <button
               className="button button--quiet"
-              aria-label={`Move ${unit.name} down`}
+              aria-label={`Move ${shownName} down`}
               disabled={index === total - 1}
               onClick={() => update({ ...roster, selections: moveSelection(roster.selections, unit.id, 1) })}
             >
@@ -715,7 +780,7 @@ function UnitCard({
         <button
           className="button button--quiet button--danger"
           onClick={() => {
-            if (confirm(`Remove ${unit.name} from the list?`)) update(removeUnit(roster, unit.id))
+            if (confirm(`Remove ${shownName} from the list?`)) update(removeUnit(roster, unit.id))
           }}
         >
           Remove
@@ -741,14 +806,19 @@ function UnitPicker({
   validation,
   sheets,
   onPick,
-  onCancel,
+  onDone,
+  counts,
+  total,
   catalogueName,
 }: {
   graph: CatalogueGraph
   validation: Validation
   sheets: Map<string, Datasheet>
   onPick: (entry: ResolvedEntry) => void
-  onCancel: () => void
+  onDone: () => void
+  /** How many of each datasheet the roster already holds, by entry id. */
+  counts: Map<string, number>
+  total: number
   catalogueName: string
 }) {
   const [query, setQuery] = useState('')
@@ -782,10 +852,16 @@ function UnitPicker({
 
   return (
     <section className="rosters picker">
-      <button className="sheet__back tap" onClick={onCancel}>
-        ‹ Back to the list
+      <button className="sheet__back tap" onClick={onDone}>
+        ‹ Done — back to the list
       </button>
-      <h2>Add a unit <span className="muted">— {catalogueName}</span></h2>
+      <h2>
+        Add units <span className="muted">— {catalogueName}</span>
+      </h2>
+      <p className="muted picker__hint">
+        The list stays open, so add as many as you like. {total} unit{total === 1 ? '' : 's'} in the
+        roster.
+      </p>
       <input
         className="sheets__search"
         type="search"
@@ -822,6 +898,7 @@ function UnitPicker({
               {group.items.map(({ entry, sheet }) => {
                 const id = entry.linkId ?? entry.id
                 const expanded = open === id
+                const inList = counts.get(entry.id) ?? 0
                 return (
                   <li key={id} className={`picker__item role-stripe role--${group.key}`}>
                     <div className="picker__row">
@@ -829,6 +906,11 @@ function UnitPicker({
                         <span className="picker__name">
                           {entry.name}
                           {sheet?.variant && <span className="sheets__variant">{sheet.variant}</span>}
+                          {inList > 0 && (
+                            <span className="picker__count" aria-label={`${inList} in the roster`}>
+                              {inList} in list
+                            </span>
+                          )}
                         </span>
                         <span className="muted picker__pts">{pointsLine(sheet, entry)}</span>
                         {sheet && <StatStrip stats={sheet.stats} />}

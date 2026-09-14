@@ -13,6 +13,7 @@ import type { EvaluationResult } from './evaluate'
 import type { CatalogueGraph } from './resolve'
 import type { Roster, ValidationIssue } from './types'
 import { EPIC_HERO_CATEGORY } from './vocabulary'
+import { attachmentKind } from './attachment'
 
 /** Leaving this much unspent is legal but usually a mistake. */
 const UNSPENT_WARNING_THRESHOLD = 50
@@ -86,18 +87,23 @@ export function coreChecks(
       }
     }
 
-    // A Leader that is not attached is legal, but usually an oversight.
+    // A character that can join a unit but has not is legal, but usually an
+    // oversight. Leaders and Support characters attach under different rules,
+    // so the message has to name the right one.
     for (const unit of roster.selections) {
       const entry = graph.resolve(unit.entryId)
-      const canLead = entry?.associations.some((a) => a.action === 'group') ?? false
-      if (canLead && !unit.attachedTo) {
-        issues.push({
-          severity: 'warning',
-          selectionId: unit.id,
-          message: `${unit.name} is a Leader but is not attached to a unit.`,
-          rule: 'Core Rules — Leader',
-        })
-      }
+      if (!entry || unit.attachedTo) continue
+      const kind = attachmentKind(entry)
+      if (!kind) continue
+      issues.push({
+        severity: 'warning',
+        selectionId: unit.id,
+        message:
+          kind.key === 'leader'
+            ? `${unit.name} has the Leader ability but is not attached to a unit.`
+            : `${unit.name} is a ${kind.label} character but is not attached to a unit.`,
+        rule: `Core Rules — ${kind.label}`,
+      })
     }
   }
 

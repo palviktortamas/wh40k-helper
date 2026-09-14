@@ -101,6 +101,17 @@ const validation = {
 describe('game snapshot', () => {
   const units = buildGameUnits(roster, catalogue, validation)
 
+  it('carries the roster’s own names to the table, numbering and all', () => {
+    // Two copies of one datasheet must stay distinguishable at the table —
+    // "Squad #2 is Battle-shocked" has to mean something.
+    const twoSquads: Roster = {
+      ...roster,
+      selections: [squad, { ...squad, id: 'squad-2' }, { ...walker, customName: 'Old Reliable' }],
+    }
+    const names = buildGameUnits(twoSquads, catalogue, validation).map((u) => u.name)
+    expect(names).toEqual(['Squad #1', 'Squad #2', 'Old Reliable'])
+  })
+
   it('splits a unit into its model types with per-model weapons', () => {
     const unit = units[0]!
     expect(unit.models.map((m) => [m.name, m.total, m.wounds])).toEqual([

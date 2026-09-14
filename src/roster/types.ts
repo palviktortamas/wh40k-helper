@@ -22,6 +22,11 @@ export type Selection = {
   /** The group it was chosen from, when it came from one. */
   groupId?: string
   name: string
+  /**
+   * The owner's own name for this unit ("Da Hard Boyz"), overriding the
+   * datasheet name and its automatic numbering. Root selections only.
+   */
+  customName?: string
   type: SelectionType
   /**
    * How many copies, **per copy of the parent**. A model with `count: 9` whose

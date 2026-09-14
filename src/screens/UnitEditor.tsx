@@ -40,6 +40,7 @@ export function UnitEditor({
   graph,
   validation,
   sheet,
+  displayName,
   detachments,
   catalogue,
   role,
@@ -51,6 +52,8 @@ export function UnitEditor({
   graph: CatalogueGraph
   validation: Validation
   sheet: Datasheet | undefined
+  /** What the roster calls this unit — its own name, or the numbered one. */
+  displayName: string
   detachments: Detachment[]
   catalogue: ParsedCatalogue
   role: string | undefined
@@ -84,9 +87,25 @@ export function UnitEditor({
         ‹ Back to the list
       </button>
       <div className="editor__head">
-        <h2>{selection.name}</h2>
+        <h2>{displayName}</h2>
         <span className="role-tag">{role ?? 'Unit'}</span>
       </div>
+      <label className="editor__name">
+        Name
+        <input
+          value={selection.customName ?? ''}
+          placeholder={displayName}
+          aria-label="Name this unit"
+          onChange={(e) => {
+            const next = { ...selection }
+            // An empty field means "call it whatever the datasheet is called",
+            // so the automatic numbering takes over again.
+            if (e.target.value.trim()) next.customName = e.target.value
+            else delete next.customName
+            onChange(next)
+          }}
+        />
+      </label>
       <p className="muted editor__summary">
         {describeLoadout(selection)} · <strong>{validation.unitPoints[selection.id] ?? 0} pts</strong>
       </p>

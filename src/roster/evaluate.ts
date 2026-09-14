@@ -1195,7 +1195,12 @@ function applyModifierGroupTo(
 function describe(constraint: Constraint, node: Node, context: Context): string {
   const costType = context.graph.costTypes.get(constraint.field)
   const what =
-    constraint.field !== 'selections'
+    // An attachment cap counts Leaders or Support characters, not points — and
+    // saying "points" here left the owner with nothing to act on.
+    constraint.field === 'associations'
+      ? (constraint.childName ??
+        (constraint.childId ? (ASSOCIATION_LABELS[constraint.childId] ?? 'attached characters') : 'attached characters'))
+      : constraint.field !== 'selections'
       ? (costType?.name ?? 'points')
       : (constraint.childName ??
         (constraint.childId === undefined
