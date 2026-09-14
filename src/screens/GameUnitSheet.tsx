@@ -18,30 +18,35 @@ const ONCE_PER_BATTLE = /once per battle/i
 function Abilities({
   unit,
   sheet,
-  detachmentName,
+  detachmentNames,
   catalogue,
   dispatch,
 }: {
   unit: GameUnit
   sheet: Datasheet
-  detachmentName: string | undefined
+  detachmentNames: readonly string[]
   catalogue: ParsedCatalogue | undefined
   dispatch: (action: GameAction) => void
 }) {
   const keywords = [...sheet.keywords, ...sheet.factionKeywords]
-  const detachment = detachmentName ? catalogue?.detachments.find((d) => d.name === detachmentName) : undefined
-  // Rules the detachment grants to units it names — the datasheet does not carry them itself.
-  const granted = (detachment?.rules ?? []).filter((r) => ruleAppliesTo(r.text, keywords) !== false)
+  // Rules a detachment grants to units it names — the datasheet does not carry
+  // them itself, and every detachment the army took may name this one.
+  const granted = detachmentNames.flatMap((name) => {
+    const detachment = catalogue?.detachments.find((d) => d.name === name)
+    return (detachment?.rules ?? [])
+      .filter((r) => ruleAppliesTo(r.text, keywords) !== false)
+      .map((rule) => ({ rule, detachmentName: name }))
+  })
   const enhancementText = new Map((catalogue?.enhancements ?? []).map((e) => [e.id, e.text]))
 
   if (sheet.abilities.length === 0 && granted.length === 0 && (unit.enhancements?.length ?? 0) === 0) return null
   return (
     <ul className="abilities">
-      {granted.map((rule) => (
+      {granted.map(({ rule, detachmentName }) => (
         <li key={rule.id} className="abilities__item">
           <div className="abilities__head">
             {rule.name}
-            <span className="rule-chip rule-chip--detachment">{detachment!.name}</span>
+            <span className="rule-chip rule-chip--detachment">{detachmentName}</span>
           </div>
           <p className="abilities__text">
             <Marked text={rule.text} />
@@ -197,7 +202,7 @@ export function GameUnitSheet({
       {sheet && (
         <>
           <h3>Abilities</h3>
-          <Abilities unit={unit} sheet={sheet} detachmentName={game.detachmentName} catalogue={catalogue} dispatch={dispatch} />
+          <Abilities unit={unit} sheet={sheet} detachmentNames={game.detachmentNames} catalogue={catalogue} dispatch={dispatch} />
         </>
       )}
 
@@ -257,7 +262,7 @@ export function GameUnitSheet({
               rows={leaderWeapons.rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)}
             />
             {leaderSheet && (
-              <Abilities unit={leader} sheet={leaderSheet} detachmentName={game.detachmentName} catalogue={catalogue} dispatch={dispatch} />
+              <Abilities unit={leader} sheet={leaderSheet} detachmentNames={game.detachmentNames} catalogue={catalogue} dispatch={dispatch} />
             )}
           </section>
         )

@@ -51,10 +51,13 @@ export function coreChecks(
       })
     }
 
-    if (!evaluation.detachment) {
+    // How many detachments an army may take is the Detachment Points budget's
+    // business, and the data enforces that; all this layer insists on is that
+    // an army has one at all.
+    if (evaluation.detachments.length === 0) {
       issues.push({
         severity: 'error',
-        message: 'No detachment chosen. An army must have exactly one detachment.',
+        message: 'No detachment chosen. An army must have at least one detachment.',
         rule: 'Core Rules — Muster Armies: detachment',
       })
     }

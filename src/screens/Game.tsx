@@ -102,7 +102,7 @@ export function Game() {
           unit={unit}
           sheets={sheets}
           catalogue={catalogue?.parsed}
-          stratagems={stratagemSet ? forDetachment(stratagemSet.stratagems, game.detachmentName) : []}
+          stratagems={stratagemSet ? forDetachment(stratagemSet.stratagems, game.detachmentNames) : []}
           dispatch={dispatch}
           onBack={() => setOpenUnit(null)}
         />
@@ -151,7 +151,7 @@ export function Game() {
           </h2>
           <p className="muted game__meta">
             {game.factionName}
-            {game.detachmentName ? ` · ${game.detachmentName}` : ''}
+            {game.detachmentNames.length > 0 ? ` · ${game.detachmentNames.join(' + ')}` : ''}
             {game.startedIllegal ? ' · started with validation errors' : ''}
           </p>
         </div>

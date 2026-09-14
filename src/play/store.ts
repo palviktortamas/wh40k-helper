@@ -32,7 +32,7 @@ export function newGame(
     rosterName: roster.name,
     catalogueId: catalogue.id,
     factionName: catalogue.name,
-    ...(validation.detachment ? { detachmentName: validation.detachment.name } : {}),
+    detachmentNames: validation.detachments.map((d) => d.name),
     pointsLimit: roster.pointsLimit,
     opponentName: options.opponentName.trim() || 'Opponent',
     opponentFaction: options.opponentFaction.trim(),

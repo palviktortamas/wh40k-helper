@@ -203,7 +203,7 @@ function RosterCard({
   const validation = catalogue
     ? validate(normaliseRoster(roster, graphFor(catalogue)), graphFor(catalogue))
     : undefined
-  const detachment = validation?.detachment?.name
+  const detachment = validation?.detachments.map((d) => d.name).join(' + ')
 
   return (
     <li className="rosters__card">

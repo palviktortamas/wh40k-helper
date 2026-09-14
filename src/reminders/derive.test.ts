@@ -22,6 +22,13 @@ const catalogue: ParsedCatalogue = {
       rules: [{ id: 'det-1', name: 'Loudness', kind: 'detachment', text: 'Each time a unit is selected to charge, add 1 to the roll.' }],
       sources: ['bsdata'],
     },
+    {
+      name: 'Quiet Detachment',
+      forceDispositions: [],
+      enhancements: [],
+      rules: [{ id: 'det-2', name: 'Quietness', kind: 'detachment', text: 'In your Shooting phase, this unit may not be seen.' }],
+      sources: ['bsdata'],
+    },
   ],
   datasheets: [
     {
@@ -51,7 +58,7 @@ const game = (over: Partial<Game> = {}): Game => ({
   rosterName: 'Test',
   catalogueId: 'cat',
   factionName: 'Faction',
-  detachmentName: 'Loud Detachment',
+  detachmentNames: ['Loud Detachment'],
   pointsLimit: 1000,
   opponentName: 'Opp',
   opponentFaction: '',
@@ -89,6 +96,19 @@ describe('reminders for a game', () => {
     // The destroyed copy raises nothing; the second living copy does.
     expect(list.filter((r) => r.unitId === 'u3')).toHaveLength(0)
     expect(list.filter((r) => r.unitId === 'u2')).toHaveLength(2)
+  })
+
+  it('lists the rules of every detachment the army took', () => {
+    const list = remindersForGame(game({ detachmentNames: ['Loud Detachment', 'Quiet Detachment'] }), catalogue, new Map())
+    const detachment = list.filter((r) => r.owner === 'detachment')
+
+    expect(detachment.map((r) => r.id)).toEqual(['det-1', 'det-2'])
+    expect(detachment.map((r) => r.sourceName)).toEqual(['Loudness', 'Quietness'])
+  })
+
+  it('raises no detachment reminders for an army that took none', () => {
+    const list = remindersForGame(game({ detachmentNames: [] }), catalogue, new Map())
+    expect(list.filter((r) => r.owner === 'detachment')).toEqual([])
   })
 
   it('applies overrides by rule id to every copy', () => {
@@ -129,7 +149,13 @@ describe('reminders for a game', () => {
 
   it('lists a whole catalogue for the settings screen, grouped', () => {
     const groups = remindersForCatalogue(catalogue, new Map())
-    expect(groups.map((g) => g.group)).toEqual(['Army rules', 'Detachment: Loud Detachment', 'Enhancements', 'Grunts'])
-    expect(groups[3]!.reminders.map((r) => r.id)).toEqual(['ab-1', 'ab-2'])
+    expect(groups.map((g) => g.group)).toEqual([
+      'Army rules',
+      'Detachment: Loud Detachment',
+      'Detachment: Quiet Detachment',
+      'Enhancements',
+      'Grunts',
+    ])
+    expect(groups[4]!.reminders.map((r) => r.id)).toEqual(['ab-1', 'ab-2'])
   })
 })

@@ -99,8 +99,18 @@ export type EvaluationResult = {
   pointsLimitChecked: boolean
   /** Whether the data itself requires a Warlord, so layer 2 need not repeat it. */
   warlordChecked: boolean
-  /** The chosen detachment, read from the configuration selections. */
-  detachment?: { selectionId: string; entryId: string; name: string; dp: number }
+  /**
+   * The chosen detachments, in the order they were taken, read from the
+   * configuration selections. An 11e army takes as many as its Detachment
+   * Points budget allows (spec §5.3).
+   */
+  detachments: { selectionId: string; entryId: string; name: string; dp: number }[]
+  /**
+   * The Detachment Points the army may spend, from the game system's own `max`
+   * constraint after modifiers — so it follows the battle size without this
+   * code knowing any edition's numbers. Undefined when the data sets no cap.
+   */
+  detachmentPointsLimit?: number
   /** The root selection holding the Warlord upgrade, if any. */
   warlordSelectionId?: string
   /** Root selections whose entry carries the Character category. */
@@ -216,7 +226,13 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
     points += unit
   }
 
-  const detachmentNode = context.all.find((n) => (n.costs[COST_TYPE.detachmentPoints] ?? 0) > 0)
+  const detachmentNodes = context.all.filter((n) => (n.costs[COST_TYPE.detachmentPoints] ?? 0) > 0)
+  // The budget lives on the force entry as a `max` on the cost type; modifiers
+  // have already raised or lowered it for the battle size chosen.
+  const detachmentPointsLimit = virtuals
+    .flatMap((n) => [...n.constraints.values()])
+    .filter((c) => c.field === COST_TYPE.detachmentPoints && c.type === 'max' && c.value >= 0)
+    .reduce<number | undefined>((min, c) => (min === undefined ? c.value : Math.min(min, c.value)), undefined)
   const warlordCategory = categoryByName.get(WARLORD_CATEGORY)
   const warlordChecked = virtuals.some(
     (n) =>
@@ -236,16 +252,13 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
     enhancements,
     pointsLimitChecked,
     warlordChecked,
-    ...(detachmentNode
-      ? {
-          detachment: {
-            selectionId: detachmentNode.selection.id,
-            entryId: detachmentNode.entry.id,
-            name: detachmentNode.selection.name,
-            dp: detachmentNode.costs[COST_TYPE.detachmentPoints] ?? 0,
-          },
-        }
-      : {}),
+    detachments: detachmentNodes.map((node) => ({
+      selectionId: node.selection.id,
+      entryId: node.entry.id,
+      name: node.selection.name,
+      dp: node.costs[COST_TYPE.detachmentPoints] ?? 0,
+    })),
+    ...(detachmentPointsLimit === undefined ? {} : { detachmentPointsLimit }),
     ...(warlordNode ? { warlordSelectionId: rootOf(warlordNode).selection.id } : {}),
     characterSelectionIds: characterCategory
       ? roots.filter((r) => r.categoryIds.has(characterCategory)).map((r) => r.selection.id)

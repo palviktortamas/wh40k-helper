@@ -31,6 +31,7 @@ const game = (): Game => ({
   rosterName: 'Test',
   catalogueId: 'c',
   factionName: 'Faction',
+  detachmentNames: [],
   pointsLimit: 2000,
   opponentName: 'Opp',
   opponentFaction: '',

@@ -27,7 +27,7 @@ export function GameReminders({
   onToggleEnabled: () => void
   dispatch: (action: GameAction) => void
 }) {
-  const all = useMemo(() => remindersForGame(game, catalogue, overrides), [game.units, game.detachmentName, catalogue, overrides])
+  const all = useMemo(() => remindersForGame(game, catalogue, overrides), [game.units, game.detachmentNames, catalogue, overrides])
   const now = all.filter((r) => showsNow(r, game))
   const groups = new Map<string, Reminder[]>()
   for (const r of now) {

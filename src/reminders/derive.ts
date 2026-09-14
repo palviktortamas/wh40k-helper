@@ -59,12 +59,15 @@ export function remindersForGame(game: Game, catalogue: ParsedCatalogue, overrid
     }
   }
 
-  const detachment = game.detachmentName
-    ? catalogue.detachments.find((d) => d.name === game.detachmentName)
-    : undefined
-  const detachmentReminders = (detachment?.rules ?? []).map((r) =>
-    fromAbility(r, 'detachment', overrides, { ownerName: detachment!.name }),
-  )
+  // Every detachment the army took brings its own rules (11e modular
+  // detachments); each reminder keeps the name of the one it came from, so the
+  // table can tell them apart.
+  const detachmentReminders = game.detachmentNames.flatMap((name) => {
+    const detachment = catalogue.detachments.find((d) => d.name === name)
+    return (detachment?.rules ?? []).map((r) =>
+      fromAbility(r, 'detachment', overrides, { ownerName: detachment!.name }),
+    )
+  })
 
   return [...army.values(), ...detachmentReminders, ...units]
 }

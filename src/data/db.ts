@@ -6,6 +6,7 @@ import type { Game } from '@/play/types'
 import type { MissionDeck } from '@/missions/types'
 import type { ReminderOverride } from '@/reminders/types'
 import type { StratagemSet } from '@/stratagems/types'
+import { migrateGameToManyDetachments } from '@/play/migrate'
 
 /**
  * All app state lives in IndexedDB — localStorage is never used for primary
@@ -172,6 +173,26 @@ db.version(8).stores({
   reminderOverrides: 'id',
   stratagems: 'id',
 })
+
+/** v9: an army may hold several detachments (11e Detachment Points budget). */
+db.version(9)
+  .stores({
+    settings: 'key',
+    catalogues: 'id, name',
+    health: 'catalogueId',
+    overrides: 'key',
+    rosters: 'id, catalogueId, updatedAt',
+    games: 'id, rosterId, status, updatedAt',
+    missions: 'id',
+    reminderOverrides: 'id',
+    stratagems: 'id',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('games')
+      .toCollection()
+      .modify((game: Record<string, unknown>) => migrateGameToManyDetachments(game)),
+  )
 
 export { db }
 

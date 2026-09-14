@@ -55,8 +55,8 @@ describe('selecting stratagems for a game', () => {
   const list = parseStratagems(CSV)
 
   it('joins by detachment name, case- and punctuation-insensitively, plus the Core set', () => {
-    expect(forDetachment(list, 'TEST HORDE').map((s) => s.name)).toEqual(['RE-ROLL', 'BIG PUSH'])
-    expect(forDetachment(list, undefined).map((s) => s.name)).toEqual(['RE-ROLL'])
+    expect(forDetachment(list, ['TEST HORDE']).map((s) => s.name)).toEqual(['RE-ROLL', 'BIG PUSH'])
+    expect(forDetachment(list, []).map((s) => s.name)).toEqual(['RE-ROLL'])
   })
 
   it('knows which phase and turn a stratagem is for', () => {

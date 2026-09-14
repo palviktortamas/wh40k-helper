@@ -225,7 +225,8 @@ export type Game = GameState & {
   rosterName: string
   catalogueId: string
   factionName: string
-  detachmentName?: string
+  /** Every detachment the army took; an 11e army may hold several. */
+  detachmentNames: string[]
   pointsLimit: number
   opponentName: string
   opponentFaction: string

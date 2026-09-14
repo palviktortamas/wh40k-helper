@@ -52,8 +52,14 @@ export function exportRosterText(
   const lines: string[] = []
   lines.push(roster.name)
   lines.push(`${catalogueName} — ${validation.points}/${roster.pointsLimit} pts`)
-  if (validation.detachment) {
-    lines.push(`Detachment: ${validation.detachment.name} (${validation.detachment.dp} DP)`)
+  if (validation.detachments.length > 0) {
+    const label = validation.detachments.length > 1 ? 'Detachments' : 'Detachment'
+    const each = validation.detachments.map((d) => `${d.name} (${d.dp} DP)`).join(', ')
+    const budget =
+      validation.detachmentPointsLimit === undefined
+        ? `${validation.detachmentPoints} DP`
+        : `${validation.detachmentPoints}/${validation.detachmentPointsLimit} DP`
+    lines.push(`${label}: ${each} — ${budget}`)
   }
   lines.push('')
 

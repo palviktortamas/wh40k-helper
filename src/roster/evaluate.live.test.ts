@@ -15,7 +15,15 @@ import {
 } from './resolve'
 import { analyseRoster, evaluateRoster } from './evaluate'
 import { instantiate } from './defaults'
-import { availableDetachmentOptions, detachmentOptions, normaliseRoster, validate, withDetachment, withWarlord } from './store'
+import {
+  availableDetachmentOptions,
+  detachmentOptions,
+  normaliseRoster,
+  validate,
+  withDetachment,
+  withDetachmentToggled,
+  withWarlord,
+} from './store'
 import type { Roster, Selection } from './types'
 import { COST_TYPE } from '@/data/bsdata/schema'
 import {
@@ -172,7 +180,7 @@ describe.skipIf(!available)('review fixes on real data', () => {
       const r = configured(graph, [])
       expect(r.configuration.length).toBeGreaterThan(1)
       const analysis = analyseRoster(r, graph)
-      expect(analysis.detachment).toBeDefined()
+      expect(analysis.detachments).toHaveLength(1)
       expect(analysis.detachmentPoints).toBeGreaterThan(0)
       // The force's own points limit is now live, so layer 2 stands down.
       expect(analysis.pointsLimitChecked).toBe(true)
@@ -316,7 +324,70 @@ describe.skipIf(!available)('review fixes on real data', () => {
       expect(flagged.issues.some((i) => i.rule.includes('not offered'))).toBe(true)
     })
 
-    it('nominates the Warlord through the data’s own upgrade', () => {
+    it('lets an army hold several detachments up to the Detachment Points budget', () => {
+    const graph = loadGraph()
+    const base = normaliseRoster(roster([], 2000), graph)
+    const budget = evaluateRoster(base, graph).detachmentPointsLimit
+    // The game system sets the budget from the battle size; 2000 pts must give
+    // room for more than the cheapest single detachment, or there is nothing to
+    // test and the data has changed shape.
+    expect(budget).toBeGreaterThan(1)
+
+    const affordable = availableDetachmentOptions(base, graph, analyseRoster(base, graph))
+      .map((o) => ({ id: o.entry.id, cost: o.entry.costs[COST_TYPE.detachmentPoints] ?? 0 }))
+      .filter((o) => o.cost > 0)
+      .sort((a, b) => a.cost - b.cost)
+
+    // Take cheapest-first until the budget is full.
+    const taken: string[] = []
+    let spent = 0
+    for (const option of affordable) {
+      if (spent + option.cost > budget!) continue
+      taken.push(option.id)
+      spent += option.cost
+    }
+    expect(taken.length).toBeGreaterThan(1)
+
+    const full = taken.reduce((r, id) => withDetachmentToggled(r, graph, id, true), base)
+    const result = evaluateRoster(full, graph)
+    expect(result.detachments).toHaveLength(taken.length)
+    expect(result.detachmentPoints).toBe(spent)
+    expect(result.issues.some((i) => /detachment points/i.test(i.message))).toBe(false)
+  })
+
+  it('refuses a detachment the Detachment Points budget cannot pay for', () => {
+    const graph = loadGraph()
+    const base = normaliseRoster(roster([], 2000), graph)
+    const budget = evaluateRoster(base, graph).detachmentPointsLimit!
+
+    const affordable = availableDetachmentOptions(base, graph, analyseRoster(base, graph))
+      .map((o) => ({ id: o.entry.id, cost: o.entry.costs[COST_TYPE.detachmentPoints] ?? 0 }))
+      .filter((o) => o.cost > 0)
+      .sort((a, b) => a.cost - b.cost)
+
+    // One more than the budget can hold, taken cheapest-first.
+    const taken: string[] = []
+    let spent = 0
+    for (const option of affordable) {
+      taken.push(option.id)
+      spent += option.cost
+      if (spent > budget) break
+    }
+    expect(spent).toBeGreaterThan(budget)
+
+    const over = taken.reduce((r, id) => withDetachmentToggled(r, graph, id, true), base)
+    const result = evaluateRoster(over, graph)
+    expect(result.detachmentPoints).toBe(spent)
+    // The message must name the budget, not merely be some error: that is what
+    // tells the owner what to drop.
+    const overspend = result.issues.filter(
+      (i) => i.severity === 'error' && /detachment points/i.test(i.message),
+    )
+    expect(overspend).toHaveLength(1)
+    expect(overspend[0]!.message).toContain(String(budget))
+  })
+
+  it('nominates the Warlord through the data’s own upgrade', () => {
       const graph = loadGraph()
       const character = graph.rootEntryIds
         .map((id) => graph.resolve(id)!)

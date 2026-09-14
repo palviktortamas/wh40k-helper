@@ -31,7 +31,7 @@ import './Units.css'
  * data's own "you may only take X if Y" gates decide which options are offered.
  *
  * Next to the options sits the datasheet as it is being built: stats, the
- * weapons the chosen models carry, abilities, and the chosen detachment's rules
+ * weapons the chosen models carry, abilities, and the chosen detachments' rules
  * that name this unit — so a list is built from the unit's actual profile,
  * not from memory.
  */
@@ -40,7 +40,7 @@ export function UnitEditor({
   graph,
   validation,
   sheet,
-  detachment,
+  detachments,
   catalogue,
   role,
   onBack,
@@ -51,7 +51,7 @@ export function UnitEditor({
   graph: CatalogueGraph
   validation: Validation
   sheet: Datasheet | undefined
-  detachment: Detachment | undefined
+  detachments: Detachment[]
   catalogue: ParsedCatalogue
   role: string | undefined
   onBack: () => void
@@ -118,7 +118,7 @@ export function UnitEditor({
         {sheet && (
           <aside className="editor__sheet">
             <h3 className="editor__colHead">Datasheet</h3>
-            <BuiltSheet selection={selection} sheet={sheet} detachment={detachment} catalogue={catalogue} />
+            <BuiltSheet selection={selection} sheet={sheet} detachments={detachments} catalogue={catalogue} />
           </aside>
         )}
       </div>
@@ -130,17 +130,22 @@ export function UnitEditor({
 function BuiltSheet({
   selection,
   sheet,
-  detachment,
+  detachments,
   catalogue,
 }: {
   selection: Selection
   sheet: Datasheet
-  detachment: Detachment | undefined
+  detachments: Detachment[]
   catalogue: ParsedCatalogue
 }) {
   const { rows, unmatched } = weaponCounts({ models: modelGroups(selection, sheet) }, sheet)
   const keywords = [...sheet.keywords, ...sheet.factionKeywords]
-  const detachmentRules = (detachment?.rules ?? []).filter((r) => ruleAppliesTo(r.text, keywords) !== false)
+  // Every detachment the army took can speak about this unit, so each is asked.
+  const detachmentRules = detachments.flatMap((d) =>
+    (d.rules ?? [])
+      .filter((r) => ruleAppliesTo(r.text, keywords) !== false)
+      .map((rule) => ({ rule, detachmentName: d.name })),
+  )
   const enhancementIds = new Set((catalogue.enhancements ?? []).map((e) => e.id))
   const taken = enhancementsTaken(selection, enhancementIds)
   const enhancementText = new Map((catalogue.enhancements ?? []).map((e) => [e.name, e.text]))
@@ -159,11 +164,11 @@ function BuiltSheet({
 
       {(sheet.abilities.length > 0 || detachmentRules.length > 0 || taken.length > 0) && <h3>Abilities</h3>}
       <ul className="abilities">
-        {detachmentRules.map((rule) => (
+        {detachmentRules.map(({ rule, detachmentName }) => (
           <li key={rule.id} className="abilities__item">
             <div className="abilities__head">
               {rule.name}
-              <span className="rule-chip rule-chip--detachment">{detachment!.name}</span>
+              <span className="rule-chip rule-chip--detachment">{detachmentName}</span>
             </div>
             <p className="abilities__text">
               <Marked text={rule.text} />

@@ -231,23 +231,44 @@ export function availableDetachmentOptions(
   })
 }
 
-/** Replaces the chosen detachment (or clears it when `entryId` is undefined). */
-export function withDetachment(roster: Roster, graph: CatalogueGraph, entryId: string | undefined): Roster {
-  const options = detachmentOptions(graph)
-  const optionIds = new Set(options.map((o) => o.entry.id))
-  const picked = entryId ? options.find((o) => o.entry.id === entryId) : undefined
+/**
+ * Adds or removes one detachment, leaving the others alone. An 11e army takes
+ * as many as its Detachment Points budget allows, so this never replaces — the
+ * budget is the evaluator's business, not this function's.
+ */
+export function withDetachmentToggled(
+  roster: Roster,
+  graph: CatalogueGraph,
+  entryId: string,
+  on: boolean,
+): Roster {
+  const picked = detachmentOptions(graph).find((o) => o.entry.id === entryId)
+  if (!picked) return roster
   let changed = false
   const configuration = roster.configuration.map((config) => {
-    const kept = config.selections.filter((s) => !optionIds.has(s.entryId))
-    const add = picked && picked.configEntryId === config.entryId
-    if (kept.length === config.selections.length && !add) return config
+    if (config.entryId !== picked.configEntryId) return config
+    const present = config.selections.some((s) => s.entryId === entryId)
+    if (present === on) return config
     changed = true
     return {
       ...config,
-      selections: add ? [...kept, bareSelection(picked.entry, 1, picked.groupId)] : kept,
+      selections: on
+        ? [...config.selections, bareSelection(picked.entry, 1, picked.groupId)]
+        : config.selections.filter((s) => s.entryId !== entryId),
     }
   })
   return changed ? { ...roster, configuration } : roster
+}
+
+/** Replaces every chosen detachment with one (or clears them all). */
+export function withDetachment(roster: Roster, graph: CatalogueGraph, entryId: string | undefined): Roster {
+  const optionIds = new Set(detachmentOptions(graph).map((o) => o.entry.id))
+  const cleared = roster.configuration.map((config) => {
+    const kept = config.selections.filter((s) => !optionIds.has(s.entryId))
+    return kept.length === config.selections.length ? config : { ...config, selections: kept }
+  })
+  const bare = { ...roster, configuration: cleared }
+  return entryId ? withDetachmentToggled(bare, graph, entryId, true) : bare
 }
 
 /** Nominates the unit with instance id `rootId` as Warlord, using the data's own upgrade. */

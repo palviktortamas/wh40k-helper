@@ -17,7 +17,7 @@ import {
   saveRoster,
   validate,
   withBattleSize,
-  withDetachment,
+  withDetachmentToggled,
   withToggle,
   withWarlord,
   type Validation,
@@ -96,9 +96,14 @@ export function RosterEditor() {
 
   const detachments = availableDetachmentOptions(roster, graph, validation)
   const detachmentConfigIds = new Set(detachments.map((d) => d.configEntryId))
-  const detachment: Detachment | undefined = validation.detachment
-    ? catalogue.parsed.detachments.find((d) => d.name === validation.detachment!.name)
-    : undefined
+  const chosenEntryIds = new Set(validation.detachments.map((d) => d.entryId))
+  /** The parsed records behind the chosen entries, for their rules and dispositions. */
+  const chosen: Detachment[] = validation.detachments.flatMap(
+    (d) => catalogue.parsed.detachments.find((p) => p.name === d.name) ?? [],
+  )
+  const dpLimit = validation.detachmentPointsLimit
+  const dpLeft = dpLimit === undefined ? undefined : dpLimit - validation.detachmentPoints
+  const dispositions = [...new Set(chosen.flatMap((d) => d.forceDispositions))]
 
   const addUnit = (entry: ResolvedEntry) => {
     update({ ...roster, selections: [...roster.selections, instantiate(entry)] })
@@ -133,7 +138,7 @@ export function RosterEditor() {
         graph={graph}
         validation={validation}
         sheet={sheets.get(editingSelection.entryId)}
-        detachment={detachment}
+        detachments={chosen}
         catalogue={catalogue.parsed}
         role={roleOf(graph, editingSelection.entryId)}
         onBack={() => setEditing(null)}
@@ -243,10 +248,8 @@ export function RosterEditor() {
         </div>
         <p className="summary__detachment muted">
           {catalogue.name}
-          {detachment ? ` · ${detachment.name}` : ' · no detachment chosen'}
-          {detachment && detachment.forceDispositions.length > 0
-            ? ` · ${detachment.forceDispositions.join(' / ')}`
-            : ''}
+          {chosen.length > 0 ? ` · ${chosen.map((d) => d.name).join(' + ')}` : ' · no detachment chosen'}
+          {dispositions.length > 0 ? ` · ${dispositions.join(' / ')}` : ''}
         </p>
         {groups.length > 1 && (
           <nav className="summary__jump" aria-label="Jump to a unit group">
@@ -276,45 +279,72 @@ export function RosterEditor() {
             ))}
           </select>
         </label>
-        <label className="rosters__grow">
-          Detachment
-          <select
-            value={validation.detachment?.entryId ?? ''}
-            onChange={(e) => update(withDetachment(roster, graph, e.target.value || undefined))}
-          >
-            <option value="">— none —</option>
-            {detachments.map((d) => (
-              <option key={d.entry.linkId ?? d.entry.id} value={d.entry.id}>
-                {d.entry.name} ({d.entry.costs[COST_TYPE.detachmentPoints]} DP)
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
-      {detachment && (detachment.rules?.length ?? 0) > 0 && (
-        <details className="config detachment">
-          <summary>
-            Detachment rule{detachment.rules!.length === 1 ? '' : 's'} — {detachment.name}
-          </summary>
-          <ul className="abilities">
-            {detachment.rules!.map((rule) => (
-              <li key={rule.id} className="abilities__item">
-                <div className="abilities__head">
-                  {rule.name}
-                  <span className="rule-chip rule-chip--detachment">{detachment.name}</span>
-                </div>
-                <p className="abilities__text">
-                  <Marked text={rule.text} />
-                </p>
+      <div className="detachments">
+        <div className="detachments__head">
+          <h2 className="detachments__title">Detachments</h2>
+          <span className={`detachments__budget ${dpLeft !== undefined && dpLeft < 0 ? 'detachments__budget--over' : ''}`}>
+            {validation.detachmentPoints}
+            {dpLimit === undefined ? '' : ` / ${dpLimit}`} DP
+          </span>
+        </div>
+        <ul className="detachments__list">
+          {detachments.map((option) => {
+            const cost = option.entry.costs[COST_TYPE.detachmentPoints] ?? 0
+            const on = chosenEntryIds.has(option.entry.id)
+            // Over budget is not an error to discover after the fact: an option
+            // that cannot be afforded is shown, disabled, with the reason.
+            const unaffordable = !on && dpLeft !== undefined && cost > dpLeft
+            return (
+              <li key={option.entry.linkId ?? option.entry.id}>
+                <label className={`toggle ${unaffordable ? 'toggle--blocked' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    disabled={unaffordable}
+                    onChange={(e) =>
+                      update(withDetachmentToggled(roster, graph, option.entry.id, e.target.checked))
+                    }
+                  />
+                  <span className="toggle__name">{option.entry.name}</span>
+                  <span className="muted detachments__cost">{cost} DP</span>
+                  {unaffordable && <span className="muted detachments__blocked">over budget</span>}
+                </label>
               </li>
-            ))}
-          </ul>
-          <p className="muted detachment__hint">
-            Units this rule names show it on their datasheet in the editor and at the table.
-          </p>
-        </details>
-      )}
+            )
+          })}
+        </ul>
+        {detachments.length === 0 && (
+          <p className="muted">This catalogue offers no detachments the army can take.</p>
+        )}
+      </div>
+
+      {chosen
+        .filter((d) => (d.rules?.length ?? 0) > 0)
+        .map((d) => (
+          <details className="config detachment" key={d.name}>
+            <summary>
+              Detachment rule{d.rules!.length === 1 ? '' : 's'} — {d.name}
+            </summary>
+            <ul className="abilities">
+              {d.rules!.map((rule) => (
+                <li key={rule.id} className="abilities__item">
+                  <div className="abilities__head">
+                    {rule.name}
+                    <span className="rule-chip rule-chip--detachment">{d.name}</span>
+                  </div>
+                  <p className="abilities__text">
+                    <Marked text={rule.text} />
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p className="muted detachment__hint">
+              Units this rule names show it on their datasheet in the editor and at the table.
+            </p>
+          </details>
+        ))}
 
       <details className="config">
         <summary>Army configuration</summary>

@@ -118,7 +118,10 @@ export function Play() {
           {chosen && (
             <p className="muted">
               {chosen.catalogue.name}
-              {chosen.validation.detachment ? ` · ${chosen.validation.detachment.name}` : ''} ·{' '}
+              {chosen.validation.detachments.length > 0
+                ? ` · ${chosen.validation.detachments.map((d) => d.name).join(' + ')}`
+                : ''}{' '}
+              ·{' '}
               {chosen.validation.points} pts ·{' '}
               <span className={`badge ${chosen.validation.legal ? 'badge--ok' : 'badge--error'}`}>
                 {chosen.validation.legal

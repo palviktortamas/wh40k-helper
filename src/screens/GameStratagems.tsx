@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { GameAction } from '@/play/actions'
 import { PHASE_LABELS, type Game } from '@/play/types'
 import { appliesNow, forDetachment, stratagemUseKey } from '@/stratagems/select'
+import { normaliseName } from '@/data/link/merge'
 import type { Stratagem, StratagemSet } from '@/stratagems/types'
 import { Marked } from './Marked'
 import './Stratagems.css'
@@ -10,7 +11,7 @@ import './Units.css'
 
 /**
  * The stratagems a player can use right now (spec §6.3): the Core set plus the
- * chosen detachment's, filtered to the current phase and whose turn it is.
+ * chosen detachments', filtered to the current phase and whose turn it is.
  * "Use" spends the CP and marks the stratagem used for this phase — each may
  * be used once per phase (11e Core Rules) — and can be tapped again to take
  * it back. Glanceable: the WHEN line is always visible, the rest one tap away.
@@ -26,7 +27,10 @@ export function GameStratagems({
 }) {
   const [showAll, setShowAll] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
-  const list = useMemo(() => (set ? forDetachment(set.stratagems, game.detachmentName) : []), [set, game.detachmentName])
+  const list = useMemo(
+    () => (set ? forDetachment(set.stratagems, game.detachmentNames) : []),
+    [set, game.detachmentNames],
+  )
 
   const title = `${game.turn === 'me' ? PHASE_LABELS[game.phase] : `Opponent's ${PHASE_LABELS[game.phase]}`} phase`
 
@@ -125,12 +129,18 @@ export function GameStratagems({
         <p className="muted strats__empty">No stratagem is timed for this phase.</p>
       ) : (
         <>
-          {detachmentOnes.length > 0 && (
-            <>
-              <strong className="reminders__owner">{game.detachmentName ?? 'Detachment'}</strong>
-              <ul className="strats">{detachmentOnes.map(row)}</ul>
-            </>
-          )}
+          {game.detachmentNames.map((name) => {
+            // One heading per detachment: with several taken, "which of mine is
+            // this?" has to be answerable at a glance at the table.
+            const mine = detachmentOnes.filter((s) => normaliseName(s.detachment) === normaliseName(name))
+            if (mine.length === 0) return null
+            return (
+              <Fragment key={name}>
+                <strong className="reminders__owner">{name}</strong>
+                <ul className="strats">{mine.map(row)}</ul>
+              </Fragment>
+            )
+          })}
           {coreOnes.length > 0 && (
             <>
               <strong className="reminders__owner">Core</strong>
@@ -139,7 +149,7 @@ export function GameStratagems({
           )}
         </>
       )}
-      {!game.detachmentName && (
+      {game.detachmentNames.length === 0 && (
         <p className="muted strats__empty">This game has no detachment, so only the Core Stratagems are listed.</p>
       )}
       <p className="muted strats__rules">
