@@ -209,10 +209,21 @@ export function rulesAboutMark(
   }
 
   const own = (catalogue.datasheets.find((d) => d.id === datasheetId)?.abilities ?? []).filter(speaksAbout)
-  const detachments = detachmentNames
+  const taken = detachmentNames
     ? catalogue.detachments.filter((d) => detachmentNames.includes(d.name))
     : catalogue.detachments
-  const shared = [...(catalogue.rules ?? []), ...detachments.flatMap((d) => d.rules ?? [])].filter(
+  // `catalogue.rules` is every rule the catalogue holds, the detachments' own
+  // among them — so filtering the detachment list is not enough on its own:
+  // a rule from a detachment the army never took walks back in through there.
+  // Rules that belong to no detachment are the army's, and stay.
+  const takenRuleIds = new Set(taken.flatMap((d) => (d.rules ?? []).map((r) => r.id)))
+  const detachmentRuleIds = new Set(
+    catalogue.detachments.flatMap((d) => (d.rules ?? []).map((r) => r.id)),
+  )
+  const armyWide = (catalogue.rules ?? []).filter(
+    (rule) => !detachmentRuleIds.has(rule.id) || takenRuleIds.has(rule.id),
+  )
+  const shared = [...armyWide, ...taken.flatMap((d) => d.rules ?? [])].filter(
     (rule) => speaksAbout(rule) && ruleAppliesTo(rule.text, keywords) !== false,
   )
 

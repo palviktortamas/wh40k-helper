@@ -905,6 +905,12 @@ player. Shown only when a unit has more than one model group; a single-model she
 - `rulesAboutMark` considered **every** detachment in the codex, so a unit's state showed effects
   from detachments the army never took (and, once grants existed, weapon abilities it does not
   have). It now takes the army's detachment names.
+  **Half a fix, as the owner found the same evening:** a parsed catalogue's `rules` array is
+  *every* rule the catalogue holds — the detachments' own among them — so filtering the detachment
+  list let them straight back in through there. Riling up a unit showed Shoota Boyz' "Dakka!
+  Dakka! Dakka!" to a War Horde army. Now a rule that belongs to a detachment counts only when
+  that detachment was taken; rules belonging to no detachment are the army's and stay. If anything
+  else ever reads `catalogue.rules` as "the army's rules", it needs the same treatment.
 
 ### Walked on the real catalogue
 

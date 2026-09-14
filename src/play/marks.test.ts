@@ -232,6 +232,27 @@ describe('rulesAboutMark and the army’s own detachments', () => {
     expect(rulesAboutMark(cat, mark, ['INFANTRY'], 'ds', ['Taken']).map((r) => r.name)).toEqual(['Taken rule'])
     expect(rulesAboutMark(cat, mark, ['INFANTRY'], 'ds').map((r) => r.name)).toEqual(['Taken rule', 'Other rule'])
   })
+
+  it('does not let a rule back in through the catalogue’s own rule list', () => {
+    // A parsed catalogue's `rules` holds every rule it has, the detachments'
+    // among them; only the ones belonging to no detachment are army-wide.
+    const detachmentRules = [
+      ability('d1', 'Taken rule', 'While a unit is **worked up**, its melee attacks have [LETHAL HITS].'),
+      ability('d2', 'Other rule', 'While a unit is **worked up**, its ranged attacks have [ASSAULT].'),
+    ]
+    const cat = {
+      ...catalogue([], [
+        ...detachmentRules,
+        ability('army', 'Army rule', 'While a unit is **worked up**, that unit has 5+ invulnerable save.'),
+      ]),
+      detachments: [
+        { name: 'Taken', rules: [detachmentRules[0]] },
+        { name: 'Not taken', rules: [detachmentRules[1]] },
+      ],
+    } as unknown as ParsedCatalogue
+    const found = rulesAboutMark(cat, { key: 'worked up', label: 'worked up' }, ['INFANTRY'], 'ds', ['Taken'])
+    expect(found.map((r) => r.name).sort()).toEqual(['Army rule', 'Taken rule'])
+  })
 })
 
 describe('invulnerableFrom', () => {
