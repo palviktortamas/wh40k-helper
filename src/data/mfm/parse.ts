@@ -6,6 +6,7 @@
 
 import { parse as parseYaml } from 'yaml'
 import type { Detachment, PricingBand } from '../model'
+import { titleCase } from '@/missions/types'
 
 export type MfmUnit = {
   name: string
@@ -92,7 +93,10 @@ export function parseMfm(yamlText: string): MfmCatalogue {
     .map((d) => ({
       name: d.name,
       ...(typeof d.dp === 'number' ? { dp: d.dp } : {}),
-      forceDispositions: d.objectives ?? [],
+      // The mirror shouts them ("TAKE AND HOLD"), BSData title-cases them. An
+      // army may hold several detachments and show their lists side by side, so
+      // one casing is stored whichever source a value came from.
+      forceDispositions: (d.objectives ?? []).map(titleCase),
       enhancements: (d.enhancements ?? []).map((e) =>
         typeof e === 'string'
           ? { name: e }

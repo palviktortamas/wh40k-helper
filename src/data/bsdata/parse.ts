@@ -19,6 +19,7 @@ import type {
   Rule,
 } from './schema'
 import { COST_TYPE } from './schema'
+import { titleCase } from '@/missions/types'
 import type {
   Ability,
   Datasheet,
@@ -40,8 +41,10 @@ const PROFILE_MELEE = 'melee weapons'
  *    rules and enhancement texts added (Phase 5).
  * 3: linked library catalogues are indexed; datasheets are discovered through the
  *    catalogue's root entry links (Phase 6, second-faction test).
+ * 4: Force Dispositions are stored title-cased whichever source they came from,
+ *    so an army holding several detachments shows one casing.
  */
-export const PARSER_VERSION = 3
+export const PARSER_VERSION = 4
 
 const PROFILE_ABILITIES = 'abilities'
 const PROFILE_TRANSPORT = 'transport'
@@ -323,9 +326,12 @@ function collectDetachments(cat: Catalogue, index: Index): Detachment[] {
     const dp = entry.costs?.find((c) => c.typeId === COST_TYPE.detachmentPoints)?.value
     if (dp !== undefined && dp > 0 && entry.id && !seen.has(entry.id)) {
       seen.add(entry.id)
+      // One casing whatever the source shouts: an army may hold several
+      // detachments and show their Force Dispositions side by side.
       const dispositions = (entry.categoryLinks ?? [])
         .map((l) => index.categories.get(l.targetId)?.name ?? l.name ?? '')
         .filter((name) => name && !/detachment/i.test(name))
+        .map(titleCase)
       detachments.push({
         id: entry.id,
         name: entry.name,

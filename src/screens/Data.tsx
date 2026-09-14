@@ -333,7 +333,8 @@ function StratagemsSection() {
         {set ? (
           <p className="data__meta">
             {set.stratagems.length} stratagems across every faction · {set.stratagems.filter((s) => s.core).length}{' '}
-            Core. Play Mode lists the Core ones and your detachment's, by phase, with their CP.
+            Core. Play Mode lists the Core ones and those of every detachment your army took, by
+            phase, with their CP.
           </p>
         ) : (
           <p className="data__meta">
