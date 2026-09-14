@@ -57,6 +57,7 @@ const detachmentPicker: SelectionEntry = {
       ],
       selectionEntries: [
         { id: 'e-vanguard', name: 'Vanguard', type: 'upgrade', costs: [dp(1)] },
+        { id: 'e-outrider', name: 'Outrider', type: 'upgrade', costs: [dp(1)] },
         { id: 'e-bulwark', name: 'Bulwark', type: 'upgrade', costs: [dp(2)] },
         { id: 'e-spearhead', name: 'Spearhead', type: 'upgrade', costs: [dp(3)] },
       ],
@@ -185,8 +186,8 @@ const take = (roster: Roster, ...entryIds: string[]): Roster =>
 describe('detachment points budget', () => {
   it('offers every detachment the data defines, with its cost', () => {
     const options = detachmentOptions(graph())
-    expect(options.map((o) => o.entry.name)).toEqual(['Bulwark', 'Spearhead', 'Vanguard'])
-    expect(options.map((o) => o.entry.costs[COST_TYPE.detachmentPoints])).toEqual([2, 3, 1])
+    expect(options.map((o) => o.entry.name)).toEqual(['Bulwark', 'Outrider', 'Spearhead', 'Vanguard'])
+    expect(options.map((o) => o.entry.costs[COST_TYPE.detachmentPoints])).toEqual([2, 1, 3, 1])
   })
 
   it('reports every chosen detachment, not just the first', () => {
@@ -211,6 +212,21 @@ describe('detachment points budget', () => {
     const result = evaluateRoster(take(started('e-small'), 'e-vanguard', 'e-bulwark'), graph())
     expect(result.detachmentPoints).toBe(3)
     expect(result.issues.some((i) => i.severity === 'error')).toBe(true)
+  })
+
+  it('lets a single detachment cost more than the budget, and two not', () => {
+    // The budget is what you may spend across several detachments; one is
+    // always yours. At 2 DP: one 3 DP detachment yes, a 1 and a 2 no.
+    const alone = evaluateRoster(take(started('e-small'), 'e-spearhead'), graph())
+    expect(alone.detachmentPoints).toBe(3)
+    expect(alone.issues.filter((i) => i.severity === 'error')).toEqual([])
+
+    const pair = evaluateRoster(take(started('e-small'), 'e-vanguard', 'e-bulwark'), graph())
+    expect(pair.issues.some((i) => i.severity === 'error')).toBe(true)
+
+    // Two that fit are still fine.
+    const fits = evaluateRoster(take(started('e-small'), 'e-vanguard', 'e-outrider'), graph())
+    expect(fits.issues.filter((i) => i.severity === 'error')).toEqual([])
   })
 
   it('drops a detachment again without disturbing the others', () => {

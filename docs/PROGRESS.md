@@ -26,6 +26,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 11 | Characteristics the rules change | **built 2026-09-14** — stat and weapon-profile modifiers read from both grammars, shown changed (lasting) or temporary everywhere a unit is shown; combined-weapon loadout bug fixed |
 | 12 | Unarmed models, and moving around the game screen | **built 2026-09-14** — warning + one-tap repair for models with no wargear, empty loadouts no longer collapsed, jump rail in play, army-list scroll restored when a unit sheet closes |
 | 13 | Phone ergonomics | **built 2026-09-14** — conditional modifiers no longer rewrite a number (or invent an invulnerable save), stat lines stay on one line, the roster summary condenses when stuck, the back control is always in reach |
+| 14 | Detachment budget, battle sizes, custom points | **built 2026-09-14** — one detachment is always legal whatever its DP, the budget binds from the second on; presets are 1000/2000/3000 with a typed custom limit |
 
 ---
 
@@ -1092,6 +1093,39 @@ labels fit unclipped down to 320 px. A pointer gets 48 px from 900 px up.
 one screen where two sticky things would fight — the roster editor, with its summary — keeps its
 back link in the flow (`section:has(> .summary) > .sheet__back`), because there the points are the
 thing worth pinning.
+
+---
+
+## Done 2026-09-14 (night, last) - the detachment budget, battle sizes, custom points
+
+Owner: "at 1000 points you can take one 2 DP, or one 3 DP detachment, or two 1 DP ones. Only
+1000/2000/3000 as battle sizes. And let me type a custom limit instead of stepping it."
+
+### One detachment is always yours
+
+The data's Detachment Points cap is a cap on **combinations**: a single detachment is legal
+whatever it costs, and the budget only binds from the second one on. That is exactly the owner's
+three cases at a 2 DP battle size — {2}, {3}, {1,1} legal, {1,2} not — and it stays data-driven:
+the budget itself is still read from the game system (Incursion 2, Strike Force 3, Onslaught 4 on
+the owner's data; Ork detachments cost 1 DP except War Horde at 3).
+
+- `evaluate.ts` skips a `max` on the Detachment Points cost type while the army holds one
+  detachment or none.
+- The picker no longer greys out an unaffordable detachment when nothing is chosen yet — which is
+  what actually blocked the owner from taking War Horde at 1000 — and the budget figure only reads
+  as over when more than one detachment is taken.
+
+Walked on the real catalogue at 1000 pts: War Horde alone → 3/3 DP, no errors, everything else
+then blocked; Blitz Brigade + Bully Boyz → 2/2 DP, no errors; War Horde on top of a 1 DP
+detachment → "over budget", blocked.
+
+### Battle sizes and a typed limit
+
+`POINTS_PRESETS` is now 1000 / 2000 / 3000 — the sizes the game defines. Anything else is
+"Custom…", which reveals a number field (`PointsLimitField`, shared by the new-roster form and the
+editor). A custom size used to mean pressing the data's own numeric stepper a hundred points at a
+time. The battle-size entry the data gates the DP budget on still follows the number, and a custom
+limit survives a reload as Custom.
 
 ---
 

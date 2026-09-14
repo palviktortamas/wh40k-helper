@@ -74,7 +74,8 @@ export type Roster = {
   pendingWarlordSelectionId?: string
 }
 
-export const POINTS_PRESETS = [500, 1000, 1500, 2000, 3000] as const
+/** The three battle sizes the game defines; anything else is typed in. */
+export const POINTS_PRESETS = [1000, 2000, 3000] as const
 
 export type ValidationSeverity = 'error' | 'warning'
 

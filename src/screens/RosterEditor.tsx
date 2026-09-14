@@ -28,7 +28,8 @@ import { detachmentEnhancements, detachmentStratagems } from '@/roster/detachmen
 import { getStratagemSet } from '@/stratagems/store'
 import type { StratagemSet } from '@/stratagems/types'
 import { attachmentKind, attachmentsOf, capacityOf, heldOfKind, kindOfAssociation } from '@/roster/attachment'
-import { POINTS_PRESETS, walkSelections, type Roster, type Selection } from '@/roster/types'
+import { walkSelections, type Roster, type Selection } from '@/roster/types'
+import { PointsLimitField } from './PointsLimitField'
 import type { CatalogueGraph, ResolvedEntry } from '@/roster/resolve'
 import { groupByRole, roleKey, roleOf } from '@/roster/roles'
 import { WARLORD_CATEGORY } from '@/roster/vocabulary'
@@ -305,21 +306,11 @@ export function RosterEditor() {
       )}
 
       <div className="rosters__controls">
-        <label>
-          Limit
-          <select
-            value={roster.pointsLimit}
-            onChange={(e) =>
-              update(withBattleSize({ ...roster, pointsLimit: Number(e.target.value) }, graph))
-            }
-          >
-            {POINTS_PRESETS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
+        <PointsLimitField
+          label="Limit"
+          value={roster.pointsLimit}
+          onChange={(points) => update(withBattleSize({ ...roster, pointsLimit: points }, graph))}
+        />
       </div>
 
       {/* Twelve detachments is a long list to scroll past once the choice is
@@ -331,7 +322,9 @@ export function RosterEditor() {
             {chosen.length > 0 ? chosen.map((d) => d.name).join(' + ') : 'none chosen'}
           </span>
           <span
-            className={`detachments__budget ${dpLeft !== undefined && dpLeft < 0 ? 'detachments__budget--over' : ''}`}
+            className={`detachments__budget ${
+              chosen.length > 1 && dpLeft !== undefined && dpLeft < 0 ? 'detachments__budget--over' : ''
+            }`}
           >
             {validation.detachmentPoints}
             {dpLimit === undefined ? '' : ` / ${dpLimit}`} DP
@@ -343,7 +336,9 @@ export function RosterEditor() {
             const on = chosenEntryIds.has(option.entry.id)
             // Over budget is not an error to discover after the fact: an option
             // that cannot be afforded is shown, disabled, with the reason.
-            const unaffordable = !on && dpLeft !== undefined && cost > dpLeft
+            // One detachment is always affordable, whatever it costs — the
+            // budget is what you may spend across several (see evaluate.ts).
+            const unaffordable = !on && chosen.length > 0 && dpLeft !== undefined && cost > dpLeft
             return (
               <li key={option.entry.linkId ?? option.entry.id}>
                 <label className={`toggle ${unaffordable ? 'toggle--blocked' : ''}`}>

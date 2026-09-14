@@ -70,6 +70,7 @@
 .rosters__form input,
 .rosters__form select,
 .rosters__controls select,
+.rosters__controls input,
 .rosters__title {
   min-height: 44px;
   padding: 0 0.625rem;
@@ -945,4 +946,9 @@ section:has(> .summary) > .sheet__back {
   background: var(--surface-sunken);
   color: var(--warning);
   font-size: 0.875rem;
+}
+
+/* A points limit typed in rather than stepped to. */
+.rosters__points {
+  width: 7rem;
 }

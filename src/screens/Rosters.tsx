@@ -12,7 +12,8 @@ import {
   saveRoster,
   validate,
 } from '@/roster/store'
-import { POINTS_PRESETS, type Roster } from '@/roster/types'
+import type { Roster } from '@/roster/types'
+import { PointsLimitField } from './PointsLimitField'
 import { adoptRoster, exportRosterJson, parseRosterEnvelope, shareText } from '@/roster/transfer'
 import './Rosters.css'
 
@@ -98,16 +99,7 @@ export function Rosters() {
               ))}
             </select>
           </label>
-          <label>
-            Points limit
-            <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
-              {POINTS_PRESETS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
+          <PointsLimitField label="Points limit" value={limit} onChange={setLimit} />
           <div className="rosters__formActions">
             <button className="button" onClick={() => void create()}>
               Create

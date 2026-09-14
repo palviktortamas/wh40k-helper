@@ -955,6 +955,10 @@ function applyModifier(node: Node, modifier: Modifier, context: Context): void {
   }
 }
 
+/** How many detachments the army holds — an entry costing Detachment Points. */
+const detachmentCount = (context: Context): number =>
+  context.all.filter((n) => (n.costs[COST_TYPE.detachmentPoints] ?? 0) > 0).length
+
 const isCostField = (field: string): boolean =>
   field === COST_TYPE.points ||
   field === COST_TYPE.detachmentPoints ||
@@ -1016,6 +1020,17 @@ function checkConstraints(node: Node, context: Context, issues: ValidationIssue[
     const broken =
       constraint.type === 'max' ? actual > constraint.value : actual < constraint.value
     if (!broken) continue
+
+    // One detachment is always yours to take, whatever it costs: the
+    // Detachment Points budget governs *combinations*. At a 2 DP battle size
+    // that is one 2 DP detachment, one 3 DP detachment, or two of 1 DP — but
+    // not a 1 and a 2. The budget itself still comes from the data.
+    if (
+      constraint.type === 'max' &&
+      constraint.field === COST_TYPE.detachmentPoints &&
+      detachmentCount(context) <= 1
+    )
+      continue
 
     // A min of 0 that is unmet is not a real failure, and an unselected optional
     // group would otherwise shout on every empty roster.
