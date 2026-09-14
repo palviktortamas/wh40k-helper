@@ -515,38 +515,63 @@
   margin-top: 0.5rem;
 }
 
-/* --- the jump rail --------------------------------------------------------
-   A game screen is long; the rail stays on the edge of the viewport so any
-   part of it is one tap away. It sits clear of the bottom tab bar and, on a
-   wide screen, beside the content column rather than over it. */
+/* --- the jump bar ---------------------------------------------------------
+   One toolbar at the top edge: the way back, then a chip per part of the game
+   screen. Horizontal, because a rail down the side takes a column from every
+   screen it sits on. It scrolls sideways on a narrow phone rather than
+   wrapping onto a second row. */
+
+.gamebar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.25rem;
+  padding: 0.25rem 0;
+  background: var(--bg);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.gamebar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Inside the bar the back pill is one more control on the line. */
+.gamebar .sheet__back {
+  position: static;
+  flex: none;
+  box-shadow: none;
+}
+
+/* A jump lands its target below the bar, not behind it. */
+#game-turn,
+#game-reminders,
+#game-mission,
+#game-strats,
+#game-army {
+  scroll-margin-top: 4.75rem;
+}
 
 .jump {
-  position: fixed;
-  right: 0.25rem;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 5;
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  border: 1px solid var(--border);
-  box-shadow: 0 2px 10px rgb(0 0 0 / 0.25);
+  gap: 0.1875rem;
+  margin-left: auto;
 }
 
 .jump__btn {
-  min-width: 2.5rem;
-  min-height: 2.25rem;
-  padding: 0.25rem 0.375rem;
-  border: 0;
-  border-radius: 0.5rem;
-  background: transparent;
+  flex: none;
+  min-height: 2rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
   color: var(--text-muted);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -554,18 +579,4 @@
 .jump__btn:focus-visible {
   background: var(--surface-sunken);
   color: var(--text);
-}
-
-/* On a phone the rail is over the content, so the content makes room for it —
-   a card's own buttons must never sit under a fixed rail. */
-@media (max-width: 899px) {
-  .game {
-    padding-right: 3rem;
-  }
-}
-
-@media (min-width: 900px) {
-  .jump {
-    right: max(0.5rem, calc(50vw - 34rem));
-  }
 }

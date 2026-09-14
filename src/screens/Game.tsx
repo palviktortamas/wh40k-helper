@@ -48,24 +48,41 @@ const STATUSES: UnitStatus[] = ['battleShocked', 'advanced', 'fellBack', 'reserv
 /**
  * The jump rail: a table-side game screen is long — tracker, reminders,
  * mission, stratagems, then every unit — and a phone scrolls it a screen at a
- * time. The rail stays put and puts each part one tap away. Labelled, not
- * coloured dots: it has to be readable at a glance across a table.
+ * time, so each part is one tap away.
+ *
+ * It rides the top edge with the way back, as one toolbar: a rail down the side
+ * cost a column of every screen it was on, which is the width a stat line and a
+ * unit's buttons actually need. Labels, not coloured dots — it has to be read
+ * at a glance across a table.
  */
-function JumpRail({ targets }: { targets: { id: string; label: string; name: string }[] }) {
-  if (targets.length < 2) return null
+function JumpBar({
+  targets,
+  children,
+}: {
+  targets: { id: string; label: string; name: string }[]
+  /** The way back, which belongs on the same line. */
+  children: React.ReactNode
+}) {
   return (
-    <nav className="jump" aria-label="Jump to a part of this game">
-      {targets.map((target) => (
-        <button
-          key={target.id}
-          className="jump__btn tap"
-          aria-label={`Jump to ${target.name}`}
-          onClick={() => document.getElementById(target.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        >
-          {target.label}
-        </button>
-      ))}
-    </nav>
+    <div className="gamebar">
+      {children}
+      {targets.length > 1 && (
+        <nav className="jump" aria-label="Jump to a part of this game">
+          {targets.map((target) => (
+            <button
+              key={target.id}
+              className="jump__btn tap"
+              aria-label={`Jump to ${target.name}`}
+              onClick={() =>
+                document.getElementById(target.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+            >
+              {target.label}
+            </button>
+          ))}
+        </nav>
+      )}
+    </div>
   )
 }
 
@@ -189,10 +206,11 @@ export function Game() {
 
   return (
     <section className="game" ref={shell}>
-      <JumpRail targets={jumpTargets} />
-      <Link className="sheet__back tap" to="/play">
-        ‹ Play
-      </Link>
+      <JumpBar targets={jumpTargets}>
+        <Link className="sheet__back tap" to="/play">
+          ‹ Play
+        </Link>
+      </JumpBar>
 
       <header className="game__head">
         <div>

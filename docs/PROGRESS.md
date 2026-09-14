@@ -1026,13 +1026,19 @@ Verified end to end by stripping a mob's models in IndexedDB and reloading: the 
 the roster, the editor offers the repair, and one tap restores 18 sluggas, 16 shootas and the
 special weapons.
 
-### The jump rail (play)
+### The jump bar (play)
 
 A game screen is tracker, score, tools, Battle-shock, reminders, mission, stratagems, then twenty
-units; a phone scrolls that a screen at a time. A fixed rail on the right edge now jumps to
+units; a phone scrolls that a screen at a time. A sticky toolbar at the top edge jumps to
 **Turn / Cues / Miss / Strat / Army**; entries appear only when their section does. Labels, not
-coloured dots. On a phone `.game` takes a right padding so no card's own buttons sit under it; at
-900px and up the rail sits beside the content column rather than over it.
+coloured dots.
+
+First built as a fixed rail down the right edge, which the owner rejected the same evening: it
+cost a column of every screen it was on (`.game` had to take a 3 rem right padding so card
+buttons did not sit under it), which is exactly the width a stat line and a unit's buttons want.
+Horizontal costs height only, shares the line with the way back, and scrolls sideways rather than
+wrapping on a 320 px phone. The jump targets carry `scroll-margin-top` so a heading lands below
+the bar instead of behind it.
 
 ### Coming back where you left
 
