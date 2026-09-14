@@ -34,6 +34,13 @@ export type WeaponProfile = {
   d?: string
   /** Sustained Hits, Lethal Hits, Anti-Infantry 4+, … */
   keywords: string[]
+  /**
+   * Reached only through a shared option tree the datasheet links (Crusade
+   * relics, army-wide wargear), not through one of this datasheet's own
+   * options. Every datasheet in the game links those trees, so such a profile
+   * is listed only when a model actually carries it.
+   */
+  shared?: boolean
 }
 
 export type AbilityKind =

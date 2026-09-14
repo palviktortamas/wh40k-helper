@@ -43,8 +43,11 @@ const PROFILE_MELEE = 'melee weapons'
  *    catalogue's root entry links (Phase 6, second-faction test).
  * 4: Force Dispositions are stored title-cased whichever source they came from,
  *    so an army holding several detachments shows one casing.
+ * 5: weapon profiles reached only through a shared option tree (the Crusade
+ *    relics every datasheet links) are flagged `shared`, so the datasheet no
+ *    longer offers weapons the unit has no access to.
  */
-export const PARSER_VERSION = 4
+export const PARSER_VERSION = 5
 
 const PROFILE_ABILITIES = 'abilities'
 const PROFILE_TRANSPORT = 'transport'
@@ -189,7 +192,7 @@ const toStats = (p: Profile): UnitStats => ({
   ...(characteristic(p, 'InSv') !== undefined ? { invSv: characteristic(p, 'InSv')! } : {}),
 })
 
-const toWeapon = (p: Profile, kind: 'ranged' | 'melee'): WeaponProfile => ({
+const toWeapon = (p: Profile, kind: 'ranged' | 'melee', shared = false): WeaponProfile => ({
   id: p.id,
   name: p.name,
   kind,
@@ -202,6 +205,7 @@ const toWeapon = (p: Profile, kind: 'ranged' | 'melee'): WeaponProfile => ({
   ...(characteristic(p, 'AP') !== undefined ? { ap: characteristic(p, 'AP')! } : {}),
   ...(characteristic(p, 'D') !== undefined ? { d: characteristic(p, 'D')! } : {}),
   keywords: splitKeywords(characteristic(p, 'Keywords')),
+  ...(shared ? { shared: true } : {}),
 })
 
 /** Model entries are the nested `type: 'model'` entries of a unit. */
@@ -244,6 +248,10 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
     profiles.filter((p) => (p.typeName ?? '').toLowerCase() === name)
   // Abilities come from the entry, its models and its infoLinks only — see collectProfiles.
   const ownProfiles = collectProfiles(entry, index, new Set(), 0, false)
+  // …and so do the weapons the unit has real access to. The shared group links
+  // reach the Crusade relic trees, which every datasheet in the game links, so
+  // a weapon found only through those is flagged rather than offered.
+  const own = new Set(ownProfiles.map((p) => p.id))
 
   const categoryNames = (entry.categoryLinks ?? []).map(
     (l) => index.categories.get(l.targetId)?.name ?? l.name ?? '',
@@ -287,8 +295,8 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
     type: entry.type,
     stats: byType(PROFILE_UNIT).map(toStats),
     weapons: [
-      ...byType(PROFILE_RANGED).map((p) => toWeapon(p, 'ranged')),
-      ...byType(PROFILE_MELEE).map((p) => toWeapon(p, 'melee')),
+      ...byType(PROFILE_RANGED).map((p) => toWeapon(p, 'ranged', !own.has(p.id))),
+      ...byType(PROFILE_MELEE).map((p) => toWeapon(p, 'melee', !own.has(p.id))),
     ],
     abilities,
     models: collectModels(entry),

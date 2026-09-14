@@ -1,10 +1,43 @@
 import type { WeaponRow } from '@/play/weapons'
+import { grantsFor, type WeaponGrant } from '@/play/grants'
 import './Datasheets.css'
 
-/** One weapons table (ranged or melee) with the count column in front. */
-export function WeaponTable({ title, rows, showCount = true }: { title: string; rows: WeaponRow[]; showCount?: boolean }) {
+/** A grant that is in force right now — unconditional, or its condition met. */
+const live = (grant: WeaponGrant): boolean => !grant.when || grant.met === true
+
+/**
+ * One weapons table (ranged or melee) with the count column in front.
+ *
+ * `grants` are the weapon abilities the army's rules add to these weapons —
+ * the datasheet never prints them, and a weapon read without them is a weaker
+ * weapon than the one being rolled. Abilities that hold only under a condition
+ * ("if this unit made a charge move this turn") are shown differently and
+ * spelled out under the table, so the table itself never claims more than is
+ * true.
+ */
+export function WeaponTable({
+  title,
+  rows,
+  showCount = true,
+  grants = [],
+}: {
+  title: string
+  rows: WeaponRow[]
+  showCount?: boolean
+  grants?: readonly WeaponGrant[]
+}) {
   if (rows.length === 0) return null
-  const skillLabel = rows[0]!.profile.kind === 'ranged' ? 'BS' : 'WS'
+  const kind = rows[0]!.profile.kind
+  const skillLabel = kind === 'ranged' ? 'BS' : 'WS'
+  // One ability, however many rules grant it: a live grant wins over a
+  // conditional one, so a weapon never carries the same ability twice.
+  const here: WeaponGrant[] = []
+  for (const grant of grantsFor(grants, kind)) {
+    const at = here.findIndex((g) => g.keyword === grant.keyword)
+    if (at === -1) here.push(grant)
+    else if (live(grant) && !live(here[at]!)) here[at] = grant
+  }
+  const conditional = here.filter((g) => !live(g))
   return (
     <>
       <h3>{title}</h3>
@@ -23,26 +56,61 @@ export function WeaponTable({ title, rows, showCount = true }: { title: string; 
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ profile, count }) => (
-              <tr key={profile.id} className={showCount && count === 0 ? 'weapon--absent' : ''}>
-                {showCount && <td className="weapon__count">{count > 0 ? `${count}×` : '—'}</td>}
-                <th scope="row">
-                  {profile.name}
-                  {profile.keywords.length > 0 && (
-                    <span className="sheet__keywords">[{profile.keywords.join(', ')}]</span>
-                  )}
-                </th>
-                <td>{profile.range ?? '—'}</td>
-                <td>{profile.a ?? '—'}</td>
-                <td>{profile.skill ?? '—'}</td>
-                <td>{profile.s ?? '—'}</td>
-                <td>{profile.ap ?? '—'}</td>
-                <td>{profile.d ?? '—'}</td>
-              </tr>
-            ))}
+            {rows.map(({ profile, count }) => {
+              const absent = showCount && count === 0
+              return (
+                <tr key={profile.id} className={absent ? 'weapon--absent' : ''}>
+                  {showCount && <td className="weapon__count">{count > 0 ? `${count}×` : '—'}</td>}
+                  <th scope="row">
+                    {profile.name}
+                    {(profile.keywords.length > 0 || (!absent && here.length > 0)) && (
+                      <span className="sheet__keywords">
+                        {profile.keywords.map((keyword) => (
+                          <span key={keyword} className="weapon__kw">
+                            [{keyword}]
+                          </span>
+                        ))}
+                        {!absent &&
+                          here.map((grant) => (
+                            <span
+                              key={`${grant.rule}:${grant.keyword}`}
+                              className={`weapon__kw weapon__kw--granted ${live(grant) ? '' : 'weapon__kw--maybe'}`}
+                              title={`${grant.rule} (${grant.source})${grant.when ? ` — ${grant.when}` : ''}`}
+                            >
+                              [{grant.keyword}]{live(grant) ? '' : '*'}
+                            </span>
+                          ))}
+                      </span>
+                    )}
+                  </th>
+                  <td>{profile.range ?? '—'}</td>
+                  <td>{profile.a ?? '—'}</td>
+                  <td>{profile.skill ?? '—'}</td>
+                  <td>{profile.s ?? '—'}</td>
+                  <td>{profile.ap ?? '—'}</td>
+                  <td>{profile.d ?? '—'}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
+      {here.length > 0 && (
+        <ul className="grants">
+          {here.map((grant) => (
+            <li key={`${grant.rule}:${grant.keyword}`} className={live(grant) ? '' : 'grants__item--maybe'}>
+              <span className="weapon__kw weapon__kw--granted">
+                [{grant.keyword}]{live(grant) ? '' : '*'}
+              </span>{' '}
+              {grant.when ? `${grant.when}${grant.met ? ' — now' : ''} — ` : ''}
+              <span className="muted">
+                {grant.rule} · {grant.source}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {conditional.length > 0 && <p className="grants__note">* only while the condition above holds.</p>}
     </>
   )
 }

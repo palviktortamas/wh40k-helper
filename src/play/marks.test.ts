@@ -219,6 +219,21 @@ describe('rulesAboutMark', () => {
   })
 })
 
+describe('rulesAboutMark and the army’s own detachments', () => {
+  it('ignores a detachment the army did not take', () => {
+    const cat = {
+      ...catalogue([]),
+      detachments: [
+        { name: 'Taken', rules: [ability('d1', 'Taken rule', 'While a unit is **worked up**, its melee attacks have [LETHAL HITS].')] },
+        { name: 'Not taken', rules: [ability('d2', 'Other rule', 'While a unit is **worked up**, its ranged attacks have [ASSAULT].')] },
+      ],
+    } as unknown as ParsedCatalogue
+    const mark = { key: 'worked up', label: 'worked up' }
+    expect(rulesAboutMark(cat, mark, ['INFANTRY'], 'ds', ['Taken']).map((r) => r.name)).toEqual(['Taken rule'])
+    expect(rulesAboutMark(cat, mark, ['INFANTRY'], 'ds').map((r) => r.name)).toEqual(['Taken rule', 'Other rule'])
+  })
+})
+
 describe('invulnerableFrom', () => {
   it('reads an invulnerable save a state grants', () => {
     expect(invulnerableFrom('That unit has 5+ **InSv**.')).toBe(5)

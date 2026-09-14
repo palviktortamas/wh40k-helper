@@ -22,6 +22,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 7 | Owner feedback round: UI redesign, rules fixes, stratagems | **built 2026-09-13 (night 2)** — role-grouped list builder with stats, caps enforced in the editor, detachment rules on units, stat strips at the table, 11e CP fix, Battle-shock step, stratagem import + panel |
 | 8 | Several detachments per army (11e DP budget) + Necrons | **built 2026-09-14** — DP budget read from the data, checkbox picker, every consumer pluralised, Dexie v9, Necrons in the fixtures |
 | 9 | Editor round: attachment kinds, unit names, picker, unit size | **built 2026-09-14** — Leader/Support/Retainers told apart, numbered and renamable units, annotated attach control with Detach, picker stays open with counts, Reinforced toggle, compulsory loadouts can no longer be emptied |
+| 10 | Loadout round, in play | **built 2026-09-14** — weapon abilities the rules grant (with conditions, live when the state is on), profiles the unit cannot take dropped (`PARSER_VERSION` 5), loadout split by model type |
 
 ---
 
@@ -841,6 +842,80 @@ passive, so it now checks a band rather than a floor.
   simply had no affordance, so a chevron is now on every row and the dimmed ones keep it in the
   accent colour: dimmed is not disabled, and their rules are worth reading before committing to a
   turn.
+
+---
+
+## Done 2026-09-14 (later still) - the loadout round, in play
+
+The owner opened a mob at the table and found the loadout section the weakest part of the app:
+weapons showed none of what the army's rules give them, profiles appeared that the unit has no
+access to, and a twenty-model mob was one undifferentiated wall of numbers.
+
+### Weapon abilities the rules grant (`src/play/grants.ts`)
+
+A weapon's printed keywords are half the story: a detachment says "friendly ORKS units' melee
+attacks have [SUSTAINED HITS 1]", the faction rule grants [ASSAULT] while a unit is in a state,
+and the datasheet's own ability grants [LETHAL HITS] only after a charge. None of that is on the
+profile, so the table showed a strictly weaker weapon than the one being rolled.
+
+The sources write every one of those in a single grammar — `<scope> [melee|ranged] attacks have
+**[ABILITY]**` — with the condition, when there is one, in the clause before it or in the colon
+heading above it. `weaponGrants()` reads exactly that and nothing else; anything else a rule does
+(+1 to hit, re-rolls) stays in the rule's own text, which the sheet already shows in full. No
+faction is named anywhere, and it works unchanged on Necrons (Hypermotility Protocols,
+Tools of Dominion).
+
+- The chips sit on the weapon row, in the accent colour and prefixed with `+` (never colour
+  alone). A conditional one is muted and marked `*`, and every grant is spelled out below the
+  table with its rule, its source and its condition.
+- `resolveGrants()` marks a grant **live** when its condition is a state the unit is already in:
+  toggle "riled up" and the faction rule's `[ASSAULT]*` becomes a plain `[ASSAULT]`. One ability
+  granted twice shows once, the live grant winning.
+- Sources fed in: the detachments the army took (filtered by `ruleAppliesTo`), the unit's own
+  datasheet and faction abilities, its enhancements, and the rules of the states it is in. An
+  attached Leader gets its own set.
+
+### Profiles the unit has no access to
+
+Every datasheet in the game links the game system's shared Crusade-relic trees, so
+`collectProfiles` was reaching them and each unit carried a Vortex Grenade it can never take.
+Weapons are now flagged `shared` when they are reachable *only* through a shared group link — the
+same distinction the abilities already made — and a shared profile is listed only when a model
+actually carries it. That keeps enhancement weapons (which arrive the same way) working when
+taken. **`PARSER_VERSION` is 5**; installed catalogues re-parse themselves at start.
+
+The collapsed section is now "Options not taken", and on the owner's mob it holds exactly the
+weapons Boyz can take and did not (big shoota, both rokkit modes, burna, power klaw, big choppa).
+
+### Loadout by model type (`loadoutByModel`)
+
+A mob is several model types at once. The counted table never says *which* models carry the
+special weapons, which is what you need when removing casualties or choosing who shoots. The
+sheet now opens with a Loadout block, one card per surviving model group — "7× Boy · R Slugga ·
+R Shoota · M Choppa", "2× Nob · …" — ranged before melee, R/M markers rather than colour, dead
+groups dropped, and `alive/total` shown once a group has taken casualties. Every firing mode of a
+multi-mode weapon is listed, so the rokkit launcha's Busta/Blasta choice is in front of the
+player. Shown only when a unit has more than one model group; a single-model sheet is unchanged.
+
+### Also fixed here
+
+- `rulesAboutMark` considered **every** detachment in the codex, so a unit's state showed effects
+  from detachments the army never took (and, once grants existed, weapon abilities it does not
+  have). It now takes the army's detachment names.
+
+### Walked on the real catalogue
+
+Headless Chrome at 390×844, on the owner's own Orks roster: a 20-model mob in War Horde shows
+three model groups, `+[SUSTAINED HITS 1]` from the detachment on both melee weapons, `+[LETHAL
+HITS]*` from Tide of Muscle with its condition, `+[ASSAULT]*` from Waaagh! that goes live when
+"riled up" is toggled, and no Vortex Grenade anywhere. Full suite green over both fixture
+factions.
+
+### Noticed, not fixed
+
+In the unit editor a Reinforced mob's "Boy" stepper is disabled with "This choice is compulsory —
+pick another instead", so the special-weapon models (which replace Boyz) cannot be added at full
+size without first shrinking the mob some other way. Worth a look next session.
 
 ---
 

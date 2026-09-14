@@ -183,12 +183,17 @@ const plainTextKeepingBold = (text: string): string =>
  * The rules that say what a mark *does* for one unit: its own abilities, and
  * the army and detachment rules whose keywords reach it. The rule that merely
  * grants the mark is left out — it is not an effect.
+ *
+ * `detachmentNames` are the detachments the army actually took. Without it
+ * every detachment in the codex has its say, which reads as a unit having
+ * abilities it was never given — pass the army's own whenever they are known.
  */
 export function rulesAboutMark(
   catalogue: ParsedCatalogue,
   mark: Mark,
   keywords: readonly string[],
   datasheetId: string,
+  detachmentNames?: readonly string[],
 ): Ability[] {
   const speaksAbout = (ability: Ability) => {
     const text = plainTextKeepingBold(`${ability.name}. ${ability.text}`)
@@ -204,10 +209,12 @@ export function rulesAboutMark(
   }
 
   const own = (catalogue.datasheets.find((d) => d.id === datasheetId)?.abilities ?? []).filter(speaksAbout)
-  const shared = [
-    ...(catalogue.rules ?? []),
-    ...catalogue.detachments.flatMap((d) => d.rules ?? []),
-  ].filter((rule) => speaksAbout(rule) && ruleAppliesTo(rule.text, keywords) !== false)
+  const detachments = detachmentNames
+    ? catalogue.detachments.filter((d) => detachmentNames.includes(d.name))
+    : catalogue.detachments
+  const shared = [...(catalogue.rules ?? []), ...detachments.flatMap((d) => d.rules ?? [])].filter(
+    (rule) => speaksAbout(rule) && ruleAppliesTo(rule.text, keywords) !== false,
+  )
 
   const seen = new Set<string>()
   return [...own, ...shared].filter((rule) => !seen.has(rule.id) && seen.add(rule.id))

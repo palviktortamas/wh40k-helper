@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
-import { weaponCounts } from '@/play/weapons'
+import { loadoutByModel, weaponCounts } from '@/play/weapons'
+import { resolveGrants, weaponGrants, type GrantingRule, type WeaponGrant } from '@/play/grants'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { roleKey } from '@/roster/roles'
 import { StatStrip } from './StatStrip'
@@ -15,6 +16,20 @@ import './Game.css'
 import './Units.css'
 
 const ONCE_PER_BATTLE = /once per battle/i
+
+/** The rules every detachment the army took grants to this unit, with the detachment's name. */
+function detachmentRulesFor(
+  keywords: readonly string[],
+  detachmentNames: readonly string[],
+  catalogue: ParsedCatalogue | undefined,
+) {
+  return detachmentNames.flatMap((name) => {
+    const detachment = catalogue?.detachments.find((d) => d.name === name)
+    return (detachment?.rules ?? [])
+      .filter((r) => ruleAppliesTo(r.text, keywords) !== false)
+      .map((rule) => ({ rule, detachmentName: name }))
+  })
+}
 
 function Abilities({
   unit,
@@ -32,12 +47,7 @@ function Abilities({
   const keywords = [...sheet.keywords, ...sheet.factionKeywords]
   // Rules a detachment grants to units it names — the datasheet does not carry
   // them itself, and every detachment the army took may name this one.
-  const granted = detachmentNames.flatMap((name) => {
-    const detachment = catalogue?.detachments.find((d) => d.name === name)
-    return (detachment?.rules ?? [])
-      .filter((r) => ruleAppliesTo(r.text, keywords) !== false)
-      .map((rule) => ({ rule, detachmentName: name }))
-  })
+  const granted = detachmentRulesFor(keywords, detachmentNames, catalogue)
   const enhancementText = new Map((catalogue?.enhancements ?? []).map((e) => [e.id, e.text]))
 
   if (sheet.abilities.length === 0 && granted.length === 0 && (unit.enhancements?.length ?? 0) === 0) return null
@@ -119,6 +129,84 @@ function OnceBox({
 }
 
 /**
+ * Every weapon ability the army's rules add to this unit's weapons: the
+ * detachments that name it, its own datasheet and faction abilities, its
+ * enhancements, and the states it is currently in. The datasheet prints none
+ * of these, and they are what the dice actually get rolled with.
+ */
+function grantsForUnit(
+  unit: GameUnit,
+  sheet: Datasheet | undefined,
+  game: Game,
+  catalogue: ParsedCatalogue | undefined,
+  activeMarkRules: { label: string; rules: readonly { name: string; text: string }[] }[],
+): WeaponGrant[] {
+  const keywords = sheet ? [...sheet.keywords, ...sheet.factionKeywords] : []
+  const enhancementText = new Map((catalogue?.enhancements ?? []).map((e) => [e.id, e.text]))
+  const rules: GrantingRule[] = [
+    ...detachmentRulesFor(keywords, game.detachmentNames, catalogue).map(({ rule, detachmentName }) => ({
+      name: rule.name,
+      text: rule.text,
+      source: detachmentName,
+    })),
+    ...(sheet?.abilities ?? []).map((a) => ({
+      name: a.name,
+      text: a.text,
+      source: a.kind === 'faction' ? 'Faction rule' : 'Datasheet',
+    })),
+    ...(unit.enhancements ?? []).map((e) => ({
+      name: e.name,
+      text: enhancementText.get(e.id) ?? '',
+      source: 'Enhancement',
+    })),
+    ...activeMarkRules.flatMap(({ label, rules: markRules }) =>
+      markRules.map((r) => ({ name: r.name, text: r.text, source: label })),
+    ),
+  ]
+  return resolveGrants(weaponGrants(rules), unit.marks ?? [])
+}
+
+/** The loadout split by model type, for a unit that has more than one. */
+function Loadout({ groups }: { groups: ReturnType<typeof loadoutByModel> }) {
+  return (
+    <>
+      <h3>Loadout</h3>
+      <ul className="loadout">
+        {groups.map((group) => (
+          <li key={group.id} className="loadout__group">
+            <p className="loadout__head">
+              <span className="loadout__count">
+                {group.alive}
+                {group.alive !== group.total && <span className="muted">/{group.total}</span>}×
+              </span>{' '}
+              {group.name}
+            </p>
+            <ul className="loadout__weapons">
+              {group.rows.map(({ profile, count }) => (
+                <li key={profile.id}>
+                  <span className={`loadout__kind loadout__kind--${profile.kind}`}>
+                    {profile.kind === 'ranged' ? 'R' : 'M'}
+                  </span>
+                  {count > 1 ? `${count}× ` : ''}
+                  {profile.name}
+                </li>
+              ))}
+              {group.unmatched.map(([name, count]) => (
+                <li key={name} className="muted">
+                  <span className="loadout__kind">·</span>
+                  {count > 1 ? `${count}× ` : ''}
+                  {name}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+/**
  * The datasheet during play (spec §6.3): stats, the weapons table with the
  * counts the surviving models actually carry, abilities with once-per-battle
  * checkboxes, the detachment's rules that name this unit, and an attached
@@ -152,7 +240,10 @@ export function GameUnitSheet({
   const unitKeywords = sheet ? [...sheet.keywords, ...sheet.factionKeywords] : []
   const marksHere = catalogue
     ? marks
-        .map((mark) => ({ mark, rules: rulesAboutMark(catalogue, mark, unitKeywords, unit.entryId) }))
+        .map((mark) => ({
+          mark,
+          rules: rulesAboutMark(catalogue, mark, unitKeywords, unit.entryId, game.detachmentNames),
+        }))
         .filter(({ mark, rules }) => rules.length > 0 || (unit.marks ?? []).includes(mark.key))
     : []
   const activeMarks = marksHere.filter(({ mark }) => (unit.marks ?? []).includes(mark.key))
@@ -165,6 +256,17 @@ export function GameUnitSheet({
     99,
   )
   const { rows, unmatched } = weaponCounts(unit, sheet)
+  // A mob is several model types at once — which models carry the special
+  // weapons is what you need when removing casualties or picking who shoots,
+  // and a single counted table never says it.
+  const loadout = loadoutByModel(unit, sheet)
+  const grants = grantsForUnit(
+    unit,
+    sheet,
+    game,
+    catalogue,
+    activeMarks.map(({ mark, rules: markRules }) => ({ label: mark.label, rules: markRules })),
+  )
   const single = unit.models.length === 1 && unit.models[0]!.total === 1 ? unit.models[0] : undefined
 
   // Opening a unit must land on its stat line — the reason you opened it. The
@@ -244,13 +346,23 @@ export function GameUnitSheet({
         />
       )}
 
-      <WeaponTable title="Ranged weapons" rows={rows.filter((r) => r.profile.kind === 'ranged' && r.count > 0)} />
-      <WeaponTable title="Melee weapons" rows={rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)} />
+      {loadout.length > 1 && <Loadout groups={loadout} />}
+
+      <WeaponTable
+        title="Ranged weapons"
+        rows={rows.filter((r) => r.profile.kind === 'ranged' && r.count > 0)}
+        grants={grants}
+      />
+      <WeaponTable
+        title="Melee weapons"
+        rows={rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)}
+        grants={grants}
+      />
       {rows.some((r) => r.count === 0) && (
-        // Profiles no surviving model carries — options not taken, or the
-        // datasheet's Crusade-only wargear — stay one tap away.
+        // The datasheet's other options — weapons this unit can take and did
+        // not — stay one tap away.
         <details className="config">
-          <summary>Other profiles on the datasheet ({rows.filter((r) => r.count === 0).length})</summary>
+          <summary>Options not taken ({rows.filter((r) => r.count === 0).length})</summary>
           <WeaponTable title="Ranged" rows={rows.filter((r) => r.profile.kind === 'ranged' && r.count === 0)} />
           <WeaponTable title="Melee" rows={rows.filter((r) => r.profile.kind === 'melee' && r.count === 0)} />
         </details>
@@ -278,6 +390,7 @@ export function GameUnitSheet({
       {leaders.map((leader) => {
         const leaderSheet = sheets.get(leader.entryId)
         const leaderWeapons = weaponCounts(leader, leaderSheet)
+        const leaderGrants = grantsForUnit(leader, leaderSheet, game, catalogue, [])
         const leaderModel = leader.models[0]
         return (
           <section key={leader.id} className="leader">
@@ -296,10 +409,12 @@ export function GameUnitSheet({
             <WeaponTable
               title="Ranged weapons"
               rows={leaderWeapons.rows.filter((r) => r.profile.kind === 'ranged' && r.count > 0)}
+              grants={leaderGrants}
             />
             <WeaponTable
               title="Melee weapons"
               rows={leaderWeapons.rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)}
+              grants={leaderGrants}
             />
             {leaderSheet && (
               <Abilities unit={leader} sheet={leaderSheet} detachmentNames={game.detachmentNames} catalogue={catalogue} dispatch={dispatch} />
