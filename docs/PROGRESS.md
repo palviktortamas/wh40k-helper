@@ -559,7 +559,13 @@ What changed:
   the export prints `Detachments: A (1 DP), B (2 DP) — 3/3 DP`.
 - **Dexie v9**: `Game.detachmentName` → `detachmentNames: string[]`. The logic is a plain function
   (`src/play/migrate.ts`) so it is tested without an IndexedDB — there is no fake-indexeddb in this
-  repo and adding one for this was not worth it.
+  repo and adding one for this was not worth it. **The upgrade was also run for real**: a git
+  worktree at the previous commit served the old app on the same port, its own Dexie database was
+  seeded with an in-progress game, and the new app then opened it — round, phase, CP, VP and log
+  all kept, `detachmentName` became `detachmentNames: ["Hand of the Dynasty"]`, and the Play screen
+  listed the game. Worth repeating for any future migration; note that a **hand-built** IndexedDB
+  at v8 is not a valid stand-in (Dexie drops stores it has no metadata for, and the game vanishes —
+  that is the harness lying, not a bug).
 - Force Dispositions needed no work: the picker is gated by the data, so two detachments widen the
   choice for free (verified — Take and Hold *and* Purge the Foe offered).
 
