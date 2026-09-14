@@ -286,3 +286,28 @@
     transition: none;
   }
 }
+
+/* An ability a joined character brings, tagged with which character. */
+.rule-chip--attached {
+  background: rgb(93 176 232 / 0.15);
+  color: var(--role-transport);
+}
+
+/* Who is in this unit, shown before its abilities. */
+.attached {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.attached__item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.attached__name {
+  font-weight: 600;
+}

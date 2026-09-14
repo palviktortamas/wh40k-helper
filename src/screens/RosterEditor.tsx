@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
 import { getSetting, setSetting } from '@/data/db'
-import type { Datasheet, Detachment } from '@/data/model'
+import type { Datasheet, Detachment, ParsedCatalogue } from '@/data/model'
 import { instantiate } from '@/roster/defaults'
 import {
   availableDetachmentOptions,
@@ -24,13 +24,16 @@ import {
 } from '@/roster/store'
 import { exportRosterText } from '@/roster/export'
 import { unitNames } from '@/roster/naming'
+import { detachmentEnhancements, detachmentStratagems } from '@/roster/detachmentInfo'
+import { getStratagemSet } from '@/stratagems/store'
+import type { StratagemSet } from '@/stratagems/types'
 import { attachmentKind, attachmentsOf, capacityOf, heldOfKind, kindOfAssociation } from '@/roster/attachment'
 import { POINTS_PRESETS, walkSelections, type Roster, type Selection } from '@/roster/types'
 import type { CatalogueGraph, ResolvedEntry } from '@/roster/resolve'
 import { groupByRole, roleKey, roleOf } from '@/roster/roles'
 import { WARLORD_CATEGORY } from '@/roster/vocabulary'
 import { COST_TYPE } from '@/data/bsdata/schema'
-import { OptionTree, UnitEditor } from './UnitEditor'
+import { OptionTree, UnitEditor, type AttachedUnit } from './UnitEditor'
 import { StatStrip } from './StatStrip'
 import { Marked } from './Marked'
 import { shortText } from '@/reminders/heuristics'
@@ -54,6 +57,8 @@ export function RosterEditor() {
   const [copied, setCopied] = useState(false)
   const [view, setView] = useState<UnitsView>('role')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  /** Imported stratagems, so a detachment can show what it actually grants. */
+  const [stratagems, setStratagems] = useState<StratagemSet | null>(null)
 
   useEffect(() => {
     if (!rosterId) return
@@ -70,6 +75,7 @@ export function RosterEditor() {
       setRoster(normalised)
     })
     void getSetting<UnitsView>(VIEW_KEY, 'role').then(setView)
+    void getStratagemSet().then((set) => setStratagems(set ?? null))
   }, [rosterId])
 
   const changeView = (next: UnitsView) => {
@@ -146,6 +152,7 @@ export function RosterEditor() {
         validation={validation}
         sheet={sheets.get(editingSelection.entryId)}
         displayName={unitNames(roster).get(editingSelection.id) ?? editingSelection.name}
+        attached={attachedTo(roster, graph, catalogue.parsed, sheets, validation, editingSelection.id)}
         detachments={chosen}
         catalogue={catalogue.parsed}
         role={roleOf(graph, editingSelection.entryId)}
@@ -340,31 +347,104 @@ export function RosterEditor() {
         )}
       </details>
 
-      {chosen
-        .filter((d) => (d.rules?.length ?? 0) > 0)
-        .map((d) => (
+      {chosen.map((d) => {
+        const rules = d.rules ?? []
+        const enhancements = detachmentEnhancements(d, catalogue.parsed)
+        const strats = detachmentStratagems(d, stratagems?.stratagems)
+        if (rules.length + enhancements.length + strats.length === 0) return null
+        return (
           <details className="config detachment" key={d.name}>
             <summary>
-              Detachment rule{d.rules!.length === 1 ? '' : 's'} — {d.name}
+              {d.name} <span className="muted">— what it gives you</span>
             </summary>
-            <ul className="abilities">
-              {d.rules!.map((rule) => (
-                <li key={rule.id} className="abilities__item">
-                  <div className="abilities__head">
-                    {rule.name}
-                    <span className="rule-chip rule-chip--detachment">{d.name}</span>
-                  </div>
-                  <p className="abilities__text">
-                    <Marked text={rule.text} />
-                  </p>
-                </li>
-              ))}
-            </ul>
-            <p className="muted detachment__hint">
-              Units this rule names show it on their datasheet in the editor and at the table.
-            </p>
+
+            {rules.length > 0 && (
+              <>
+                <h3 className="detachment__head">
+                  Rule{rules.length === 1 ? '' : 's'}
+                </h3>
+                <ul className="abilities">
+                  {rules.map((rule) => (
+                    <li key={rule.id} className="abilities__item">
+                      <div className="abilities__head">
+                        {rule.name}
+                        <span className="rule-chip rule-chip--detachment">{d.name}</span>
+                      </div>
+                      <p className="abilities__text">
+                        <Marked text={rule.text} />
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted detachment__hint">
+                  Units this rule names show it on their datasheet in the editor and at the table.
+                </p>
+              </>
+            )}
+
+            {enhancements.length > 0 && (
+              <>
+                <h3 className="detachment__head">Enhancements ({enhancements.length})</h3>
+                <ul className="abilities">
+                  {enhancements.map((e) => (
+                    <li key={e.id ?? e.name} className="abilities__item">
+                      <div className="abilities__head">
+                        {e.name}
+                        {e.points !== undefined && <span className="muted"> {e.points} pts</span>}
+                        <span className="rule-chip rule-chip--enhancement">Enhancement</span>
+                      </div>
+                      {e.text ? (
+                        <p className="abilities__text">
+                          <Marked text={e.text} />
+                        </p>
+                      ) : (
+                        <p className="muted abilities__text">
+                          No rules text in the installed data.
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="muted detachment__hint">
+                  Take one on a Character in its own editor; the army may hold two in all.
+                </p>
+              </>
+            )}
+
+            {strats.length > 0 ? (
+              <>
+                <h3 className="detachment__head">Stratagems ({strats.length})</h3>
+                <ul className="abilities">
+                  {strats.map((s) => (
+                    <li key={s.id} className="abilities__item">
+                      <div className="abilities__head">
+                        {s.name}
+                        <span className="rule-chip rule-chip--detachment">{s.cp} CP</span>
+                      </div>
+                      <p className="muted detachment__when">
+                        {s.turn} · {s.phase}
+                        {s.category ? ` · ${s.category}` : ''}
+                      </p>
+                      {s.effect && (
+                        <p className="abilities__text">
+                          <Marked text={s.effect} />
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              stratagems === null && (
+                <p className="muted detachment__hint">
+                  Stratagems are not imported yet — load them on the Data screen to see this
+                  detachment's.
+                </p>
+              )
+            )}
           </details>
-        ))}
+        )
+      })}
 
       <details className="config">
         <summary>Army configuration</summary>
@@ -790,6 +870,36 @@ function UnitCard({
       {leaders.length > 0 && <ul className="units units--leaders">{leaders.map(renderLeader)}</ul>}
     </li>
   )
+}
+
+/**
+ * The characters joined to one unit, with what each brings — the answer to
+ * "who is in this mob and what do they give it?" when the unit is open.
+ */
+function attachedTo(
+  roster: Roster,
+  graph: CatalogueGraph,
+  parsed: ParsedCatalogue,
+  sheets: Map<string, Datasheet>,
+  validation: Validation,
+  unitId: string,
+): AttachedUnit[] {
+  const names = unitNames(roster)
+  const enhancementIds = new Set((parsed.enhancements ?? []).map((e) => e.id))
+  const out: AttachedUnit[] = []
+  for (const [, slot] of attachmentsOf(roster, graph, unitId)) {
+    for (const unit of slot.units) {
+      out.push({
+        id: unit.id,
+        name: names.get(unit.id) ?? unit.name,
+        kindLabel: slot.kind.label,
+        points: validation.unitPoints[unit.id] ?? 0,
+        sheet: sheets.get(unit.entryId),
+        enhancements: enhancementsTaken(unit, enhancementIds),
+      })
+    }
+  }
+  return out
 }
 
 /** Points at each size the data lists, cheapest band: "90 (10) · 180 (20)". */

@@ -42,6 +42,7 @@ export function UnitEditor({
   validation,
   sheet,
   displayName,
+  attached,
   detachments,
   catalogue,
   role,
@@ -55,6 +56,8 @@ export function UnitEditor({
   sheet: Datasheet | undefined
   /** What the roster calls this unit — its own name, or the numbered one. */
   displayName: string
+  /** Characters joined to this unit, with what they bring (see AttachedUnit). */
+  attached: AttachedUnit[]
   detachments: Detachment[]
   catalogue: ParsedCatalogue
   role: string | undefined
@@ -84,6 +87,11 @@ export function UnitEditor({
   // One tap to the largest legal size. A mob is not one group grown: stopping
   // partway already costs the full price and misses the weapon allowance the
   // data grants at full size (see roster/size.ts).
+  // Every catalogue ability with text, by entry id: enhancements today, and
+  // anything else the parser learns to carry tomorrow.
+  const optionTexts = new Map(
+    (catalogue.enhancements ?? []).filter((a) => a.text).map((a) => [a.id, a.text]),
+  )
   const resizable = canResize(selection, graph)
   const reinforced = isAtMaxSize(selection, graph)
   const models = modelCount(selection)
@@ -154,12 +162,19 @@ export function UnitEditor({
             rootOnChange={onChange}
             validation={validation}
             tryChange={tryChange}
+            texts={optionTexts}
           />
         </div>
         {sheet && (
           <aside className="editor__sheet">
             <h3 className="editor__colHead">Datasheet</h3>
-            <BuiltSheet selection={selection} sheet={sheet} detachments={detachments} catalogue={catalogue} />
+            <BuiltSheet
+              selection={selection}
+              sheet={sheet}
+              attached={attached}
+              detachments={detachments}
+              catalogue={catalogue}
+            />
           </aside>
         )}
       </div>
@@ -167,15 +182,30 @@ export function UnitEditor({
   )
 }
 
+/** A character joined to this unit, and what it brings with it. */
+export type AttachedUnit = {
+  id: string
+  /** The roster's own name for it, numbering and renaming included. */
+  name: string
+  /** "Leader", "Support", or whatever the data labels the association. */
+  kindLabel: string
+  points: number
+  sheet: Datasheet | undefined
+  /** Names of the enhancements it carries. */
+  enhancements: string[]
+}
+
 /** The datasheet as the loadout stands: carried weapons with counts, abilities, detachment rules. */
 function BuiltSheet({
   selection,
   sheet,
+  attached,
   detachments,
   catalogue,
 }: {
   selection: Selection
   sheet: Datasheet
+  attached: AttachedUnit[]
   detachments: Detachment[]
   catalogue: ParsedCatalogue
 }) {
@@ -192,6 +222,22 @@ function BuiltSheet({
   const enhancementText = new Map((catalogue.enhancements ?? []).map((e) => [e.name, e.text]))
   const carried = rows.filter((r) => r.count > 0)
 
+  // What a joined character brings. Which of its abilities confer to the
+  // bodyguard is a judgement the rules text makes in prose, so everything the
+  // character has is listed and tagged with its name rather than guessed at.
+  const fromAttached = attached.flatMap((joined) => [
+    ...(joined.sheet?.abilities ?? [])
+      .filter((a) => a.kind !== 'core' && a.kind !== 'faction')
+      .map((ability) => ({ key: `${joined.id}:${ability.id}`, name: ability.name, text: ability.text, from: joined, tag: joined.kindLabel })),
+    ...joined.enhancements.map((name) => ({
+      key: `${joined.id}:enh:${name}`,
+      name,
+      text: enhancementText.get(name) ?? '',
+      from: joined,
+      tag: 'Enhancement',
+    })),
+  ])
+
   return (
     <div className="built">
       <WeaponTable title="Ranged weapons" rows={carried.filter((r) => r.profile.kind === 'ranged')} />
@@ -203,8 +249,41 @@ function BuiltSheet({
         </p>
       )}
 
-      {(sheet.abilities.length > 0 || detachmentRules.length > 0 || taken.length > 0) && <h3>Abilities</h3>}
+      {attached.length > 0 && (
+        <>
+          <h3>Joined by</h3>
+          <ul className="attached">
+            {attached.map((joined) => (
+              <li key={joined.id} className="attached__item">
+                <span className="attached__name">{joined.name}</span>
+                <span className="rule-chip rule-chip--attached">{joined.kindLabel}</span>
+                {joined.points > 0 && <span className="muted"> {joined.points} pts</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {(sheet.abilities.length > 0 ||
+        detachmentRules.length > 0 ||
+        taken.length > 0 ||
+        fromAttached.length > 0) && <h3>Abilities</h3>}
       <ul className="abilities">
+        {fromAttached.map((item) => (
+          <li key={item.key} className="abilities__item">
+            <div className="abilities__head">
+              {item.name}
+              <span className="rule-chip rule-chip--attached">
+                {item.from.name} · {item.tag}
+              </span>
+            </div>
+            {item.text && (
+              <p className="abilities__text">
+                <Marked text={item.text} />
+              </p>
+            )}
+          </li>
+        ))}
         {detachmentRules.map(({ rule, detachmentName }) => (
           <li key={rule.id} className="abilities__item">
             <div className="abilities__head">
@@ -256,6 +335,12 @@ type TreeProps = {
   validation: Validation
   /** Asked before an increment; a message refuses it. Absent for roster configuration. */
   tryChange?: ((nextRoot: Selection) => string | undefined) | undefined
+  /**
+   * Rules text per catalogue entry id, so an option can be read *before* it is
+   * taken — an enhancement is a paragraph of rules, and its name alone is not
+   * enough to choose by.
+   */
+  texts?: Map<string, string> | undefined
 }
 
 /** The option groups and direct entries of one selection, availability-gated. */
@@ -266,6 +351,7 @@ export function OptionTree({
   rootOnChange,
   validation,
   tryChange,
+  texts,
 }: TreeProps & { entry: ResolvedEntry }) {
   const direct = entry.entries.filter((child) => offered(validation, parent, child, undefined))
   return (
@@ -281,6 +367,7 @@ export function OptionTree({
             rootOnChange={rootOnChange}
             validation={validation}
             tryChange={tryChange}
+            texts={texts}
           />
         ))}
       {direct.length > 0 && (
@@ -297,6 +384,7 @@ export function OptionTree({
               rootOnChange={rootOnChange}
               validation={validation}
               tryChange={tryChange}
+              texts={texts}
               groupFull={false}
             />
           ))}
@@ -326,6 +414,7 @@ function GroupEditor({
   rootOnChange,
   validation,
   tryChange,
+  texts,
 }: TreeProps & { group: ResolvedGroup }) {
   const candidates = group.entries.filter((e) => offered(validation, parent, e, group))
   const nested = group.groups.filter((g) => groupOffered(validation, parent, g))
@@ -375,6 +464,7 @@ function GroupEditor({
           rootOnChange={rootOnChange}
           validation={validation}
           tryChange={tryChange}
+          texts={texts}
           groupFull={groupFull}
           atGroupMin={atGroupMin}
           singleChoice={singleChoice}
@@ -390,6 +480,7 @@ function GroupEditor({
           rootOnChange={rootOnChange}
           validation={validation}
           tryChange={tryChange}
+          texts={texts}
         />
       ))}
     </div>
@@ -409,6 +500,7 @@ function OptionRow({
   rootOnChange,
   validation,
   tryChange,
+  texts,
   groupFull,
   atGroupMin = false,
   singleChoice = false,
@@ -422,6 +514,10 @@ function OptionRow({
   singleChoice?: boolean
 }) {
   const [hint, setHint] = useState<string | null>(null)
+  const [reading, setReading] = useState(false)
+  // Enhancements are a paragraph of rules; choosing one by name alone is
+  // guesswork, so anything the catalogue has text for can be read in place.
+  const text = texts?.get(entry.id)
   const existing = parent.selections.find((s) => isSameOption(s, entry, groupId))
   const count = existing?.count ?? 0
   const points = entry.costs[COST_TYPE.points]
@@ -495,6 +591,16 @@ function OptionRow({
             {atCap ? 'max' : `${room} more`}
           </span>
         )}
+        {text && (
+          <button
+            className="option__info tap"
+            aria-expanded={reading}
+            aria-label={`${reading ? 'Hide' : 'Show'} the rules for ${entry.name}`}
+            onClick={() => setReading(!reading)}
+          >
+            {reading ? '−' : 'i'}
+          </button>
+        )}
         {hint && (
           <span className="option__hint" role="status">
             {hint}
@@ -530,12 +636,18 @@ function OptionRow({
           +
         </button>
       </div>
+      {text && reading && (
+        <p className="option__text">
+          <Marked text={text} />
+        </p>
+      )}
       {existing && (entry.entries.length > 0 || entry.groups.length > 0) && (
         <details className="option__sub" open={existing.selections.length > 0}>
           <summary>Loadout</summary>
           <OptionTree
             parent={existing}
             entry={entry}
+            texts={texts}
             root={root}
             rootOnChange={rootOnChange}
             validation={validation}

@@ -872,3 +872,41 @@
     flex: 1 1 auto;
   }
 }
+
+/* --- reading an option before taking it ----------------------------------- */
+
+/* An enhancement is a paragraph of rules; its name alone is not enough to
+   choose by, so it can be read in place. */
+.option__info {
+  flex: none;
+  width: 32px;
+  min-height: 32px;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-style: italic;
+}
+.option__text {
+  /* The row is a two-column grid; the text belongs under both columns. */
+  grid-column: 1 / -1;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-left: 2px solid var(--border);
+  background: var(--surface-sunken);
+  font-size: 0.9rem;
+}
+
+/* --- what a detachment gives you ------------------------------------------ */
+
+.detachment__head {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.95rem;
+}
+.detachment__when {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+}

@@ -681,6 +681,30 @@ choose none". `−` is now disabled at the group's minimum, with the reason in t
 one-of-N group **`+` on another option swaps to it** (and skips the increment guard, since a swap
 does not grow anything).
 
+### Reading before choosing (2026-09-14, later still)
+
+Three complaints with one shape: the app knew things it was not showing.
+
+- **An enhancement can be read before it is taken.** `OptionTree` carries an optional
+  `texts: Map<entryId, string>`; any option the catalogue has rules text for gets an `i` that
+  expands in place. Built from `catalogue.enhancements`, so it costs nothing and will cover
+  whatever else the parser learns to carry.
+- **A detachment says what it gives you.** Its `<details>` now has three sections — Rules,
+  Enhancements (name, points, full text) and Stratagems (CP, turn/phase, effect).
+  `roster/detachmentInfo.ts` does the join the sources force: the **mirror** lists a detachment's
+  enhancements by name and price, **BSData** carries the text, and only the name connects them, so
+  it matches through `normaliseName` (the same matcher the cross-source merge uses) and still lists
+  an enhancement whose text it cannot find rather than dropping it. The Core stratagems are left
+  out on purpose: they belong to every army and say nothing about *this* detachment.
+- **A unit shows who has joined it.** The unit editor lists its attached characters with kind and
+  points, and every ability and enhancement they bring appears in the Abilities section tagged
+  `WARBOSS · LEADER`. Which of a character's abilities confer to the bodyguard is a judgement the
+  rules make in prose, so everything is listed and tagged rather than guessed at.
+
+Watch out when testing enhancements: a detachment's enhancements are often gated ("WAGON unit
+only"), so an empty Enhancements group on a Warboss is the *data* being right. Blitz Brigade shows
+none; War Horde offers four.
+
 ---
 
 ## Next
