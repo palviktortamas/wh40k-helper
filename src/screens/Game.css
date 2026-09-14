@@ -376,3 +376,43 @@
 .unit__body .statstrip {
   margin: 0.125rem 0;
 }
+
+/* --- states the faction's own rules name (play/marks.ts) ------------------ */
+
+.marks {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.marks__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+/* A state is on or off, and which it is must not rest on colour alone. */
+.chip--toggle {
+  min-height: 44px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.chip--toggle.chip--on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.chip--toggle.chip--on::before {
+  content: '✓ ';
+}
+.marks__save {
+  margin: 0.5rem 0 0.25rem;
+}
+.marks__rule {
+  margin-top: 0.5rem;
+}

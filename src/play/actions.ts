@@ -35,6 +35,9 @@ export type GameAction =
   | { type: 'destroy'; unitId: string }
   | { type: 'revive'; unitId: string }
   | { type: 'toggleStatus'; unitId: string; status: UnitStatus }
+  | { type: 'toggleMark'; unitId: string; mark: string; label: string }
+  | { type: 'applyMark'; unitIds: string[]; mark: string; label: string; source: string }
+  | { type: 'clearMarks' }
   | { type: 'toggleOnce'; unitId: string; abilityId: string; label: string }
   | { type: 'setNote'; unitId: string; note: string }
   | { type: 'embark'; unitId: string; transportId: string }
@@ -81,6 +84,7 @@ const snapshot = (game: Game): GameState => ({
     ...u,
     models: u.models.map((m) => ({ ...m, weapons: m.weapons.map((w) => ({ ...w })) })),
     statuses: [...u.statuses],
+    ...(u.marks ? { marks: [...u.marks] } : {}),
     usedOnce: [...u.usedOnce],
   })),
   vpByRound: { ...game.vpByRound },
@@ -515,6 +519,39 @@ function applyAction(game: Game, action: GameAction): Game {
         next,
         `${unitName(g, action.unitId)}: ${has ? 'no longer' : 'now'} ${STATUS_LABELS[action.status]}`,
       )
+    }
+    case 'toggleMark': {
+      const g = remember(game)
+      const has = g.units.find((u) => u.id === action.unitId)?.marks?.includes(action.mark)
+      const next = updateUnit(g, action.unitId, (u) => ({
+        ...u,
+        marks: has ? (u.marks ?? []).filter((m) => m !== action.mark) : [...new Set([...(u.marks ?? []), action.mark])],
+      }))
+      return withLog(next, `${unitName(g, action.unitId)}: ${has ? 'no longer' : 'now'} ${action.label}`)
+    }
+    case 'applyMark': {
+      const g = remember(game)
+      // Applying to nobody is a mis-tap, not a state change worth an undo step.
+      if (action.unitIds.length === 0) return game
+      const next: Game = {
+        ...g,
+        units: g.units.map((u) =>
+          action.unitIds.includes(u.id)
+            ? { ...u, marks: [...new Set([...(u.marks ?? []), action.mark])] }
+            : u,
+        ),
+      }
+      const who =
+        action.unitIds.length === g.units.filter((u) => !u.destroyed).length
+          ? 'every unit'
+          : action.unitIds.map((id) => unitName(g, id)).join(', ')
+      return withLog(next, `${action.source}: ${who} now ${action.label}`)
+    }
+    case 'clearMarks': {
+      const g = remember(game)
+      if (!g.units.some((u) => (u.marks ?? []).length > 0)) return game
+      const next: Game = { ...g, units: g.units.map((u) => ({ ...u, marks: [] })) }
+      return withLog(next, 'Cleared every faction state')
     }
     case 'useStratagem': {
       const g = remember(game)

@@ -75,6 +75,12 @@ export type GameUnit = {
   /** The unit's damaged profile applies at or below this many wounds, when it has one. */
   damagedAt?: number
   statuses: UnitStatus[]
+  /**
+   * States the faction's own rules name and grant ("riled up"), by key. The
+   * core statuses above are a fixed list the app knows; these are discovered
+   * from the installed data (see play/marks.ts), so a codex can invent its own.
+   */
+  marks?: string[]
   destroyed: boolean
   /** Ids of once-per-battle abilities already used. */
   usedOnce: string[]

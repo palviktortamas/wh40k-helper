@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
@@ -9,6 +10,7 @@ import type { Stratagem } from '@/stratagems/types'
 import { StatStrip } from './StatStrip'
 import { WeaponTable } from './WeaponTable'
 import { Marked } from './Marked'
+import { discoverMarks, invulnerableFrom, rulesAboutMark } from '@/play/marks'
 import './Datasheets.css'
 import './Game.css'
 import './Units.css'
@@ -142,6 +144,25 @@ export function GameUnitSheet({
 }) {
   const sheet = sheets.get(unit.entryId)
   const leaders = game.units.filter((l) => l.leaderOf === unit.id && !l.destroyed)
+
+  // States the faction's own rules name. Only those this unit can actually be
+  // put into, or that change something for it, are offered here.
+  const marks = useMemo(() => (catalogue ? discoverMarks(catalogue) : []), [catalogue])
+  const unitKeywords = sheet ? [...sheet.keywords, ...sheet.factionKeywords] : []
+  const marksHere = catalogue
+    ? marks
+        .map((mark) => ({ mark, rules: rulesAboutMark(catalogue, mark, unitKeywords, unit.entryId) }))
+        .filter(({ mark, rules }) => rules.length > 0 || (unit.marks ?? []).includes(mark.key))
+    : []
+  const activeMarks = marksHere.filter(({ mark }) => (unit.marks ?? []).includes(mark.key))
+  // A state can grant a save better than the printed one; that is the change
+  // easiest to miss mid-game, so it gets a badge rather than a paragraph.
+  const grantedSave = Math.min(
+    ...activeMarks.flatMap(({ rules }) =>
+      rules.map((r) => invulnerableFrom(r.text)).filter((s): s is number => s !== undefined),
+    ),
+    99,
+  )
   const { rows, unmatched } = weaponCounts(unit, sheet)
   const single = unit.models.length === 1 && unit.models[0]!.total === 1 ? unit.models[0] : undefined
   const targeting = sheet ? forUnit(stratagems, [...sheet.keywords, ...sheet.factionKeywords]) : []
@@ -159,7 +180,47 @@ export function GameUnitSheet({
         {modelsAlive(unit)}/{modelsTotal(unit)} models · {unit.points} pts
         {unit.isWarlord ? ' · Warlord' : ''}
         {unit.statuses.length > 0 ? ` · ${unit.statuses.map((s) => STATUS_LABELS[s]).join(', ')}` : ''}
+        {activeMarks.length > 0 ? ` · ${activeMarks.map(({ mark }) => mark.label).join(', ')}` : ''}
       </p>
+
+      {marksHere.length > 0 && (
+        <section className="marks" aria-label="Faction states">
+          <div className="marks__row">
+            {marksHere.map(({ mark }) => {
+              const on = (unit.marks ?? []).includes(mark.key)
+              return (
+                <button
+                  key={mark.key}
+                  className={`chip chip--toggle ${on ? 'chip--on' : ''}`}
+                  aria-pressed={on}
+                  onClick={() => dispatch({ type: 'toggleMark', unitId: unit.id, mark: mark.key, label: mark.label })}
+                >
+                  {mark.label}
+                </button>
+              )
+            })}
+          </div>
+          {grantedSave < 99 && (
+            <p className="marks__save">
+              <strong>{grantedSave}+ invulnerable save</strong>{' '}
+              <span className="muted">while {activeMarks.map(({ mark }) => mark.label).join(' / ')}</span>
+            </p>
+          )}
+          {activeMarks.flatMap(({ mark, rules }) =>
+            rules.map((rule) => (
+              <div key={`${mark.key}:${rule.id}`} className="abilities__item marks__rule">
+                <div className="abilities__head">
+                  {rule.name}
+                  <span className="rule-chip rule-chip--attached">{mark.label}</span>
+                </div>
+                <p className="abilities__text">
+                  <Marked text={rule.text} />
+                </p>
+              </div>
+            )),
+          )}
+        </section>
+      )}
 
       {!sheet && (
         <p className="muted">

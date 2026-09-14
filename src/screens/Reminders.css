@@ -199,3 +199,29 @@
 .reminderRow--off .reminderRow__name {
   opacity: 0.65;
 }
+
+/* Applying a state a rule grants, from the rule itself. */
+.reminders__grant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.5rem 1.75rem;
+}
+.reminders__grant .button {
+  min-height: 44px;
+}
+.reminders__pick {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.reminders__pick select {
+  min-height: 44px;
+  max-width: 12rem;
+}
+.reminders__until {
+  flex: 1 1 100%;
+  font-size: 0.78rem;
+}

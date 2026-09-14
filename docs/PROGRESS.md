@@ -735,6 +735,54 @@ Fixture note: a synthetic catalogue only reproduces this if the special-weapons 
 the **size group**, not in the model entry. Put it in the model entry and the evaluator will happily
 allow 21 models, and the test will lie.
 
+### Faction states, and four smaller fixes (2026-09-14, evening)
+
+**Marks — states a codex names, granted and read from the data.** The owner asked for Ork
+"riled up": choose which unit a Warboss riles up, rile the whole army with a Waaagh!, and see the
+5+ invulnerable it grants. None of that is in code as Ork anything. `src/play/marks.ts` discovers
+the states from the installed catalogue, using the data's own convention: it bolds **KEYWORDS** in
+capitals and writes states in prose (**riled up**).
+
+A phrase counts as a state only when something **sets** it *and* something **reads** it — a state
+nothing can put a unit into is a turn of phrase, and one nothing reacts to changes nothing. On the
+owner's data that yields **Orks: 7 states, 95 granting abilities (85 self, 8 chosen, 2 army-wide);
+Necrons: none**, which is correct — the Necron codex invents no such state.
+
+Hard-won details, all of which cost a wrong first attempt:
+
+- A rule's subject is often a line above the grant ("That unit: — Is no longer battle-shocked. —
+  Is **riled up** until…"), so the "is this about a unit?" test must read the **whole rule**, not
+  the words before the mention. Scoped to the sentence it found 14 grants instead of 95.
+- "If this unit is on the battlefield, friendly ORKS units are **riled up**" *grants*; "While this
+  unit is **riled up**, …" *reads*. The difference is whether the if/while clause runs unbroken to
+  the mention — a comma between means the condition was about something else.
+- A rule that only grants a state is not an effect of having it. An effect is a rule that mentions
+  the state somewhere that is **not** a grant. That one line is what keeps "War Cry" out of the
+  list of things being riled up does for you.
+- "selected to shoot" is a moment, not a state; `damaged` is the wounds threshold the app already
+  tracks. Both are excluded by name-shape and by the core-state list.
+
+In Play: a unit sheet offers the states that can reach it, shows every rule that speaks about them
+tagged with the state, and badges an invulnerable save the state grants (`5+ invulnerable save
+while riled up`). A reminder whose rule grants a state gets the control to do it — a unit picker
+showing who already has it for "select one friendly unit", a "Make all N riled up" button for an
+army-wide sweep, and the duration in the rules' own words. Marks are cleared by hand; expiry from
+prose ("until the start of your next turn") would be guesswork, so the wording is shown instead.
+
+**Four smaller fixes:**
+
+- Stratagems say who they can be used on: "Target:" on the row in Play, and Target/When/Effect in
+  the detachment section when building a list.
+- Secondaries showed the other mode's scoring. A card can price a deed differently in Fixed and
+  Tactical *and* carry lines that exist in only one — one scores per character killed in Fixed and
+  all-or-nothing in Tactical, on the same face. `missions/scoring.ts` picks the lines and the value
+  for the mode being played.
+- **"Once per battle round" matched "once per battle"** — one word apart, a whole game in
+  consequence: the ability was filed as once-per-battle and vanished after its first tick.
+- An ability that fires when a model is destroyed is not a reminder; it surfaced in whatever phase
+  its text happened to name. Those start switched off (31 abilities in one faction, 23 in the
+  other) and can be switched on in Settings like any other.
+
 ---
 
 ## Next
