@@ -6,7 +6,7 @@ import { applyMod, modsFor, resolveMods, statMods } from './mods'
 describe('stat modifiers', () => {
   it('reads a characteristic a rule sets outright', () => {
     expect(statMods([{ name: "'Ardboyz", text: '**SOME** unit only. This unit has 4+ **Sv**.', source: 'Enhancement' }])).toEqual([
-      { stat: 'SV', op: 'set', value: '4+', target: 'unit', rule: "'Ardboyz", source: 'Enhancement' },
+      { stat: 'SV', op: 'set', value: '4+', target: 'unit', subject: 'unit', rule: "'Ardboyz", source: 'Enhancement' },
     ])
   })
 
@@ -70,6 +70,7 @@ describe('applying a modifier to a printed value', () => {
     op,
     value,
     target: 'unit' as const,
+    subject: 'unit' as const,
     rule: 'r',
     source: 's',
     ...(when ? { when } : {}),
@@ -194,5 +195,39 @@ describe('the older, spelled-out grammar', () => {
         { name: 'Pin', text: "While a unit is pinned, subtract 2 from that enemy unit's Move characteristic.", source: 'x' },
       ]),
     ).toEqual([])
+  })
+})
+
+describe('who a modifier is about', () => {
+  it('tells a change to the whole unit from one to the bearer alone', () => {
+    const mods = statMods([
+      { name: 'Ardboyz', text: 'This unit has 4+ **Sv**.', source: 'Enhancement' },
+      { name: 'Boosta', text: 'This model has +2" **M**.', source: 'Enhancement' },
+      { name: 'Ankh', text: "Add 2 to the Move characteristic of models in the bearer's unit.", source: 'Enhancement' },
+      { name: 'Might', text: "This model's melee attacks have +3 **A**.", source: 'Datasheet' },
+      { name: 'Horde', text: "This unit's melee attacks have +1 **A**.", source: 'Detachment' },
+      {
+        name: 'Charge',
+        text: "If this unit made a **charge move** this turn, this model's melee attacks have +2 **AP**.",
+        source: 'Datasheet',
+      },
+      {
+        // Bulleted: the owner is named once, in the line above.
+        name: 'Might',
+        text: "If this unit made a **charge move** this turn, this model's melee attacks have: - +3 **A**. - +2 **S**.",
+        source: 'Datasheet',
+      },
+    ])
+    expect(mods.map((m) => [m.rule, m.subject])).toEqual([
+      ['Ardboyz', 'unit'],
+      ['Boosta', 'model'],
+      ['Ankh', 'unit'],
+      ['Might', 'model'],
+      ['Horde', 'unit'],
+      // The condition names the unit; the effect is the model's.
+      ['Charge', 'model'],
+      ['Might', 'model'],
+      ['Might', 'model'],
+    ])
   })
 })

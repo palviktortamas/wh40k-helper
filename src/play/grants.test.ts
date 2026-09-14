@@ -9,7 +9,7 @@ describe('weapon grants', () => {
       { name: 'Get Stuck In', text: "Friendly **SOME KEYWORD** units' melee attacks have **[SUSTAINED HITS 1]**.", source: 'Detachment' },
     ])
     expect(grants).toEqual([
-      { keyword: 'SUSTAINED HITS 1', kind: 'melee', rule: 'Get Stuck In', source: 'Detachment' },
+      { keyword: 'SUSTAINED HITS 1', kind: 'melee', subject: 'unit', rule: 'Get Stuck In', source: 'Detachment' },
     ])
   })
 
@@ -99,6 +99,21 @@ describe('states a unit is already in', () => {
     expect(resolveGrants(grants, ['worked up']).map((g) => [g.keyword, g.met])).toEqual([
       ['ASSAULT', true],
       ['LETHAL HITS', undefined],
+    ])
+  })
+})
+
+describe('who a granted ability is for', () => {
+  it('tells an ability given to the unit from one given to the bearer alone', () => {
+    const grants = weaponGrants([
+      { name: 'Horde', text: "This unit's melee attacks have **[SUSTAINED HITS 1]**.", source: 'Detachment' },
+      { name: 'Relic', text: "This model's melee attacks have **[PRECISION]**.", source: 'Enhancement' },
+      { name: 'Scope', text: "Ranged weapons equipped by the bearer have the [IGNORES COVER] ability.", source: 'Enhancement' },
+    ])
+    expect(grants.map((g) => [g.rule, g.subject])).toEqual([
+      ['Horde', 'unit'],
+      ['Relic', 'model'],
+      ['Scope', 'model'],
     ])
   })
 })

@@ -22,10 +22,18 @@
  * datasheet they land on.
  */
 
-import { clausesOf, conditionOf, unbold, type GrantingRule } from './grants'
+import { clausesOf, conditionOf, subjectIn, subjectOf, unbold, type GrantingRule } from './grants'
 
 /** Where a modifier lands. */
 export type ModTarget = 'unit' | 'ranged' | 'melee' | 'any'
+
+/**
+ * Who the rule is about. A unit and the characters attached to it are one unit
+ * at the table, so a change written for "this unit" reaches all of them, while
+ * one written for "this model" or "the bearer" stays with the character that
+ * carries it.
+ */
+export type ModSubject = 'unit' | 'model'
 
 export type StatMod = {
   /** The characteristic, folded to the app's own spelling: M, T, SV, W, LD, OC, INVSV, R, A, BS, WS, S, AP, D. */
@@ -35,6 +43,7 @@ export type StatMod = {
   /** As the rule writes it: "+2\"", "-1", "4+". */
   value: string
   target: ModTarget
+  subject: ModSubject
   rule: string
   source: string
   /** The clause it hangs on, when it has one. */
@@ -122,6 +131,7 @@ const ATTACKS = /\b(melee|ranged)\s+(?:attacks?|weapons?)\b/i
  */
 const SELF = /^\W*(?:this|that|the)\s+(?:unit|model|bearer)|^\W*the\s+bearer/i
 
+
 const subjectIsSelf = (clause: string): boolean => {
   const plain = unbold(clause)
   // Anything before the last comma is the condition, not the subject.
@@ -139,13 +149,24 @@ export function statMods(rules: readonly GrantingRule[]): StatMod[] {
   const seen = new Set<string>()
   for (const rule of rules) {
     let heading: string | undefined
+    let headingSubject: ModSubject | undefined
     for (const clause of clausesOf(rule.text)) {
-      if (clause.endsWith(':')) heading = conditionOf(clause.slice(0, -1))
+      if (clause.endsWith(':')) {
+        heading = conditionOf(clause.slice(0, -1))
+        headingSubject = subjectIn(clause)
+      }
       // Armour and counted modifiers are real, but they are not this unit's
       // weapons and they are not one number — the rule's own text carries them.
       if (INCOMING.test(clause) || COUNTED.test(clause)) continue
 
-      const take = (stat: string, op: 'delta' | 'set', value: string, target: ModTarget, at: number) => {
+      const take = (
+        stat: string,
+        op: 'delta' | 'set',
+        value: string,
+        target: ModTarget,
+        at: number,
+        subject: ModSubject,
+      ) => {
         const found = conditionOf(clause.slice(0, at)) ?? heading
         // "In addition" is a connective, not a condition; printing it as one
         // would claim the change is conditional when it is not.
@@ -156,7 +177,16 @@ export function statMods(rules: readonly GrantingRule[]): StatMod[] {
         const key = `${rule.name}|${stat}|${op}|${value}|${target}`
         if (seen.has(key)) return
         seen.add(key)
-        out.push({ stat, op, value, target, rule: rule.name, source: rule.source, ...(when ? { when } : {}) })
+        out.push({
+          stat,
+          op,
+          value,
+          target,
+          subject,
+          rule: rule.name,
+          source: rule.source,
+          ...(when ? { when } : {}),
+        })
       }
 
       for (const [pattern, op] of [
@@ -177,7 +207,14 @@ export function statMods(rules: readonly GrantingRule[]): StatMod[] {
             const target: ModTarget = weapon
               ? ((ATTACKS.exec(clause)?.[1]?.toLowerCase() as ModTarget | undefined) ?? 'any')
               : 'unit'
-            take(weapon ?? unit!, op, value, target, match.index)
+            take(
+              weapon ?? unit!,
+              op,
+              value,
+              target,
+              match.index,
+              subjectOf(clause.slice(0, match.index), clause, headingSubject),
+            )
           }
         }
       }
@@ -195,7 +232,16 @@ export function statMods(rules: readonly GrantingRule[]): StatMod[] {
         const target: ModTarget = WEAPON_STATS[stat.toLowerCase()]
           ? ((ATTACKS.exec(clause)?.[1]?.toLowerCase() as ModTarget | undefined) ?? 'any')
           : 'unit'
-        take(stat, 'delta', `${sign}${amount[1]}${amount[2] ?? ''}`, target, match.index)
+        // The spelled-out grammar names who it is for *after* the change
+        // ("…of models in the bearer's unit"), so the whole clause is read.
+        take(
+          stat,
+          'delta',
+          `${sign}${amount[1]}${amount[2] ?? ''}`,
+          target,
+          match.index,
+          subjectOf(clause, clause, headingSubject),
+        )
       }
     }
   }

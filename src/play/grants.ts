@@ -19,11 +19,19 @@ import { plainText } from '@/reminders/heuristics'
 
 export type GrantKind = 'ranged' | 'melee' | 'any'
 
+/**
+ * Who the grant is for. A unit and the characters attached to it are one unit
+ * at the table: an ability given to "this unit" reaches all of them, one given
+ * to "this model" or "the bearer" does not.
+ */
+export type GrantSubject = 'unit' | 'model'
+
 export type WeaponGrant = {
   /** The ability as the rules write it: "SUSTAINED HITS 1". */
   keyword: string
   /** Which half of the datasheet it lands on; "any" when the rule names neither. */
   kind: GrantKind
+  subject: GrantSubject
   /** The rule that grants it. */
   rule: string
   /** Where that rule came from, for the chip: a detachment's name, "Waaagh!", … */
@@ -52,6 +60,34 @@ const ABILITY = /\[([^\]]+)\]/g
  * grants that already apply to the unit in front of you.
  */
 const CONDITION = /^(?:while|when|whenever|if|after|until|each time|in|on|unless|during)\b/i
+
+/**
+ * "this unit", "this model", "the bearer", "the bearer's unit" — who a rule is
+ * about. The *nearest* one before the effect is the one that governs it: "if
+ * this unit made a charge move this turn, **this model's** melee attacks have
+ * +3 A" is the model's, however the condition opens. A clause that names
+ * nobody is about the unit, which is how army-wide rules are written.
+ */
+const SUBJECT = /\b(?:this|that)\s+(unit|model)s?\b|\bthe\s+bearer(?:'?’?s\s+(unit))?/gi
+
+/** The subject a piece of text names, if it names one at all. */
+export const subjectIn = (text: string): GrantSubject | undefined => {
+  let subject: GrantSubject | undefined
+  for (const match of unbold(text).matchAll(SUBJECT)) {
+    if (match[2]) subject = 'unit'
+    else if (match[1]) subject = match[1].toLowerCase() === 'unit' ? 'unit' : 'model'
+    else subject = 'model'
+  }
+  return subject
+}
+
+/**
+ * Read what comes before the effect first; some forms name the owner after it
+ * ("Ranged weapons equipped by the bearer have …"), and a bulleted rule names
+ * it once in the heading above ("this model's melee attacks have: - +3 A").
+ */
+export const subjectOf = (before: string, clause = '', heading?: GrantSubject): GrantSubject =>
+  subjectIn(before) ?? subjectIn(clause) ?? heading ?? 'unit'
 
 /**
  * `plainText` drops the bold marks, but the sources use them to say which word
@@ -97,8 +133,12 @@ export function weaponGrants(rules: readonly GrantingRule[]): WeaponGrant[] {
     // "While a unit is worked up: - … - that unit's ranged attacks have […]" —
     // so the condition lives one clause above the grant.
     let heading: string | undefined
+    let headingSubject: GrantSubject | undefined
     for (const clause of clausesOf(rule.text)) {
-      if (clause.endsWith(':')) heading = conditionOf(clause.slice(0, -1))
+      if (clause.endsWith(':')) {
+        heading = conditionOf(clause.slice(0, -1))
+        headingSubject = subjectIn(clause)
+      }
       for (const match of clause.matchAll(HAVE)) {
         const kind = (match[1]?.toLowerCase() as GrantKind | undefined) ?? 'any'
         const when = conditionOf(clause.slice(0, match.index)) ?? heading
@@ -108,7 +148,14 @@ export function weaponGrants(rules: readonly GrantingRule[]): WeaponGrant[] {
           const key = `${rule.name}|${keyword}|${kind}`
           if (seen.has(key)) continue
           seen.add(key)
-          out.push({ keyword, kind, rule: rule.name, source: rule.source, ...(when ? { when } : {}) })
+          out.push({
+            keyword,
+            kind,
+            subject: subjectOf(clause.slice(0, match.index), clause, headingSubject),
+            rule: rule.name,
+            source: rule.source,
+            ...(when ? { when } : {}),
+          })
         }
       }
     }

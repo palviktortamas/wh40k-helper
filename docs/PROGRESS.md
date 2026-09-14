@@ -1172,6 +1172,36 @@ closing a unit."
 
 ---
 
+## Done 2026-09-14 (night, last +3) - an attached unit is one unit
+
+Owner: "when a unit gets an enhancement (or another buff), its Support and Leader characters
+should get it too, if applicable — in the builder, in play, and on the quick look."
+
+The rules already say so: a unit and the characters attached to it are one unit, so what a rule
+gives **"this unit"** reaches all of them, while what it gives **"this model"** or **"the bearer"**
+stays with the model carrying it. That distinction is now read and carried:
+
+- `grants.ts` and `mods.ts` record a `subject` (`unit` | `model`) for every ability and every
+  characteristic change. The subject is the one *nearest the effect*, not anywhere in the clause —
+  "If this unit made a charge move this turn, **this model's** melee attacks have +3 A" is the
+  model's, and a bulleted rule that names its owner once in the heading above ("this model's melee
+  attacks have: - +3 A. - +2 S.") carries that heading down to the bullets. Some forms name the
+  owner *after* the effect ("Ranged weapons equipped by the bearer have…"), so the rest of the
+  clause is the fallback.
+- `attachedFamily()` (play) and `familyOf()` (builder) give the rest of the unit: for a bodyguard
+  its characters, for a character the unit it joined **and the other characters on it** — a
+  Leader's enhancement reaches the Support character beside it.
+- `effectsForUnit` pools those members' unit-subject effects into the unit's own, deduplicated,
+  with the source saying whose it is: "M +2\" Follow Me Ladz · Enhancement · Warboss". Colours are
+  the usual ones: lasting in the accent, conditional in the warning colour with its `*`.
+
+Wired through the army list cards, the in-game sheet (and each attached character's section), the
+roster cards and the unit editor. On the owner's roster: giving the Warboss "Follow Me Ladz" puts
+M 8" on the mob, the Warboss and the Painboy, everywhere, while the Warboss's own "Might is Right"
+(+3 A to *this model's* melee attacks) stays on the Warboss.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

@@ -3,7 +3,7 @@ import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
 import { loadoutByModel, weaponCounts } from '@/play/weapons'
-import { detachmentRulesFor, effectsForUnit } from '@/play/unitEffects'
+import { attachedFamily, detachmentRulesFor, effectsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { StatStrip } from './StatStrip'
 import { WeaponTable } from './WeaponTable'
@@ -207,12 +207,15 @@ export function GameUnitSheet({
   // weapons is what you need when removing casualties or picking who shoots,
   // and a single counted table never says it.
   const loadout = loadoutByModel(unit, sheet)
+  // A unit and the characters attached to it are one unit: an enhancement that
+  // gives "this unit" a 4+ save gives it to all of them.
   const { grants, mods } = effectsForUnit({
     unit,
     sheet,
     catalogue,
     detachmentNames: game.detachmentNames,
     marks,
+    attached: attachedFamily(unit, game.units, sheets),
   })
   const single = unit.models.length === 1 && unit.models[0]!.total === 1 ? unit.models[0] : undefined
 
@@ -346,6 +349,9 @@ export function GameUnitSheet({
           catalogue,
           detachmentNames: game.detachmentNames,
           marks,
+          // …and what the unit it joined has reaches the character in turn,
+          // along with whatever the other characters on it bring.
+          attached: attachedFamily(leader, game.units, sheets),
         })
         const leaderModel = leader.models[0]
         return (

@@ -13,8 +13,7 @@ import { canSplit, mergeSelection, splitSelection } from '@/roster/split'
 import { roleKey } from '@/roster/roles'
 import { describeLoadout, enhancementsTaken } from './RosterEditor'
 import { StatStrip } from './StatStrip'
-import { effectsFrom } from '@/play/effects'
-import type { GrantingRule } from '@/play/grants'
+import { effectsForUnit } from '@/play/unitEffects'
 import { WeaponTable } from './WeaponTable'
 import { Marked } from './Marked'
 import './Rosters.css'
@@ -46,6 +45,7 @@ export function UnitEditor({
   sheet,
   displayName,
   attached,
+  family,
   detachments,
   catalogue,
   role,
@@ -61,6 +61,12 @@ export function UnitEditor({
   displayName: string
   /** Characters joined to this unit, with what they bring (see AttachedUnit). */
   attached: AttachedUnit[]
+  /**
+   * The rest of the unit this one is part of — the same list for a bodyguard,
+   * and the unit plus its other characters when a character is being edited.
+   * What their rules give "this unit" is this unit's too.
+   */
+  family: AttachedUnit[]
   detachments: Detachment[]
   catalogue: ParsedCatalogue
   role: string | undefined
@@ -163,7 +169,7 @@ export function UnitEditor({
         <StatStrip
           stats={sheet.stats}
           size="large"
-          mods={effectsFrom(rulesAboutUnit(sheet, selection, detachments, catalogue)).mods}
+          mods={effectsForBuiltUnit(sheet, selection, family, detachments, catalogue).mods}
         />
       )}
 
@@ -195,6 +201,7 @@ export function UnitEditor({
           <aside className="editor__sheet">
             <h3 className="editor__colHead">Datasheet</h3>
             <BuiltSheet
+              family={family}
               selection={selection}
               sheet={sheet}
               attached={attached}
@@ -223,53 +230,54 @@ export type AttachedUnit = {
 
 /** The datasheet as the loadout stands: carried weapons with counts, abilities, detachment rules. */
 /**
- * The rules that speak about this unit as it is being built: the detachments
- * the army took that name it, the enhancements it has taken, and its own
- * datasheet and faction abilities. Same list the table reads at the table.
+ * What the army's rules do to this unit as it is being built — the same reading
+ * made at the table, so a list is built from the profile it will be played
+ * with. The characters joined to it are part of it: what their enhancements
+ * give "this unit" is the unit's too, and the other way round.
  */
-export function rulesAboutUnit(
+export function effectsForBuiltUnit(
   sheet: Datasheet,
   selection: Selection,
+  attached: AttachedUnit[],
   detachments: Detachment[],
   catalogue: ParsedCatalogue,
-): GrantingRule[] {
-  const keywords = [...sheet.keywords, ...sheet.factionKeywords]
+) {
   const enhancementIds = new Set((catalogue.enhancements ?? []).map((e) => e.id))
-  const byName = new Map((catalogue.enhancements ?? []).map((e) => [e.name, e.text]))
-  return [
-    ...detachments.flatMap((d) =>
-      (d.rules ?? [])
-        .filter((r) => ruleAppliesTo(r.text, keywords) !== false)
-        .map((rule) => ({ name: rule.name, text: rule.text, source: d.name })),
-    ),
-    ...enhancementsTaken(selection, enhancementIds).map((name) => ({
-      name,
-      text: byName.get(name) ?? '',
-      source: 'Enhancement',
+  return effectsForUnit({
+    unit: {
+      id: selection.id,
+      name: selection.name,
+      entryId: sheet.id,
+      enhancements: enhancementsTaken(selection, enhancementIds).map((name) => ({ name })),
+    } as never,
+    sheet,
+    catalogue,
+    detachmentNames: detachments.map((d) => d.name),
+    attached: attached.map((joined) => ({
+      name: joined.name,
+      sheet: joined.sheet,
+      enhancements: joined.enhancements.map((name) => ({ name })),
     })),
-    ...sheet.abilities.map((a) => ({
-      name: a.name,
-      text: a.text,
-      source: a.kind === 'faction' ? 'Faction rule' : 'Datasheet',
-    })),
-  ]
+  })
 }
 
 function BuiltSheet({
   selection,
   sheet,
   attached,
+  family,
   detachments,
   catalogue,
 }: {
   selection: Selection
   sheet: Datasheet
   attached: AttachedUnit[]
+  family: AttachedUnit[]
   detachments: Detachment[]
   catalogue: ParsedCatalogue
 }) {
   const { rows, unmatched } = weaponCounts({ models: modelGroups(selection, sheet) }, sheet)
-  const { grants, mods } = effectsFrom(rulesAboutUnit(sheet, selection, detachments, catalogue))
+  const { grants, mods } = effectsForBuiltUnit(sheet, selection, family, detachments, catalogue)
   const keywords = [...sheet.keywords, ...sheet.factionKeywords]
   // Every detachment the army took can speak about this unit, so each is asked.
   const detachmentRules = detachments.flatMap((d) =>

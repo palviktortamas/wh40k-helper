@@ -31,7 +31,7 @@ import { getStratagemSet } from '@/stratagems/store'
 import type { StratagemSet } from '@/stratagems/types'
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import { discoverMarks, type Mark } from '@/play/marks'
-import { effectsForUnit } from '@/play/unitEffects'
+import { attachedFamily, effectsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { scrollParent } from './scrollToTop'
 import { JumpBar } from './JumpBar'
@@ -158,6 +158,7 @@ export function Game() {
         game={game}
         catalogue={catalogue?.parsed}
         marks={marks}
+        sheets={sheets}
         dispatch={dispatch}
         onOpen={() => openUnitSheet(unit.id)}
         leader={leader}
@@ -170,6 +171,7 @@ export function Game() {
             game={game}
             catalogue={catalogue?.parsed}
             marks={marks}
+            sheets={sheets}
             dispatch={dispatch}
             onOpen={() => openUnitSheet(l.id)}
             leader
@@ -467,6 +469,7 @@ function UnitCard({
   game,
   catalogue,
   marks,
+  sheets,
   dispatch,
   onOpen,
   leader = false,
@@ -476,6 +479,7 @@ function UnitCard({
   game: GameModel
   catalogue: ParsedCatalogue | undefined
   marks: readonly Mark[]
+  sheets: Map<string, Datasheet>
   dispatch: (action: GameAction) => void
   onOpen: () => void
   leader?: boolean
@@ -496,8 +500,18 @@ function UnitCard({
   // The quick stats have to be the stats: a unit that is riled up rolls
   // different numbers, and the card is what a player reads between turns.
   const { mods } = useMemo(
-    () => effectsForUnit({ unit, sheet, catalogue, detachmentNames: game.detachmentNames, marks }),
-    [unit, sheet, catalogue, game.detachmentNames, marks],
+    () =>
+      effectsForUnit({
+        unit,
+        sheet,
+        catalogue,
+        detachmentNames: game.detachmentNames,
+        marks,
+        // One unit at the table: what a Leader's enhancement gives "this unit"
+        // is on the bodyguard's card too, and the other way round.
+        attached: attachedFamily(unit, game.units, sheets),
+      }),
+    [unit, sheet, catalogue, game, marks, sheets],
   )
   const alive = modelsAlive(unit)
   const total = modelsTotal(unit)

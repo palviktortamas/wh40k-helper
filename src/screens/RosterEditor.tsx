@@ -34,8 +34,7 @@ import type { CatalogueGraph, ResolvedEntry } from '@/roster/resolve'
 import { groupByRole, roleKey, roleOf } from '@/roster/roles'
 import { WARLORD_CATEGORY } from '@/roster/vocabulary'
 import { COST_TYPE } from '@/data/bsdata/schema'
-import { OptionTree, UnitEditor, rulesAboutUnit, type AttachedUnit } from './UnitEditor'
-import { effectsFrom } from '@/play/effects'
+import { OptionTree, UnitEditor, effectsForBuiltUnit, type AttachedUnit } from './UnitEditor'
 import type { StatMod } from '@/play/mods'
 import { scrollParent, scrollToTop } from './scrollToTop'
 import { JumpBar } from './JumpBar'
@@ -177,6 +176,7 @@ export function RosterEditor() {
         sheet={sheets.get(editingSelection.entryId)}
         displayName={unitNames(roster).get(editingSelection.id) ?? editingSelection.name}
         attached={attachedTo(roster, graph, catalogue.parsed, sheets, validation, editingSelection.id)}
+        family={familyOf(roster, sheets, validation, catalogue.parsed, editingSelection)}
         detachments={chosen}
         catalogue={catalogue.parsed}
         role={roleOf(graph, editingSelection.entryId)}
@@ -217,7 +217,12 @@ export function RosterEditor() {
   // a detachment's +1, the same numbers the editor and the table show.
   const modsOf = (unit: Selection): StatMod[] => {
     const sheet = sheets.get(unit.entryId)
-    return sheet ? effectsFrom(rulesAboutUnit(sheet, unit, chosen, catalogue.parsed)).mods : []
+    if (!sheet) return []
+    // The characters joined to it count: what a Leader's enhancement gives
+    // "this unit" belongs on the unit's card too. A character's own card asks
+    // the same question of the unit it has joined.
+    const family = familyOf(roster, sheets, validation, catalogue.parsed, unit)
+    return effectsForBuiltUnit(sheet, unit, family, chosen, catalogue.parsed).mods
   }
 
   const cardFor = (unit: Selection, index: number, nested = false) => (
@@ -957,6 +962,33 @@ function attachedTo(
     }
   }
   return out
+}
+
+/**
+ * The rest of the unit this one is part of: the unit a character has joined and
+ * the other characters on it, or — for the unit itself — the characters
+ * attached to it. One unit at the table, so one pool of rules.
+ */
+function familyOf(
+  roster: Roster,
+  sheets: Map<string, Datasheet>,
+  validation: Validation,
+  parsed: ParsedCatalogue,
+  unit: Selection,
+): AttachedUnit[] {
+  const hostId = unit.attachedTo ?? unit.id
+  const names = unitNames(roster)
+  const enhancementIds = new Set((parsed.enhancements ?? []).map((e) => e.id))
+  return roster.selections
+    .filter((other) => other.id !== unit.id && (other.id === hostId || other.attachedTo === hostId))
+    .map((other) => ({
+      id: other.id,
+      name: names.get(other.id) ?? other.name,
+      kindLabel: other.attachedTo ? 'Attached' : 'Unit',
+      points: validation.unitPoints[other.id] ?? 0,
+      sheet: sheets.get(other.entryId),
+      enhancements: enhancementsTaken(other, enhancementIds),
+    }))
 }
 
 /** Points at each size the data lists, cheapest band: "90 (10) · 180 (20)". */
