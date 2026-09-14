@@ -112,6 +112,42 @@ function fillGroup(group: ResolvedGroup, depth: number): Selection[] {
   return out
 }
 
+/**
+ * Gives back every model in `unit` that has nothing chosen the loadout its own
+ * data calls compulsory, and leaves everything else exactly as it is.
+ *
+ * A model that reached the roster without its wargear — an older build, an
+ * import, an add that went wrong — is a model that rolls no dice, and finding
+ * which of its options were the compulsory ones by hand is exactly the work
+ * the app exists to avoid.
+ */
+export function fillCompulsoryLoadouts(
+  unit: Selection,
+  resolve: (entryId: string) => ResolvedEntry | undefined,
+): Selection {
+  let changed = false
+  const visit = (node: Selection): Selection => {
+    const selections = node.selections.map((child) => {
+      if (child.type === 'model' && child.selections.length === 0) {
+        const entry = resolve(child.entryId)
+        if (entry && (entry.entries.length > 0 || entry.groups.length > 0)) {
+          const filled = instantiate(entry, child.count)
+          if (filled.selections.length > 0) {
+            changed = true
+            // The selection keeps its own id and count: it is the same models,
+            // now holding what they were always meant to hold.
+            return { ...child, selections: filled.selections }
+          }
+        }
+      }
+      return visit(child)
+    })
+    return changed ? { ...node, selections } : node
+  }
+  const next = visit(unit)
+  return changed ? next : unit
+}
+
 /** Deep-copies a selection tree with fresh instance ids, for duplication. */
 export function cloneSelection(selection: Selection): Selection {
   return {

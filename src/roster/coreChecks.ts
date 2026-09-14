@@ -18,6 +18,32 @@ import { attachmentKind } from './attachment'
 /** Leaving this much unspent is legal but usually a mistake. */
 const UNSPENT_WARNING_THRESHOLD = 50
 
+/**
+ * Models in a unit that could carry wargear and carry none. A model whose
+ * datasheet gives it no choices (its weapons are printed, not selected) is not
+ * unarmed — it simply has nothing to choose, so only models whose entry offers
+ * something count.
+ */
+function unarmedModels(
+  unit: Roster['selections'][number],
+  graph: CatalogueGraph,
+): { name: string; count: number }[] {
+  const found = new Map<string, number>()
+  const walk = (node: Roster['selections'][number]) => {
+    for (const child of node.selections) {
+      if (child.type === 'model') {
+        const entry = graph.resolve(child.entryId)
+        const offersSomething = Boolean(entry && (entry.entries.length > 0 || entry.groups.length > 0))
+        if (offersSomething && child.selections.length === 0)
+          found.set(child.name, (found.get(child.name) ?? 0) + child.count)
+      }
+      walk(child)
+    }
+  }
+  walk(unit)
+  return [...found].map(([name, count]) => ({ name, count }))
+}
+
 export function coreChecks(
   roster: Roster,
   evaluation: EvaluationResult,
@@ -85,6 +111,23 @@ export function coreChecks(
           rule: 'Core Rules — Muster Armies: Epic Heroes',
         })
       }
+    }
+
+    // A model that can carry wargear and carries none is a model that will
+    // roll no dice. The data's own minimums usually catch it as an error, but
+    // not always — and "Boyz #2 has 6 models with nothing to fight with" is
+    // the sentence that actually gets it fixed.
+    for (const unit of roster.selections) {
+      const empty = unarmedModels(unit, graph)
+      if (empty.length === 0) continue
+      issues.push({
+        severity: 'warning',
+        selectionId: unit.id,
+        message: `${unit.name}: ${empty
+          .map(({ name, count }) => `${count}× ${name}`)
+          .join(', ')} ${empty.length === 1 && empty[0]!.count === 1 ? 'has' : 'have'} no weapons or wargear chosen.`,
+        rule: 'Housekeeping',
+      })
     }
 
     // A character that can join a unit but has not is legal, but usually an

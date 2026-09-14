@@ -920,3 +920,18 @@
 .option__which {
   font-size: 0.8rem;
 }
+
+/* A repair offered where the damage shows: models that reached the roster with
+   no weapons on them. */
+.editor__repair {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  background: var(--surface-sunken);
+  color: var(--warning);
+  font-size: 0.875rem;
+}

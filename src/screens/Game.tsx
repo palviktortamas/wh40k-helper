@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
@@ -31,6 +31,7 @@ import { getStratagemSet } from '@/stratagems/store'
 import type { StratagemSet } from '@/stratagems/types'
 import type { Datasheet } from '@/data/model'
 import { roleKey } from '@/roster/roles'
+import { scrollParent } from './scrollToTop'
 import { GameStratagems } from './GameStratagems'
 import { StatStrip } from './StatStrip'
 import './Rosters.css'
@@ -44,6 +45,30 @@ const STATUSES: UnitStatus[] = ['battleShocked', 'advanced', 'fellBack', 'reserv
  * players, and the army view with per-model wound tracking. Every change goes
  * through `apply`, so undo and the log come for free.
  */
+/**
+ * The jump rail: a table-side game screen is long — tracker, reminders,
+ * mission, stratagems, then every unit — and a phone scrolls it a screen at a
+ * time. The rail stays put and puts each part one tap away. Labelled, not
+ * coloured dots: it has to be readable at a glance across a table.
+ */
+function JumpRail({ targets }: { targets: { id: string; label: string; name: string }[] }) {
+  if (targets.length < 2) return null
+  return (
+    <nav className="jump" aria-label="Jump to a part of this game">
+      {targets.map((target) => (
+        <button
+          key={target.id}
+          className="jump__btn tap"
+          aria-label={`Jump to ${target.name}`}
+          onClick={() => document.getElementById(target.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        >
+          {target.label}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>()
   const [game, setGame] = useState<GameModel | null>(null)
@@ -54,6 +79,9 @@ export function Game() {
   const [overrides, setOverrides] = useState<Map<string, ReminderOverride>>(new Map())
   const [remindersOn, setRemindersOn] = useState(true)
   const [stratagemSet, setStratagemSet] = useState<StratagemSet | null>(null)
+  const shell = useRef<HTMLElement>(null)
+  /** Where the army list was when a unit was opened, so closing it comes back there. */
+  const listScroll = useRef<number | null>(null)
 
   useEffect(() => {
     if (!gameId) return
@@ -84,6 +112,21 @@ export function Game() {
       return next
     })
   }, [])
+
+  // Opening a unit swaps the whole screen, so the list's scroll position is
+  // remembered by hand: coming back to the top of a twenty-unit army after
+  // every look at a datasheet is the kind of thing that loses a turn.
+  const openUnitSheet = useCallback((id: string) => {
+    listScroll.current = scrollParent(shell.current)?.scrollTop ?? 0
+    setOpenUnit(id)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (openUnit !== null || listScroll.current === null) return
+    const scroller = scrollParent(shell.current)
+    if (scroller) scroller.scrollTop = listScroll.current
+    listScroll.current = null
+  }, [openUnit])
 
   const sheets = useMemo(
     () => new Map((catalogue?.parsed.datasheets ?? []).map((d) => [d.id, d])),
@@ -127,17 +170,26 @@ export function Game() {
 
   const renderUnit = (unit: GameUnit, leader = false) => (
     <>
-      <UnitCard unit={unit} sheet={sheets.get(unit.entryId)} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(unit.id)} leader={leader} />
+      <UnitCard unit={unit} sheet={sheets.get(unit.entryId)} game={game} dispatch={dispatch} onOpen={() => openUnitSheet(unit.id)} leader={leader} />
       {(leadersOf.get(unit.id) ?? []).map((l) => (
         <div key={l.id} className={`unit__leader role-stripe role--${roleKey(sheets.get(l.entryId)?.role)} ${l.destroyed ? 'unit--dead' : ''}`}>
-          <UnitCard unit={l} sheet={sheets.get(l.entryId)} game={game} dispatch={dispatch} onOpen={() => setOpenUnit(l.id)} leader />
+          <UnitCard unit={l} sheet={sheets.get(l.entryId)} game={game} dispatch={dispatch} onOpen={() => openUnitSheet(l.id)} leader />
         </div>
       ))}
     </>
   )
 
+  const jumpTargets = [
+    { id: 'game-turn', label: 'Turn', name: 'the battle round and phase' },
+    ...(catalogue ? [{ id: 'game-reminders', label: 'Cues', name: 'the reminders for this phase' }] : []),
+    ...(game.mission && deck ? [{ id: 'game-mission', label: 'Miss', name: 'the mission' }] : []),
+    ...(stratagemSet ? [{ id: 'game-strats', label: 'Strat', name: 'the stratagems' }] : []),
+    { id: 'game-army', label: 'Army', name: 'the army list' },
+  ]
+
   return (
-    <section className="game">
+    <section className="game" ref={shell}>
+      <JumpRail targets={jumpTargets} />
       <Link className="sheet__back tap" to="/play">
         ‹ Play
       </Link>
@@ -155,7 +207,7 @@ export function Game() {
         </div>
       </header>
 
-      <div className={`tracker ${game.turn === 'me' ? 'tracker--me' : 'tracker--them'}`}>
+      <div id="game-turn" className={`tracker ${game.turn === 'me' ? 'tracker--me' : 'tracker--them'}`}>
         <div className="tracker__round">
           <span className="tracker__label">Battle round</span>
           <strong>
@@ -234,6 +286,7 @@ export function Game() {
 
       {catalogue && (
         <GameReminders
+          anchorId="game-reminders"
           game={game}
           catalogue={catalogue.parsed}
           overrides={overrides}
@@ -245,14 +298,14 @@ export function Game() {
 
       {game.mission && deck && (
         <>
-          <h3 className="play__heading">Mission</h3>
+          <h3 id="game-mission" className="play__heading">Mission</h3>
           <GameMission game={game} deck={deck} dispatch={dispatch} />
         </>
       )}
 
-      <GameStratagems game={game} set={stratagemSet} dispatch={dispatch} />
+      <GameStratagems game={game} set={stratagemSet} dispatch={dispatch} anchorId="game-strats" />
 
-      <h3 className="play__heading">
+      <h3 id="game-army" className="play__heading">
         Army{' '}
         <span className="muted">
           — {game.units.filter((u) => !u.destroyed).length} of {game.units.length} units standing

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { bareSelection, instantiate, isSameOption } from '@/roster/defaults'
+import { bareSelection, fillCompulsoryLoadouts, instantiate, isSameOption } from '@/roster/defaults'
 import { replaceSelection, type Validation } from '@/roster/store'
 import type { CatalogueGraph, ResolvedEntry, ResolvedGroup } from '@/roster/resolve'
 import type { Selection } from '@/roster/types'
@@ -69,6 +69,12 @@ export function UnitEditor({
   tryChange: (next: Selection) => string | undefined
 }) {
   const entry = graph.resolve(selection.entryId)
+  // A model that reached the roster without its wargear can be repaired in one
+  // tap rather than option by option.
+  const needsLoadout = useMemo(
+    () => fillCompulsoryLoadouts(selection, (id) => graph.resolve(id)) !== selection,
+    [selection, graph],
+  )
 
   const issues = useMemo(
     () => validation.issues.filter((i) => i.selectionId && contains(selection, i.selectionId)),
@@ -124,6 +130,17 @@ export function UnitEditor({
           }}
         />
       </label>
+      {needsLoadout && (
+        <p className="editor__repair">
+          <span className="issues__mark">⚠</span> Some models have no weapons chosen.{' '}
+          <button
+            className="button button--quiet"
+            onClick={() => onChange(fillCompulsoryLoadouts(selection, (id) => graph.resolve(id)))}
+          >
+            Take the compulsory loadout
+          </button>
+        </p>
+      )}
       <p className="muted editor__summary">
         {describeLoadout(selection)} · <strong>{validation.unitPoints[selection.id] ?? 0} pts</strong>
       </p>
@@ -733,8 +750,11 @@ function OptionRow({
           <Marked text={text} />
         </p>
       )}
+      {/* An empty loadout is the one that needs looking at, so it is never the
+          one folded away: a model added with nothing chosen used to hide its own
+          compulsory weapons behind a closed summary. */}
       {existing && (entry.entries.length > 0 || entry.groups.length > 0) && (
-        <details className="option__sub" open={existing.selections.length > 0}>
+        <details className="option__sub" open>
           <summary>Loadout</summary>
           {canSplit(existing, entry.entries.length + entry.groups.length > 0) && (
             <button

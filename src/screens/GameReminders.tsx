@@ -21,6 +21,7 @@ export function GameReminders({
   enabled,
   onToggleEnabled,
   dispatch,
+  anchorId,
 }: {
   game: Game
   catalogue: ParsedCatalogue
@@ -28,6 +29,8 @@ export function GameReminders({
   enabled: boolean
   onToggleEnabled: () => void
   dispatch: (action: GameAction) => void
+  /** Id for the game screen's jump rail. */
+  anchorId?: string
 }) {
   const all = useMemo(() => remindersForGame(game, catalogue, overrides), [game.units, game.detachmentNames, catalogue, overrides])
 
@@ -59,7 +62,7 @@ export function GameReminders({
   const title = `${game.turn === 'me' ? PHASE_LABELS[game.phase] : `Opponent's ${PHASE_LABELS[game.phase]}`} phase`
 
   return (
-    <section className="reminders" aria-label="Reminders for this phase">
+    <section id={anchorId} className="reminders" aria-label="Reminders for this phase">
       <div className="reminders__head">
         <h3 className="play__heading">
           Reminders <span className="muted">— {title}</span>

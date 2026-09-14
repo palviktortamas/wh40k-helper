@@ -24,6 +24,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 9 | Editor round: attachment kinds, unit names, picker, unit size | **built 2026-09-14** — Leader/Support/Retainers told apart, numbered and renamable units, annotated attach control with Detach, picker stays open with counts, Reinforced toggle, compulsory loadouts can no longer be emptied |
 | 10 | Loadout round, in play | **built 2026-09-14** — weapon abilities the rules grant (with conditions, live when the state is on), profiles the unit cannot take dropped (`PARSER_VERSION` 5), loadout split by model type |
 | 11 | Characteristics the rules change | **built 2026-09-14** — stat and weapon-profile modifiers read from both grammars, shown changed (lasting) or temporary everywhere a unit is shown; combined-weapon loadout bug fixed |
+| 12 | Unarmed models, and moving around the game screen | **built 2026-09-14** — warning + one-tap repair for models with no wargear, empty loadouts no longer collapsed, jump rail in play, army-list scroll restored when a unit sheet closes |
 
 ---
 
@@ -986,6 +987,51 @@ games started after it.
   names its rule, so it is legible rather than wrong-looking; tighten if it ever bites.
 - Enhancements still show up under "Other wargear" in the weapons list, because some of them are
   weapons. Harmless, slightly noisy.
+
+---
+
+## Done 2026-09-14 (late night) - unarmed models, and getting around the game screen
+
+Owner's next round: "on default Boyz had 0 weapons — Big Shoota, Choppa, Slugga start at 0, and
+those are not options, they are must-pick. Warn when units have no weapons. In play I want a fast
+navigation on the side. And closing a unit should come back to where I was."
+
+### Models with nothing to fight with
+
+The cause was not reproducible from the app as it stands: a fresh Boyz, a Reinforced one, a
+special-weapon model added at full size (which takes a Boy from a sibling group), a split and a
+merge all come out with their compulsory wargear. Rather than guess, the shape of the problem is
+now caught and repaired wherever it came from:
+
+- **A warning names it**, per unit and per model type: "Boyz: 16× Boy, 2× Nob, 1× Boy w/ Big
+  shoota have no weapons or wargear chosen." A model whose datasheet gives it nothing to choose is
+  never warned about — only models whose entry offers something and holds nothing
+  (`unarmedModels` in `coreChecks.ts`).
+- **One tap repairs it**: `fillCompulsoryLoadouts` (roster/defaults.ts) gives every empty model
+  what its own data calls compulsory, keeping the selection's id and count — the same models, now
+  holding what they were meant to hold. The unit editor offers it in a banner when there is
+  anything to fix, and the banner disappears when there is not.
+- **An empty loadout is no longer folded away.** A model's "Loadout" `<details>` was `open` only
+  when it already held something, so the one case that needed looking at was the one hidden.
+
+Verified end to end by stripping a mob's models in IndexedDB and reloading: the warning appears on
+the roster, the editor offers the repair, and one tap restores 18 sluggas, 16 shootas and the
+special weapons.
+
+### The jump rail (play)
+
+A game screen is tracker, score, tools, Battle-shock, reminders, mission, stratagems, then twenty
+units; a phone scrolls that a screen at a time. A fixed rail on the right edge now jumps to
+**Turn / Cues / Miss / Strat / Army**; entries appear only when their section does. Labels, not
+coloured dots. On a phone `.game` takes a right padding so no card's own buttons sit under it; at
+900px and up the rail sits beside the content column rather than over it.
+
+### Coming back where you left
+
+Opening a unit swaps the whole screen and the sheet scrolls itself to the top (it must — the stat
+line is why you opened it), so the army list came back at the top. The list's scroll offset is now
+remembered when a unit is opened and restored in a layout effect when it closes. `scrollToTop.ts`
+grew `scrollParent`, since the app scrolls the shell's `<main>` rather than the document.
 
 ---
 

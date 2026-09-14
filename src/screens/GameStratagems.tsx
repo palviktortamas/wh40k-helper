@@ -20,10 +20,13 @@ export function GameStratagems({
   game,
   set,
   dispatch,
+  anchorId,
 }: {
   game: Game
   set: StratagemSet | null
   dispatch: (action: GameAction) => void
+  /** Id for the game screen's jump rail. */
+  anchorId?: string
 }) {
   const [showAll, setShowAll] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
@@ -36,7 +39,7 @@ export function GameStratagems({
 
   if (!set) {
     return (
-      <section className="strats__panel" aria-label="Stratagems">
+      <section id={anchorId} className="strats__panel" aria-label="Stratagems">
         <h3 className="play__heading">Stratagems</h3>
         <p className="muted strats__empty">
           Not imported yet — bring in Wahapedia's stratagem export under <Link to="/data">Data</Link> to
@@ -124,7 +127,7 @@ export function GameStratagems({
   }
 
   return (
-    <section className="strats__panel" aria-label="Stratagems">
+    <section id={anchorId} className="strats__panel" aria-label="Stratagems">
       <div className="reminders__head">
         <h3 className="play__heading">
           Stratagems <span className="muted">— {title}</span>
