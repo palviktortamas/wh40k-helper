@@ -43,4 +43,30 @@ describe('reminder heuristics', () => {
     expect(long.length).toBeLessThanOrEqual(140)
     expect(long.endsWith('…')).toBe(true)
   })
+
+  it('does not mistake "once per battle round" for "once per battle"', () => {
+    // The wording differs by one word and the consequence is a whole game: a
+    // once-per-round ability marked once-per-battle disappears after its first
+    // use and never comes back.
+    const perRound = infer("Keep Goin'! (Once per battle round, per army)", 'In your Command phase, you can do the thing.')
+    expect(perRound.once).toBe('turn')
+
+    const perBattle = infer('Last Stand (Once per battle, per unit)', 'In your Command phase, you can do the thing.')
+    expect(perBattle.once).toBe('battle')
+  })
+
+  it('starts an ability that fires when a model dies switched off', () => {
+    // Nothing to remember: it happens on its own, and it would otherwise show
+    // up every phase its text happens to name.
+    const r = infer(
+      'Deadly Demise 1',
+      'Each time a model in this unit is destroyed, after any passengers have made their escape moves, roll one D6.',
+    )
+    expect(r.enabled).toBe(false)
+  })
+
+  it('leaves an ability that merely mentions destroying things switched on', () => {
+    const r = infer('Big Guns', 'In your Shooting phase, each time this unit destroys an enemy unit, gain 1 CP.')
+    expect(r.enabled).toBe(true)
+  })
 })

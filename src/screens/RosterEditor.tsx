@@ -425,8 +425,23 @@ export function RosterEditor() {
                         {s.turn} · {s.phase}
                         {s.category ? ` · ${s.category}` : ''}
                       </p>
+                      {/* Which units it can be used on is the thing you check
+                          when building a list, so it is spelled out here. */}
+                      {s.target && (
+                        <p className="abilities__text">
+                          <span className="muted">Target: </span>
+                          <Marked text={s.target} />
+                        </p>
+                      )}
+                      {s.when && (
+                        <p className="abilities__text">
+                          <span className="muted">When: </span>
+                          <Marked text={s.when} />
+                        </p>
+                      )}
                       {s.effect && (
                         <p className="abilities__text">
+                          <span className="muted">Effect: </span>
                           <Marked text={s.effect} />
                         </p>
                       )}

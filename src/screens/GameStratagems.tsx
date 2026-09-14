@@ -81,16 +81,19 @@ export function GameStratagems({
             {s.phase}
           </span>
         </p>
+        {/* Who it can be used on decides whether it is worth reading at all,
+            so it is on the row rather than behind the expander. */}
+        {s.target && (
+          <p className="abilities__text strat__line strat__target">
+            <span className="muted">Target: </span>
+            <Marked text={s.target} />
+          </p>
+        )}
         <p className="abilities__text strat__line">
           <Marked text={s.when} />
         </p>
         {expanded && (
           <div className="strat__body">
-            {s.target && (
-              <p className="abilities__text">
-                <b>Target:</b> <Marked text={s.target} />
-              </p>
-            )}
             <p className="abilities__text">
               <b>Effect:</b> <Marked text={s.effect} />
             </p>

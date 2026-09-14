@@ -56,8 +56,19 @@ const TRIGGER_RULES: [RegExp, Trigger][] = [
   [/\b((in|during) (your|the) fight phase|selected to fight|melee (attack|weapon)s?|fights? first|fight phase|pile.?in|consolidat)/i, 'fight_phase'],
 ]
 
-const ONCE_BATTLE = /\bonce per battle\b/i
+// "Once per battle" and "once per battle round" differ by one word and by a
+// whole game: a once-per-round ability filed as once-per-battle disappears
+// after its first use and never returns.
+const ONCE_BATTLE = /\bonce per battle\b(?!\s+round)/i
 const ONCE_TURN = /\bonce per (turn|battle round|phase)\b/i
+
+/**
+ * An ability that fires when a model dies is not something to remember — it
+ * happens on its own, and it would otherwise surface in whatever phase its
+ * text happens to name ("…have made their disembark moves"). It starts off;
+ * the owner can switch it on in Settings → Reminders like any other.
+ */
+const ON_DESTRUCTION = /\beach time (?:a|this) (?:model|unit)\b[^.]{0,80}\bis destroyed\b/i
 
 export function inferOnce(text: string): Once | undefined {
   if (ONCE_BATTLE.test(text)) return 'battle'
@@ -86,6 +97,6 @@ export function infer(name: string, rawText: string): Inferred {
     trigger,
     text: shortText(rawText) || plainText(name),
     ...(once ? { once } : {}),
-    enabled: trigger !== 'custom',
+    enabled: trigger !== 'custom' && !ON_DESTRUCTION.test(text),
   }
 }

@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseCatalogue } from '@/data/bsdata/parse'
 import { remindersForCatalogue } from './derive'
+import { infer, plainText } from './heuristics'
 import {
   configuredFactions,
   fixturesAvailable,
@@ -33,6 +34,21 @@ describe.skipIf(!available)('reminder heuristics on a real catalogue', () => {
       expect(all.filter((r) => r.trigger !== 'custom').length / all.length).toBeGreaterThan(0.5)
       expect(all.some((r) => r.once === 'battle')).toBe(true)
       expect(all.every((r) => r.text.length > 0 && r.text.length <= 140)).toBe(true)
+
+      // An ability that fires when a model dies is not a reminder: it happens
+      // on its own, and it used to surface in whatever phase its text named.
+      // Asked of the ability's whole text, not the one-line reminder, because
+      // the trigger is often past the first sentence.
+      const abilities = catalogue.datasheets
+        .flatMap((d) => d.abilities)
+        .concat(catalogue.detachments.flatMap((d) => d.rules ?? []))
+      const onDeath = abilities.filter((a) =>
+        /each time (a|this) (model|unit)\b[^.]{0,80}is destroyed/i.test(plainText(`${a.name}. ${a.text}`)),
+      )
+      const stillOn = onDeath.filter((a) => infer(a.name, a.text).enabled)
+      console.log(faction.name, 'on-destruction abilities:', onDeath.length, '· still enabled:', stillOn.length)
+      expect(onDeath.length).toBeGreaterThan(0)
+      expect(stillOn.map((a) => a.name)).toEqual([])
     })
   })
 })

@@ -5,6 +5,7 @@ import { SECONDARY_ROUND_CAP, TACTICAL_DRAW, type Game } from '@/play/types'
 import { blockApplies, titleCase, type MissionCard, type MissionDeck, type ScoreLine } from '@/missions/types'
 import { Card, vpLabel } from './Missions'
 import './Missions.css'
+import { linesForMode, vpForMode } from '@/missions/scoring'
 
 /**
  * The mission side of a game (spec §6.2): the primary's scoring assistant for
@@ -162,7 +163,7 @@ function SecondaryCard({
   const mode = mission.secondaryMode ?? 'tactical'
   const tactical = mode === 'tactical'
   const label = titleCase(card.name)
-  const value = (line: ScoreLine) => (tactical ? (line.tacticalVp ?? line.vp) : (line.fixedVp ?? line.vp))
+  const value = (line: ScoreLine) => vpForMode(line, mode)
   const canShuffleBack = card.whenDrawn ? /shuffle|draw/i.test(card.whenDrawn) : false
   return (
     <article className="mission">
@@ -212,7 +213,8 @@ function SecondaryCard({
             <strong>{titleCase(block.header)}</strong>
             {block.when && <span className="muted">{block.when}</span>}
           </div>
-          {block.lines.map((line, li) => {
+          {/* Only this mode's scoring: the other's is a different card face. */}
+          {linesForMode(block.lines, mode).map((line, li) => {
             const vp = value(line)
             return vp === undefined ? (
               <p key={li} className="mission__intro muted">
