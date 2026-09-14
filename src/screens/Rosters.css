@@ -836,3 +836,39 @@
   color: var(--text);
   font-size: 1rem;
 }
+
+/* --- unit editor: one tap to full size ------------------------------------ */
+
+/* A mob is several model groups; growing them by hand stops one model short
+   and quietly loses the allowance the data grants at full size. */
+.editor__reinforce {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-height: 44px;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.editor__reinforce input {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  accent-color: var(--accent);
+}
+.editor__reinforce .toggle__name {
+  font-weight: 600;
+}
+.editor__reinforceHint {
+  flex: 1 1 100%;
+  font-size: 0.8rem;
+}
+@media (min-width: 480px) {
+  .editor__reinforceHint {
+    flex: 1 1 auto;
+  }
+}

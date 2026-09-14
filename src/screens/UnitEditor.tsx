@@ -8,6 +8,7 @@ import { COST_TYPE } from '@/data/bsdata/schema'
 import { modelGroups } from '@/play/snapshot'
 import { weaponCounts } from '@/play/weapons'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
+import { canResize, isAtMaxSize, modelCount, withUnitSize } from '@/roster/size'
 import { roleKey } from '@/roster/roles'
 import { describeLoadout, enhancementsTaken } from './RosterEditor'
 import { StatStrip } from './StatStrip'
@@ -80,6 +81,12 @@ export function UnitEditor({
   }
 
   const key = roleKey(role)
+  // One tap to the largest legal size. A mob is not one group grown: stopping
+  // partway already costs the full price and misses the weapon allowance the
+  // data grants at full size (see roster/size.ts).
+  const resizable = canResize(selection, graph)
+  const reinforced = isAtMaxSize(selection, graph)
+  const models = modelCount(selection)
 
   return (
     <section className={`rosters editor role--${key}`}>
@@ -109,6 +116,21 @@ export function UnitEditor({
       <p className="muted editor__summary">
         {describeLoadout(selection)} · <strong>{validation.unitPoints[selection.id] ?? 0} pts</strong>
       </p>
+      {resizable && (
+        <label className="toggle editor__reinforce">
+          <input
+            type="checkbox"
+            checked={reinforced}
+            onChange={(e) => onChange(withUnitSize(selection, graph, e.target.checked ? 'max' : 'min'))}
+          />
+          <span className="toggle__name">Reinforced</span>
+          <span className="muted editor__reinforceHint">
+            {reinforced
+              ? `at its largest: ${models} models`
+              : `${models} models now — fill every group to the maximum`}
+          </span>
+        </label>
+      )}
       {sheet && <StatStrip stats={sheet.stats} size="large" />}
 
       {issues.length > 0 && (
@@ -320,6 +342,14 @@ function GroupEditor({
   const limit = evaluated !== undefined ? Math.max(taken + evaluated, baseMax ?? 0) : baseMax
   const shownTaken = evaluated !== undefined && limit !== undefined ? limit - evaluated : taken
   const groupFull = limit !== undefined && shownTaken >= limit
+  // A group with a minimum must not be emptied: the rules make the choice
+  // compulsory, and emptying it used to hide the nested loadout of whatever was
+  // removed, leaving no way back.
+  const groupMin = min && min.value > 0 ? min.value : 0
+  const atGroupMin = groupMin > 0 && shownTaken <= groupMin
+  // "Choose exactly one": tapping another option swaps to it, because with the
+  // floor in place there is otherwise no way to change your mind.
+  const singleChoice = groupMin === 1 && limit === 1
 
   if (candidates.length === 0 && nested.length === 0) return null
 
@@ -346,6 +376,8 @@ function GroupEditor({
           validation={validation}
           tryChange={tryChange}
           groupFull={groupFull}
+          atGroupMin={atGroupMin}
+          singleChoice={singleChoice}
         />
       ))}
 
@@ -378,7 +410,17 @@ function OptionRow({
   validation,
   tryChange,
   groupFull,
-}: TreeProps & { entry: ResolvedEntry; groupId?: string; groupFull: boolean }) {
+  atGroupMin = false,
+  singleChoice = false,
+}: TreeProps & {
+  entry: ResolvedEntry
+  groupId?: string
+  groupFull: boolean
+  /** The group is at its compulsory minimum, so nothing here may be removed. */
+  atGroupMin?: boolean
+  /** Exactly one of this group is taken: picking another swaps to it. */
+  singleChoice?: boolean
+}) {
   const [hint, setHint] = useState<string | null>(null)
   const existing = parent.selections.find((s) => isSameOption(s, entry, groupId))
   const count = existing?.count ?? 0
@@ -389,13 +431,25 @@ function OptionRow({
   const baseMax = entry.constraints.find((c) => c.type === 'max' && c.scope === 'parent' && c.value >= 0)?.value
   const room = existing ? validation.headroom[existing.id] : baseMax !== undefined ? baseMax - count : undefined
   const atCap = room !== undefined && room <= 0
-  const plusDisabled = groupFull || atCap
+  // In a one-of-N group the "+" swaps rather than adds, so a full group is no
+  // reason to grey it out.
+  const swaps = singleChoice && count === 0
+  const plusDisabled = (groupFull && !swaps) || atCap
+  const minusDisabled = count === 0 || (atGroupMin && count > 0)
 
   const setCount = (next: number) => {
     const value = Math.max(0, next)
     let updated: Selection
 
-    if (value === 0) {
+    if (value > 0 && swaps && groupId) {
+      // Replace whatever else this group holds — the choice is exclusive.
+      const kept = parent.selections.filter((s) => s.groupId !== groupId)
+      const child = entry.entries.length + entry.groups.length > 0
+        ? instantiate(entry, value)
+        : bareSelection(entry, value)
+      child.groupId = groupId
+      updated = { ...parent, selections: [...kept, child] }
+    } else if (value === 0) {
       updated = { ...parent, selections: parent.selections.filter((s) => s !== existing) }
     } else if (existing) {
       updated = {
@@ -416,7 +470,9 @@ function OptionRow({
         ? updated
         : { ...root, selections: replaceSelection(root.selections, parent.id, updated) }
 
-    if (value > count && tryChange) {
+    // A swap does not grow the unit, so the "would this break a cap?" guard
+    // that refuses increments must not refuse it.
+    if (value > count && tryChange && !swaps) {
       const refusal = tryChange(nextRoot)
       if (refusal) {
         setHint(refusal)
@@ -446,7 +502,14 @@ function OptionRow({
         )}
       </div>
       <div className="stepper">
-        <button aria-label={`One fewer ${entry.name}`} disabled={count === 0} onClick={() => setCount(count - 1)}>
+        <button
+          aria-label={`One fewer ${entry.name}`}
+          disabled={minusDisabled}
+          title={
+            minusDisabled && count > 0 ? 'This choice is compulsory — pick another instead' : undefined
+          }
+          onClick={() => setCount(count - 1)}
+        >
           −
         </button>
         <span className="stepper__value" aria-live="polite">
@@ -455,7 +518,13 @@ function OptionRow({
         <button
           aria-label={`One more ${entry.name}`}
           disabled={plusDisabled}
-          title={plusDisabled ? 'At the limit the data allows' : undefined}
+          title={
+            plusDisabled
+              ? 'At the limit the data allows'
+              : swaps
+                ? `Switch to ${entry.name}`
+                : undefined
+          }
           onClick={() => setCount(count + 1)}
         >
           +

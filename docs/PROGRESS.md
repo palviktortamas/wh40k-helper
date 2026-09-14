@@ -21,6 +21,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 6 | Polish + second-faction test | **built 2026-09-13 (late night)** — linked library catalogues, two more factions pass every suite, Update all + roster diff |
 | 7 | Owner feedback round: UI redesign, rules fixes, stratagems | **built 2026-09-13 (night 2)** — role-grouped list builder with stats, caps enforced in the editor, detachment rules on units, stat strips at the table, 11e CP fix, Battle-shock step, stratagem import + panel |
 | 8 | Several detachments per army (11e DP budget) + Necrons | **built 2026-09-14** — DP budget read from the data, checkbox picker, every consumer pluralised, Dexie v9, Necrons in the fixtures |
+| 9 | Editor round: attachment kinds, unit names, picker, unit size | **built 2026-09-14** — Leader/Support/Retainers told apart, numbered and renamable units, annotated attach control with Detach, picker stays open with counts, Reinforced toggle, compulsory loadouts can no longer be emptied |
 
 ---
 
@@ -611,6 +612,74 @@ clipboard, so grant `clipboard-read` and read it with `navigator.clipboard.readT
 an illegal roster raises a `confirm`, so attach a `dialog` handler. For the stratagem panel in dev,
 run `node scripts/fetch-mission-deck.mjs` first — `public/stratagems-wahapedia.csv` only exists in
 a build, and its 404 is the one console error you can ignore.
+
+---
+
+## Done 2026-09-14 (later) - the editor round
+
+### Attached characters are not all Leaders
+
+Everything that joins another unit does so through an association whose `action` is `group`, and
+the app flattened them: the warning, the card chip and the attach label all said "Leader". The kind
+now comes from the **association's own label**, and deliberately not from a list of two — Necrons
+attach Cryptothralls to a Cryptek as **"Retainers"**, which is neither. A live test over both
+factions demands every attaching datasheet resolve to a kind: **Orks 17 Leader / 7 Support,
+Necrons 13 / 6 / 2 Retainers, none unrecognised**. `'Supported by'` is shown as "Support"; anything
+else is shown exactly as the data labels it.
+
+The per-kind caps were already enforced — a second Leader did fail — but with **"Mob: at most 1
+points in this selection (has 2)"**, because `describe()` in the evaluator called every
+non-`selections` field "points". It now names the rule: "at most 1 Leader".
+
+### Units are numbered, and can be renamed
+
+`unitNames(roster)` derives "Boyz #1 / #2 / #3" from the roster rather than storing it, so deleting
+one renumbers the rest and a lone unit keeps its plain name. `Selection.customName` overrides it
+(optional field, no migration); clearing the field restores the numbering. The names reach the
+cards, the attach picker, the unit editor, the text export and the **game snapshot**, so the table
+shows what the list showed.
+
+### The attach control, and Detach
+
+"Attach as Leader" / "Attach as Support", each target annotated with what it already holds —
+`Boyz #1 · Leader taken by Warboss` (disabled) or `Boyz #1 · free · Leader: Warboss` when a support
+character looks at the same unit. Capacity comes from the association's own `max`. Detach is its
+own button; it used to be a "— not attached —" line buried in the dropdown, which is why the owner
+thought it was missing.
+
+### The picker stays open
+
+Picking no longer closes it, each row carries a running "n in list" count, and the back control
+says Done.
+
+### Reinforced: one tap to full size
+
+The owner's report was "the weapon limit should change when the unit is reinforced". **The
+evaluator was already right** — a probe showed Special Weapons room 3 at 10 models and 6 at 20. The
+trap is that a mob is *two* model groups: pressing + on the troopers alone reaches 18 Boyz + 1 Nob
+= **19 models, already charged at the 20-model price of 180 pts**, and the data's
+`increment 3 when the unit has ≥ 20 models` never fires.
+
+`roster/size.ts` fills **every** model group by asking the evaluator for `headroom` and
+`groupHeadroom` and taking what it offers, one model at a time so a shared group cap is never
+overshot. Nothing here knows any unit's sizes. Size means *models directly under the unit*, so
+weapon options hanging off those models are untouched — a bigger mob is not a better-armed one.
+Shrinking reads the minimum off a freshly instantiated copy, which keeps the loadout.
+
+Verified in the browser: 10 models · 90 pts · Special Weapons **0/3** → tick → 20 models · 180 pts ·
+**0/6** → untick → back to 10 · 90 · 0/3. A live test grows and shrinks every resizable unit in both
+factions (31 in total) without adding a single error, and records which allowances actually grow
+with size: **Orks Special Weapons 3→6** and Grot Tank extra weapon 1→2; Necrons has none, which is
+why that assertion is asked of the fixtures as a whole rather than per faction.
+
+### A compulsory loadout cannot be emptied
+
+Taking a `min 1 / max 1` group to zero left an illegal unit **and hid the nested options of
+whatever was removed**, so there was no way back — the owner's "I have to choose a loadout, can't
+choose none". `−` is now disabled at the group's minimum, with the reason in the tooltip. Because
+`+` is greyed while such a group is full, that alone would make switching impossible, so in a
+one-of-N group **`+` on another option swaps to it** (and skips the increment guard, since a swap
+does not grow anything).
 
 ---
 

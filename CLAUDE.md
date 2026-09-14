@@ -17,7 +17,13 @@ Battle-shock step at the table, the 11e CP rule (both players gain 1 CP every Co
 stratagems imported from Wahapedia's export (Dexie v8) into a per-phase panel. Since 2026-09-14 an
 army may take **several detachments**, up to the Detachment Points budget the game system sets from
 the battle size (never hard-coded — see the journal), and **Necrons** is a second fixture faction
-the live suites run against automatically. Everything was
+the live suites run against automatically. The editor round of the same day added: attachment kinds
+read from the association's own label (Leader / Support / whatever a codex invents — Necrons have
+"Retainers"), units numbered per datasheet and renamable, an attach control that shows what a target
+already holds plus a Detach button, an add-unit picker that stays open with running counts, a
+**Reinforced** toggle that fills every model group (`roster/size.ts` — a mob is two groups, and
+stopping at 19 of 20 models loses the data's bigger weapon allowance), and compulsory loadout groups
+that can no longer be emptied. Everything was
 walked through in headless Chrome on the real catalogue (recipe in the journal). The owner has
 checked the app on the phone. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
