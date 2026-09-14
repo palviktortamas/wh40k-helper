@@ -20,6 +20,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 5 | Reminders | **built 2026-09-13 (late night)** — heuristics, per-rule overrides, in-game phase panel; needs a real game to tune the defaults |
 | 6 | Polish + second-faction test | **built 2026-09-13 (late night)** — linked library catalogues, two more factions pass every suite, Update all + roster diff |
 | 7 | Owner feedback round: UI redesign, rules fixes, stratagems | **built 2026-09-13 (night 2)** — role-grouped list builder with stats, caps enforced in the editor, detachment rules on units, stat strips at the table, 11e CP fix, Battle-shock step, stratagem import + panel |
+| 8 | Several detachments per army (11e DP budget) + Necrons | **built 2026-09-14** — DP budget read from the data, checkbox picker, every consumer pluralised, Dexie v9, Necrons in the fixtures |
 
 ---
 
@@ -68,9 +69,9 @@ what was learned that the spec could not have predicted, and what comes next.
 - Screens: Data (install/update/remove, per-source versions), datasheet browser with search and
   role filters, datasheet detail, Data Health.
 - Tests: `npm test`. Synthetic-fixture unit tests always run. Two suites are gated so CI stays
-  deterministic - set `WH40K_FIXTURES=<dir>` (a directory holding `gs.json` and one catalogue
-  `.json`; **use a Windows-style path such as `C:/Users/...`, Git Bash `/c/...` paths are not
-  understood by Node**) for the real-catalogue tests, and `WH40K_NETWORK=1` for the ones that hit
+  deterministic - set `WH40K_FIXTURES=<dir>` (a directory holding `gs.json` plus one faction flat
+  or a subdirectory per faction; **use a Windows-style path such as `C:/Users/...`, Git Bash
+  `/c/...` paths are not understood by Node**) for the real-catalogue tests, and `WH40K_NETWORK=1` for the ones that hit
   GitHub. Both gated suites must stay lazy: `describe.skipIf` still evaluates the callback body at
   collection time, so reading a fixture at the top level throws before the skip applies.
 
@@ -532,9 +533,88 @@ constraints default to "any" · 12. export prints evaluated costs and says "vali
 
 ---
 
+## Done 2026-09-14 - several detachments per army, and Necrons
+
+### An army takes as many detachments as its Detachment Points budget allows
+
+The 11th-edition modular detachment system was already fully described by the data; the app was
+what assumed one. **The budget is never written in code.** The game system puts a `max` on the
+`Detachment Points` cost type on the force entry and moves it with the battle size: **2 DP base,
+3 at Strike Force (2000 pts) or at Incursion if a 3DP detachment is taken, 4 at Onslaught**. The
+detachment group is `min 1 / max -1`. So the generic evaluator enforces the budget with no new
+check — `coreChecks` now asks only for *at least one* detachment, and nothing anywhere knows the
+numbers 2, 3 or 4.
+
+What changed:
+
+- `EvaluationResult.detachments` (plural) plus `detachmentPointsLimit`, read off the resolved
+  `max` constraint **after** modifiers — that is what makes it follow the battle size.
+- `withDetachmentToggled(roster, graph, entryId, on)` adds/removes one; `withDetachment` is kept
+  as "replace them all with this one" for the `pendingDetachmentId` migration path.
+- Roster editor: a checkbox list with a `spent / limit DP` meter, options that would overspend
+  shown **disabled but visible with "over budget"** rather than erroring after the fact. One rules
+  section per chosen detachment.
+- Downstream: stratagems are Core plus the union, under **one heading per detachment** at the
+  table; reminders and datasheet rules come from every detachment, each tagged with its source;
+  the export prints `Detachments: A (1 DP), B (2 DP) — 3/3 DP`.
+- **Dexie v9**: `Game.detachmentName` → `detachmentNames: string[]`. The logic is a plain function
+  (`src/play/migrate.ts`) so it is tested without an IndexedDB — there is no fake-indexeddb in this
+  repo and adding one for this was not worth it.
+- Force Dispositions needed no work: the picker is gated by the data, so two detachments widen the
+  choice for free (verified — Take and Hold *and* Purge the Foe offered).
+
+### Necrons, and fixtures that run every faction
+
+`test/fixtures.ts` assumed one catalogue per directory, so "the second-faction test" was a manual
+`WH40K_FIXTURES` swap nobody would repeat. It now reads either the old flat layout **or a
+subdirectory per faction sharing one `gs.json`**, and the three live suites `describe.each` over
+what they find. Necrons (rev 22, 68 datasheets + 23 from a linked library, 12 detachments, DP
+costs 1–3) passes parsing, reminder heuristics and the constraint evaluator **unchanged** — the
+hard rule that a faction is a data install, not a code change, held.
+
+Fixture layout, for the next agent:
+
+```
+<dir>/gs.json
+<dir>/orks/Orks.json      <dir>/orks/orks.yaml      <dir>/orks/lib-*.json
+<dir>/necrons/Necrons.json <dir>/necrons/necrons.yaml
+```
+
+### The bug a second detachment found
+
+The roster summary read **"TAKE AND HOLD / Purge the Foe"**. The MFM mirror shouts Force
+Dispositions, BSData title-cases them, and which one is stored depends on whether the merge found
+a discrepancy for *that* detachment — so one detachment could never show the clash and two could.
+Both parsers now title-case at the boundary. **`PARSER_VERSION` → 4**; installed catalogues
+re-parse themselves from stored raw text at start.
+
+### Walked through in headless Chrome, on Necrons
+
+Install Necrons from GitHub → new roster at 2000 pts → picker reads **0 / 3 DP** and lists all 12
+detachments with costs → take Hand of the Dynasty (1 DP) → **1 / 3** → take Annihilation Legion
+(2 DP) → **3 / 3**, the other ten disabled with "over budget" → both rule sections shown, summary
+reads both names → untick one and the budget, summary and rules all follow → four units → export
+correct → Force Disposition offers both detachments' → Warlord → start a game → stratagems under
+**HAND OF THE DYNASTY (3) · ANNIHILATION LEGION (6) · CORE (10)** → reminders name both. **No
+console errors.**
+
+Recipe notes beyond the 2026-09-13 one: use `launchPersistentContext` with a profile in the
+scratchpad so the faction install survives between runs; the roster name field is
+`getByPlaceholder('New army')`; units are picked via `.picker__main`; the export goes to the
+clipboard, so grant `clipboard-read` and read it with `navigator.clipboard.readText()`; starting
+an illegal roster raises a `confirm`, so attach a `dialog` handler. For the stratagem panel in dev,
+run `node scripts/fetch-mission-deck.mjs` first — `public/stratagems-wahapedia.csv` only exists in
+a build, and its 404 is the one console error you can ignore.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone
+
+Still the top item. The multi-detachment picker and the per-detachment stratagem headings have
+only been seen at 390×844 in headless Chrome, never under a thumb; the detachment list is now
+twelve rows on Necrons, which is the first screen here that may want scrolling on a phone.
 
 **Done in headless Chrome (2026-09-13, evening), not yet on a phone.** A Playwright-core driver
 against the dev server, at a 390×844 viewport, went through: install the faction from GitHub →

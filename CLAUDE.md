@@ -10,17 +10,22 @@ never published, no backend, no accounts, no telemetry.
 2. [docs/PROGRESS.md](docs/PROGRESS.md) — what is built, what was learned the hard way, and what
    is next. **Update it at the end of every working session** so the next agent can continue.
 
-**Current state (2026-09-13, night 2):** All six phases are built, plus the owner's feedback
+**Current state (2026-09-14):** All six phases are built, plus the owner's feedback
 round: role-grouped list builder with stats on every card, caps enforced in the unit editor
 (evaluator `headroom`), detachment rules shown on the units they name, stat strips and a
 Battle-shock step at the table, the 11e CP rule (both players gain 1 CP every Command phase), and
-stratagems imported from Wahapedia's export (Dexie v8) into a per-phase panel. Everything was
+stratagems imported from Wahapedia's export (Dexie v8) into a per-phase panel. Since 2026-09-14 an
+army may take **several detachments**, up to the Detachment Points budget the game system sets from
+the battle size (never hard-coded — see the journal), and **Necrons** is a second fixture faction
+the live suites run against automatically. Everything was
 walked through in headless Chrome on the real catalogue (recipe in the journal). The owner has
 checked the app on the phone. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
-raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json`, one catalogue
-`.json`, its `.yaml`, and linked libraries as `lib-*.json` (see `test/fixtures.ts`).
+raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one
+faction flat (catalogue `.json`, its `.yaml`, libraries as `lib-*.json`) or a subdirectory per
+faction sharing that `gs.json` — the live suites run over every faction they find, which is how a
+second faction keeps catching single-codex assumptions (see `test/fixtures.ts`).
 
 ## Hard rules
 
@@ -60,8 +65,9 @@ stale machine-wide Node 18. Every Bash call prints a red fnm banner ("We can't f
 environment variables…"); it is noise. Heredocs and inline multi-line scripts fail silently in
 that shell — write files with the Write/Edit tools and commit with `git commit -F <file>`.
 
-Real-catalogue tests: `WH40K_FIXTURES=C:/path/with/gs.json/and/one/catalogue.json npm test`
-(Windows-style path; the fixtures live in the scratchpad, never in the tree).
+Real-catalogue tests: `WH40K_FIXTURES=C:/path/with/gs.json npm test` (Windows-style path; the
+fixtures live in the scratchpad, never in the tree). The directory holds one faction flat, or a
+subdirectory per faction beside the shared `gs.json`; every faction found is run.
 
 ## Deploying
 
