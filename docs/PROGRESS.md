@@ -769,6 +769,14 @@ showing who already has it for "select one friendly unit", a "Make all N riled u
 army-wide sweep, and the duration in the rules' own words. Marks are cleared by hand; expiry from
 prose ("until the start of your next turn") would be guesswork, so the wording is shown instead.
 
+**Follow-ups the same evening:** who a state reaches is a property of the **whole rule**, not of
+the sentence that grants it — an army rule names its audience once at the top ("Friendly ORKS with
+this ability can: …") and grants the state three bullets later, so reading the sweep from the
+granting sentence made the Waaagh! offer a unit picker instead of applying to everyone. Fixing that
+also corrected the split on real data: the army rule is repeated on every datasheet, so the counts
+moved from 85 self / 2 army to 12 self / 75 army, which is what the data actually says. A game in
+progress can now be deleted from the Play screen; only finished ones could be.
+
 **Four smaller fixes:**
 
 - Stratagems say who they can be used on: "Target:" on the row in Play, and Target/When/Effect in

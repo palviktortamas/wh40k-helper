@@ -97,6 +97,25 @@ export function Play() {
                     {totalVp(game.me)}–{totalVp(game.opponent)} VP
                   </span>
                 </Link>
+                <div className="rosters__cardActions">
+                  <button
+                    className="button button--quiet button--danger"
+                    onClick={async () => {
+                      // A game in progress is not history yet, so the warning
+                      // says what is actually lost.
+                      if (
+                        !confirm(
+                          `Delete the game "${game.rosterName} vs ${game.opponentName}"? It is still in progress at round ${game.round}, and this cannot be undone.`,
+                        )
+                      )
+                        return
+                      await deleteGame(game.id)
+                      await refresh()
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

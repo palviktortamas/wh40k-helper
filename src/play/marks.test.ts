@@ -141,6 +141,25 @@ describe('grantedMarks', () => {
     expect(granted[0]?.scope).toBe('chosen')
   })
 
+  it('sweeps the army when the rule addresses friendly units at large', () => {
+    // The army rule that grants it says who it is for once, at the top, and
+    // grants it in a later bullet — so the sweep cannot be read from the
+    // granting sentence alone.
+    const granted = grantedMarks(
+      'Friendly **GREENSKINS** with this ability can: - Re-roll advance rolls. - Become **worked up**, as stated in other rules. While a unit is **worked up**, it fights first.',
+      marks,
+    )
+    expect(granted[0]?.scope).toBe('army')
+  })
+
+  it('still calls it self when the rule is about this unit only', () => {
+    const granted = grantedMarks(
+      'Friendly units nearby do nothing. In your Movement phase, this unit is **worked up** until the start of your next turn.',
+      marks,
+    )
+    expect(granted[0]?.scope).toBe('self')
+  })
+
   it('spots one that sweeps the whole army', () => {
     const granted = grantedMarks(
       'At the start of the Command phase, friendly **GREENSKINS** units with this ability are **worked up** until the end of the next turn.',

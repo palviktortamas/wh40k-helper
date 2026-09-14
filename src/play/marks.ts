@@ -121,8 +121,8 @@ export type Grant = {
 const UNTIL = /\b(until (?:the )?[^.;]{3,60}?)(?=[.;,]|$)/i
 /** "you can select one friendly X unit", "select a number of friendly X units" */
 const CHOOSES = /\bselect(?:ed)?\s+(?:a number of|one|up to|\d+)?\s*friendly\b/i
-/** "friendly X units are …", "each friendly X unit within 6" … is …" */
-const SWEEPS = /\bfriendly\b[^.]{0,80}\bunits?\b[^.]{0,40}\b(?:is|are)\s+\*\*/i
+/** "this unit is X" — the rule is about the unit whose datasheet it is. */
+const ITSELF = /\bthis unit\b[^.]{0,40}\b(?:is|are|becomes?)\s+\*\*/i
 
 /**
  * The marks an ability *grants*, with who gets them. A rule that only reads a
@@ -152,11 +152,17 @@ export function grantedMarks(rawText: string, marks: readonly Mark[]): Grant[] {
       // — Is no longer battle-shocked. — Is riled up until …".
       if (!/\b(units?|models?)\b/i.test(text)) continue
 
+      // Who gets it is a property of the rule, not of the sentence that grants
+      // it: an army rule names its audience once at the top and grants the
+      // state three bullets later ("Friendly ORKS with this ability can: …
+      // Become riled up"), so the sweep has to be read from the whole rule.
       const scope: GrantScope = CHOOSES.test(text)
         ? 'chosen'
-        : SWEEPS.test(sentence)
-          ? 'army'
-          : 'self'
+        : ITSELF.test(sentence)
+          ? 'self'
+          : /\bfriendly\b/i.test(text)
+            ? 'army'
+            : 'self'
       const until = UNTIL.exec(sentence)?.[1]
       out.push({ mark, scope, ...(until ? { until: until.trim() } : {}) })
     }
