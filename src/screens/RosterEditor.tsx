@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
@@ -108,6 +108,20 @@ export function RosterEditor() {
     () => (roster && graph ? validate(roster, graph) : null),
     [roster, graph],
   )
+
+  // Whether the summary has scrolled off its place and is riding the top edge.
+  const summaryTop = useRef<HTMLDivElement>(null)
+  const [stuck, setStuck] = useState(false)
+  useEffect(() => {
+    const sentinel = summaryTop.current
+    if (!sentinel) return
+    const watcher = new IntersectionObserver(([entry]) => setStuck(!entry?.isIntersecting), {
+      threshold: 0,
+      rootMargin: '0px',
+    })
+    watcher.observe(sentinel)
+    return () => watcher.disconnect()
+  }, [roster?.id, editing])
 
   if (!roster || !catalogue || !graph || !validation) return <p>Loading…</p>
 
@@ -263,7 +277,10 @@ export function RosterEditor() {
         aria-label="Roster name"
       />
 
-      <div className={`summary ${over ? 'summary--over' : ''}`}>
+      {/* Once the summary is stuck to the top it keeps only the line you glance
+          at — on a phone the whole widget was half the screen. */}
+      <div ref={summaryTop} aria-hidden="true" />
+      <div className={`summary ${over ? 'summary--over' : ''} ${stuck ? 'summary--stuck' : ''}`}>
         <div className="summary__row">
           <span className={`badge ${validation.legal ? 'badge--ok' : 'badge--error'}`}>
             {validation.legal ? '✓ Legal' : `✕ ${errorCount} error${errorCount === 1 ? '' : 's'}`}

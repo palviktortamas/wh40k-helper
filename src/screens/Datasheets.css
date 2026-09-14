@@ -95,10 +95,26 @@
 
 /* --- detail --- */
 
+/* The way out stays in reach: scrolled halfway down a datasheet, going back
+   used to mean scrolling all the way up first. It rides the top edge of the
+   scrolling area, self-contained enough to sit over whatever passes beneath. */
 .sheet__back {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
+  min-height: 2.25rem;
+  margin-bottom: 0.25rem;
+  padding: 0.25rem 0.75rem 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
   color: var(--accent);
+  font-weight: 600;
   text-decoration: none;
 }
 

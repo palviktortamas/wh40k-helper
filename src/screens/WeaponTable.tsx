@@ -4,13 +4,24 @@ import { applyMod, modsFor, type StatMod } from '@/play/mods'
 import { ModList } from './StatStrip'
 import './Datasheets.css'
 
-/** One characteristic cell, changed if the rules change it. */
+/**
+ * One characteristic cell. A change already in force changes the number; one
+ * still waiting on a condition leaves it alone and marks it — the number a
+ * player reads has to be the one they would roll against right now.
+ */
 function Cell({ value, mods }: { value: string | undefined; mods: readonly StatMod[] }) {
   const applied = applyMod(value, mods)
+  const title = applied.pending
+    .map((mod) => `${mod.value} ${mod.stat} ${mod.when ?? ''} (${mod.rule})`.trim())
+    .join('; ')
   return (
-    <td className={applied.changed ? (applied.temporary ? 'value--temporary' : 'value--changed') : ''}>
+    <td
+      className={applied.changed ? (applied.temporary ? 'value--temporary' : 'value--changed') : ''}
+      {...(title ? { title } : {})}
+    >
       {applied.value}
       {applied.changed && applied.temporary ? '*' : ''}
+      {!applied.changed && applied.pending.length > 0 && <span className="value--maybe">*</span>}
     </td>
   )
 }

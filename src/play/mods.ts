@@ -202,6 +202,9 @@ export function statMods(rules: readonly GrantingRule[]): StatMod[] {
   return out
 }
 
+/** A modifier in force right now: unconditional, or its condition already met. */
+export const isLive = (mod: StatMod): boolean => !mod.when || mod.met === true
+
 /** Marks the modifiers whose condition is a state the unit is already in. */
 export const resolveMods = (mods: readonly StatMod[], activeStates: readonly string[]): StatMod[] =>
   mods.map((mod) =>
@@ -227,8 +230,15 @@ export type Applied = {
   value: string
   /** A rule changed it, so it is not the printed number any more. */
   changed: boolean
-  /** …and only while a condition holds. */
+  /** …and it is a change that ends: a condition holds now but need not later. */
   temporary: boolean
+  /**
+   * Changes that would apply if their condition held, and do not right now.
+   * The value is left alone for these — a 5+ invulnerable save the unit only
+   * has while it is riled up must not read as an invulnerable save — but they
+   * are worth saying, so the screen marks the characteristic and names them.
+   */
+  pending: StatMod[]
 }
 
 /**
@@ -241,17 +251,19 @@ export type Applied = {
  */
 export function applyMod(printed: string | undefined, mods: readonly StatMod[]): Applied {
   let value = printed ?? '—'
-  if (mods.length === 0) return { value, changed: false, temporary: false }
-  const isAp = mods[0]!.stat === 'AP'
+  const pending = mods.filter((mod) => !isLive(mod))
+  const live = mods.filter(isLive)
+  if (live.length === 0) return { value, changed: false, temporary: false, pending }
+  const isAp = live[0]!.stat === 'AP'
 
-  for (const mod of mods.filter((m) => m.op === 'set')) {
+  for (const mod of live.filter((m) => m.op === 'set')) {
     const next = Number.parseInt(mod.value, 10)
     const now = Number.parseInt(value, 10)
     // A save is better the lower it is; anything else set is simply set.
     value = Number.isFinite(now) && Number.isFinite(next) && next > now ? value : mod.value
   }
 
-  const deltas = mods.filter((m) => m.op === 'delta')
+  const deltas = live.filter((m) => m.op === 'delta')
   if (deltas.length > 0) {
     const parts = NUMERIC.exec(value)
     const sum = deltas.reduce((total, mod) => total + (Number.parseInt(mod.value, 10) || 0), 0)
@@ -270,6 +282,7 @@ export function applyMod(printed: string | undefined, mods: readonly StatMod[]):
   return {
     value,
     changed: value !== (printed ?? '—'),
-    temporary: mods.some((mod) => Boolean(mod.when)),
+    temporary: live.some((mod) => Boolean(mod.when)),
+    pending,
   }
 }

@@ -25,6 +25,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 10 | Loadout round, in play | **built 2026-09-14** — weapon abilities the rules grant (with conditions, live when the state is on), profiles the unit cannot take dropped (`PARSER_VERSION` 5), loadout split by model type |
 | 11 | Characteristics the rules change | **built 2026-09-14** — stat and weapon-profile modifiers read from both grammars, shown changed (lasting) or temporary everywhere a unit is shown; combined-weapon loadout bug fixed |
 | 12 | Unarmed models, and moving around the game screen | **built 2026-09-14** — warning + one-tap repair for models with no wargear, empty loadouts no longer collapsed, jump rail in play, army-list scroll restored when a unit sheet closes |
+| 13 | Phone ergonomics | **built 2026-09-14** — conditional modifiers no longer rewrite a number (or invent an invulnerable save), stat lines stay on one line, the roster summary condenses when stuck, the back control is always in reach |
 
 ---
 
@@ -1032,6 +1033,46 @@ Opening a unit swaps the whole screen and the sheet scrolls itself to the top (i
 line is why you opened it), so the army list came back at the top. The list's scroll offset is now
 remembered when a unit is opened and restored in a layout effect when it closes. `scrollToTop.ts`
 grew `scrollParent`, since the app scrolls the shell's `<main>` rather than the document.
+
+---
+
+## Done 2026-09-14 (night, later) - phone ergonomics, and a save they do not have
+
+Owner, on the phone: the roster's summary widget is half the screen and frozen there; the back
+button is only reachable by scrolling up; stat lines break onto two rows; and Boyz look like they
+have a 5+ invulnerable save when they only have one while riled up.
+
+### A conditional characteristic is not a characteristic
+
+`applyMod` now changes a number only for modifiers **in force**: unconditional, or whose condition
+is a state the unit is in right now. A modifier still waiting comes back as `pending`, and the
+screen leaves the printed number alone, marks it with a `*` that carries the rule in its `title`,
+and spells it out in the list under the strip. The invulnerable-save cell follows the same rule:
+it appears when the datasheet prints one, or when a rule in force has granted one — never for a
+save the unit would only have under a condition. That also un-hides a real invulnerable save,
+which a conditional grant used to overwrite.
+
+Toggling the state at the table is what makes it real: mark a mob riled up and the Inv cell
+appears (amber, `*`, "— now" in the legend); unmark it and it is gone.
+
+### One line, always
+
+A stat line that wrapped read as two units. The row is now a column of *(who)* + one nowrap strip
+of cells; the cells share the width they have (`flex: 1 1 0`) and the numbers use `clamp()` so
+they shrink with the screen instead of breaking the line. Seven cells (with Inv) fit at 390 px.
+
+### The summary condenses instead of squatting
+
+The roster summary is still sticky — the points are what you watch while editing — but an
+IntersectionObserver sentinel above it adds `summary--stuck`, which drops the detachment line, the
+group jumps and (on a phone) the facts line: 188 px at rest, 61 px stuck.
+
+### The way back is always there
+
+`.sheet__back` is a sticky pill at the top of the scrolling area on every screen that has one. The
+one screen where two sticky things would fight — the roster editor, with its summary — keeps its
+back link in the flow (`section:has(> .summary) > .sheet__back`), because there the points are the
+thing worth pinning.
 
 ---
 

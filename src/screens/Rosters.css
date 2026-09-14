@@ -328,10 +328,20 @@
 
 /* --- roster editor: summary, toolbar, cards ------------------------------ */
 
-/* The numbers you check before every change stay in view while the list scrolls. */
+/* Two things stuck to the same edge leave a band of content sliding between
+   them. On the one screen that has a sticky summary, the summary wins: the way
+   back is a short scroll up, and the points are what you are watching. */
+section:has(> .summary) > .sheet__back {
+  position: static;
+  box-shadow: none;
+}
+
+/* The numbers you check before every change stay in view while the list
+   scrolls — but only the numbers. Stuck to the top, the widget drops the
+   detachment line and the group jumps, which on a phone were half the screen. */
 .summary {
   position: sticky;
-  top: -1rem;
+  top: 0;
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -342,6 +352,24 @@
   border-radius: 12px;
   background: var(--surface);
   box-shadow: 0 6px 16px rgb(0 0 0 / 0.18);
+}
+
+.summary--stuck {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  border-radius: 0 0 12px 12px;
+}
+
+.summary--stuck .summary__detachment,
+.summary--stuck .summary__jump {
+  display: none;
+}
+
+/* The facts line is the first thing to go: points and legality carry it. */
+@media (max-width: 599px) {
+  .summary--stuck .summary__facts {
+    display: none;
+  }
 }
 
 .summary--over {

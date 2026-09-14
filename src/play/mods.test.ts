@@ -94,14 +94,22 @@ describe('applying a modifier to a printed value', () => {
     expect(applyMod('D6', [mod('D', 'delta', '+1')])).toMatchObject({ value: 'D6+1' })
   })
 
-  it('says when the change only holds under a condition', () => {
+  it('does not change a number for a condition that does not hold yet', () => {
+    // A 5+ invulnerable save the unit only has while worked up is not an
+    // invulnerable save; it is a note about one.
     const applied = applyMod('5', [mod('T', 'delta', '+1', 'while it is worked up')])
-    expect(applied).toMatchObject({ value: '6', changed: true, temporary: true })
+    expect(applied).toMatchObject({ value: '5', changed: false })
+    expect(applied.pending.map((m) => m.value)).toEqual(['+1'])
+  })
+
+  it('changes it once that condition is met, and says the change can end', () => {
+    const applied = applyMod('5', [{ ...mod('T', 'delta', '+1', 'while it is worked up'), met: true }])
+    expect(applied).toMatchObject({ value: '6', changed: true, temporary: true, pending: [] })
   })
 
   it('leaves a value alone when nothing modifies it', () => {
-    expect(applyMod('5+', [])).toEqual({ value: '5+', changed: false, temporary: false })
-    expect(applyMod(undefined, [])).toEqual({ value: '—', changed: false, temporary: false })
+    expect(applyMod('5+', [])).toEqual({ value: '5+', changed: false, temporary: false, pending: [] })
+    expect(applyMod(undefined, [])).toEqual({ value: '—', changed: false, temporary: false, pending: [] })
   })
 })
 
