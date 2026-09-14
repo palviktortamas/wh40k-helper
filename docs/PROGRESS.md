@@ -1155,6 +1155,23 @@ not Leader."
 
 ---
 
+## Done 2026-09-14 (night, last +2) - the same bar while building a list
+
+Owner: "the jump bar in the roster editor too, and remember the scroll there when opening and
+closing a unit."
+
+- `screens/JumpBar.tsx` is now shared by the game screen and the roster editor, its styles with it
+  (in `Units.css`; only the per-screen `scroll-margin-top` stays local). The roster's chips are
+  **Top / Det / Setup** and then one per role group, so a 2000-point list is one tap deep.
+- Inside the bar the back pill is `position: sticky; left: 0`: once the chips outgrow a phone the
+  bar scrolls sideways, and the way back must not scroll away with them.
+- The roster summary is **no longer sticky**. One sticky thing per screen — with two, content
+  slides through the band between them — and the bar's "Top" chip brings the points back in a tap.
+- Opening a unit (or the picker) still lands at the top; closing one restores the list's scroll,
+  the same way Play Mode does. Measured: 2164 before, 2164 after.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

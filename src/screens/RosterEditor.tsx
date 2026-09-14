@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
@@ -37,7 +37,9 @@ import { COST_TYPE } from '@/data/bsdata/schema'
 import { OptionTree, UnitEditor, rulesAboutUnit, type AttachedUnit } from './UnitEditor'
 import { effectsFrom } from '@/play/effects'
 import type { StatMod } from '@/play/mods'
-import { scrollToTop } from './scrollToTop'
+import { scrollParent, scrollToTop } from './scrollToTop'
+import { JumpBar } from './JumpBar'
+import { titleCase } from '@/missions/types'
 import { StatStrip } from './StatStrip'
 import { Marked } from './Marked'
 import { shortText } from '@/reminders/heuristics'
@@ -82,10 +84,22 @@ export function RosterEditor() {
     void getStratagemSet().then((set) => setStratagems(set ?? null))
   }, [rosterId])
 
-  // Opening the unit editor or the picker should land at the top, not wherever
-  // the list behind them was scrolled to.
-  useEffect(() => {
-    scrollToTop(document.querySelector('.rosters'))
+  // Opening the unit editor or the picker lands at the top, not wherever the
+  // list behind them was scrolled to — and closing one comes back to where the
+  // list was, rather than to its top. A long army is a long way down.
+  const listScroll = useRef<number | null>(null)
+  const leaveList = () => {
+    listScroll.current = scrollParent(document.querySelector('.rosters'))?.scrollTop ?? 0
+  }
+  useLayoutEffect(() => {
+    if (editing || picking) {
+      scrollToTop(document.querySelector('.rosters'))
+      return
+    }
+    if (listScroll.current === null) return
+    const scroller = scrollParent(document.querySelector('.rosters'))
+    if (scroller) scroller.scrollTop = listScroll.current
+    listScroll.current = null
   }, [editing, picking])
 
   const changeView = (next: UnitsView) => {
@@ -226,7 +240,10 @@ export function RosterEditor() {
       nested={nested}
       leaders={view !== 'order' ? roster.selections.filter((l) => l.attachedTo === unit.id) : []}
       renderLeader={(leader) => cardFor(leader, roster.selections.indexOf(leader), true)}
-      onEdit={() => setEditing(unit.id)}
+      onEdit={() => {
+        leaveList()
+        setEditing(unit.id)
+      }}
       update={update}
     />
   )
@@ -251,11 +268,22 @@ export function RosterEditor() {
       0,
     )
 
+  // A 2000-point list is many screenfuls: points at the top, the detachments,
+  // the configuration, then a group per role. Same bar as the game screen.
+  const jumpTargets = [
+    { id: 'roster-top', label: 'Top', name: 'the points and the army' },
+    { id: 'roster-detachments', label: 'Det', name: 'the detachments' },
+    { id: 'roster-config', label: 'Setup', name: 'the army configuration' },
+    ...groups.map((g) => ({ id: g.id, label: titleCase(g.heading), name: `the ${g.heading} units` })),
+  ]
+
   return (
     <section className="rosters editor">
-      <Link className="sheet__back tap" to="/rosters">
-        ‹ Rosters
-      </Link>
+      <JumpBar targets={jumpTargets}>
+        <Link className="sheet__back tap" to="/rosters">
+          ‹ Rosters
+        </Link>
+      </JumpBar>
 
       <input
         className="rosters__title"
@@ -267,7 +295,7 @@ export function RosterEditor() {
       {/* What is pinned is only what you glance at while editing: legality,
           points, the meter. Everything else about the army scrolls with the
           page — a widget that changes height while stuck fights the scroll. */}
-      <div className={`summary ${over ? 'summary--over' : ''}`}>
+      <div id="roster-top" className={`summary ${over ? 'summary--over' : ''}`}>
         <div className="summary__row">
           <span className={`badge ${validation.legal ? 'badge--ok' : 'badge--error'}`}>
             {validation.legal ? '✓ Legal' : `✕ ${errorCount} error${errorCount === 1 ? '' : 's'}`}
@@ -294,17 +322,6 @@ export function RosterEditor() {
         {chosen.length > 0 ? ` · ${chosen.map((d) => d.name).join(' + ')}` : ' · no detachment chosen'}
         {dispositions.length > 0 ? ` · ${dispositions.join(' / ')}` : ''}
       </p>
-      {groups.length > 1 && (
-        <nav className="summary__jump" aria-label="Jump to a unit group">
-          {groups.map((g) => (
-            <a key={g.id} href={`#${g.id}`} className={`summary__jumpLink role--${g.key}`}>
-              <span className="role-tag">{g.heading}</span>
-              <span className="muted">{g.items.length}</span>
-            </a>
-          ))}
-        </nav>
-      )}
-
       <div className="rosters__controls">
         <PointsLimitField
           label="Limit"
@@ -315,7 +332,7 @@ export function RosterEditor() {
 
       {/* Twelve detachments is a long list to scroll past once the choice is
           made, so it folds away and the summary carries the answer. */}
-      <details className="config detachments" open={chosen.length === 0}>
+      <details id="roster-detachments" className="config detachments" open={chosen.length === 0}>
         <summary>
           <span className="detachments__title">Detachments</span>
           <span className="detachments__summary muted">
@@ -477,7 +494,7 @@ export function RosterEditor() {
         )
       })}
 
-      <details className="config">
+      <details id="roster-config" className="config">
         <summary>Army configuration</summary>
         <p className="muted">
           The battle size follows the points limit. Everything else here is the data's own roster
@@ -559,7 +576,13 @@ export function RosterEditor() {
       )}
 
       <div className="rosters__controls editor__toolbar">
-        <button className="button" onClick={() => setPicking(true)}>
+        <button
+          className="button"
+          onClick={() => {
+            leaveList()
+            setPicking(true)
+          }}
+        >
           + Add unit
         </button>
         <button

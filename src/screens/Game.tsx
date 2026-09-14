@@ -34,6 +34,7 @@ import { discoverMarks, type Mark } from '@/play/marks'
 import { effectsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { scrollParent } from './scrollToTop'
+import { JumpBar } from './JumpBar'
 import { GameStratagems } from './GameStratagems'
 import { StatStrip } from './StatStrip'
 import './Rosters.css'
@@ -47,47 +48,6 @@ const STATUSES: UnitStatus[] = ['battleShocked', 'advanced', 'fellBack', 'reserv
  * players, and the army view with per-model wound tracking. Every change goes
  * through `apply`, so undo and the log come for free.
  */
-/**
- * The jump rail: a table-side game screen is long — tracker, reminders,
- * mission, stratagems, then every unit — and a phone scrolls it a screen at a
- * time, so each part is one tap away.
- *
- * It rides the top edge with the way back, as one toolbar: a rail down the side
- * cost a column of every screen it was on, which is the width a stat line and a
- * unit's buttons actually need. Labels, not coloured dots — it has to be read
- * at a glance across a table.
- */
-function JumpBar({
-  targets,
-  children,
-}: {
-  targets: { id: string; label: string; name: string }[]
-  /** The way back, which belongs on the same line. */
-  children: React.ReactNode
-}) {
-  return (
-    <div className="gamebar">
-      {children}
-      {targets.length > 1 && (
-        <nav className="jump" aria-label="Jump to a part of this game">
-          {targets.map((target) => (
-            <button
-              key={target.id}
-              className="jump__btn tap"
-              aria-label={`Jump to ${target.name}`}
-              onClick={() =>
-                document.getElementById(target.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }
-            >
-              {target.label}
-            </button>
-          ))}
-        </nav>
-      )}
-    </div>
-  )
-}
-
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>()
   const [game, setGame] = useState<GameModel | null>(null)

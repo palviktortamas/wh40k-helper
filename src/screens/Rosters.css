@@ -329,22 +329,18 @@
 
 /* --- roster editor: summary, toolbar, cards ------------------------------ */
 
-/* Two things stuck to the same edge leave a band of content sliding between
-   them. On the one screen that has a sticky summary, the summary wins: the way
-   back is a short scroll up, and the points are what you are watching. */
-section:has(> .summary) > .sheet__back {
-  position: static;
-  box-shadow: none;
+/* A jump lands its target below the bar, not behind it. */
+#roster-top,
+#roster-detachments,
+#roster-config,
+.unitgroup {
+  scroll-margin-top: 4.75rem;
 }
 
-/* The numbers you check before every change stay in view while the list
-   scrolls — and only those numbers. A sticky box that changes height as it
-   sticks shortens the page under your thumb and bounces the scroll back, so
-   this one is the same size always, and the army's details sit below it. */
+/* The jump bar owns the top edge now (one sticky thing per screen, or content
+   slides through the band between them), so the summary rides with the page —
+   and the bar's "Top" chip brings it back in one tap. */
 .summary {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
