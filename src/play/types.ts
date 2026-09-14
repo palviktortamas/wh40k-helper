@@ -65,8 +65,14 @@ export type GameUnit = {
   points: number
   isCharacter: boolean
   isWarlord: boolean
-  /** For a Leader: the unit id it is attached to. */
+  /** For an attached character: the unit id it is attached to. */
   leaderOf?: string
+  /**
+   * What the data calls that attachment — "Leader", "Support", "Retainers".
+   * A codex invents its own, and calling every attached character a Leader at
+   * the table gets the rules wrong (a unit may hold one of each).
+   */
+  attachedAs?: string
   /** The transport this unit is currently embarked in, by unit id. */
   embarkedIn?: string
   /** Datasheet transport capacity text, shown as a reminder when embarking (not enforced). */

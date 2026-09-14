@@ -1135,6 +1135,26 @@ limit survives a reload as Custom.
 
 ---
 
+## Done 2026-09-14 (night, last +1) - the card is the unit too
+
+Owner: "in play the quick stats should update as well, not only the opened unit — Waaagh, and
+whatever else changes a stat for a while. And an attached Support character should say Support,
+not Leader."
+
+- `play/unitEffects.ts` now holds the one function that turns a unit into `{ grants, mods }` from
+  the detachments the army took, its own abilities, its enhancements and the states it is in. The
+  in-game sheet, the leader's sheet and **every card in the army list** read it, so the quick stats
+  and the opened datasheet can no longer disagree. The states are discovered once per catalogue and
+  passed down; a card only reads the rules of a state its unit is actually in, which keeps a
+  twenty-unit list cheap.
+- The snapshot remembers **how** a character is attached (`attachedAs`), from the association the
+  roster used, or the datasheet's own first joining association for an older roster. The chip on
+  the card and in the sheet says what the data says — Leader, Support, or whatever a codex invents
+  — instead of calling everything a Leader. A game already in progress keeps its snapshot, so the
+  label appears in games started after this.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

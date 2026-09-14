@@ -3,9 +3,7 @@ import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
 import { loadoutByModel, weaponCounts } from '@/play/weapons'
-import type { GrantingRule } from '@/play/grants'
-import { effectsFrom, type Effects } from '@/play/effects'
-import { ruleAppliesTo } from '@/roster/detachmentRules'
+import { detachmentRulesFor, effectsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { StatStrip } from './StatStrip'
 import { WeaponTable } from './WeaponTable'
@@ -17,20 +15,6 @@ import './Game.css'
 import './Units.css'
 
 const ONCE_PER_BATTLE = /once per battle/i
-
-/** The rules every detachment the army took grants to this unit, with the detachment's name. */
-function detachmentRulesFor(
-  keywords: readonly string[],
-  detachmentNames: readonly string[],
-  catalogue: ParsedCatalogue | undefined,
-) {
-  return detachmentNames.flatMap((name) => {
-    const detachment = catalogue?.detachments.find((d) => d.name === name)
-    return (detachment?.rules ?? [])
-      .filter((r) => ruleAppliesTo(r.text, keywords) !== false)
-      .map((rule) => ({ rule, detachmentName: name }))
-  })
-}
 
 function Abilities({
   unit,
@@ -129,45 +113,6 @@ function OnceBox({
   )
 }
 
-/**
- * Everything the army's rules change about this unit — the weapon abilities
- * they grant and the characteristics they change — from the detachments that
- * name it, its own datasheet and faction abilities, its enhancements, and the
- * states it is currently in. The datasheet prints none of it, and it is what
- * the dice actually get rolled with.
- */
-function effectsForUnit(
-  unit: GameUnit,
-  sheet: Datasheet | undefined,
-  game: Game,
-  catalogue: ParsedCatalogue | undefined,
-  activeMarkRules: { label: string; rules: readonly { name: string; text: string }[] }[],
-): Effects {
-  const keywords = sheet ? [...sheet.keywords, ...sheet.factionKeywords] : []
-  const enhancementText = new Map((catalogue?.enhancements ?? []).map((e) => [e.id, e.text]))
-  const rules: GrantingRule[] = [
-    ...detachmentRulesFor(keywords, game.detachmentNames, catalogue).map(({ rule, detachmentName }) => ({
-      name: rule.name,
-      text: rule.text,
-      source: detachmentName,
-    })),
-    ...(sheet?.abilities ?? []).map((a) => ({
-      name: a.name,
-      text: a.text,
-      source: a.kind === 'faction' ? 'Faction rule' : 'Datasheet',
-    })),
-    ...(unit.enhancements ?? []).map((e) => ({
-      name: e.name,
-      text: enhancementText.get(e.id) ?? '',
-      source: 'Enhancement',
-    })),
-    ...activeMarkRules.flatMap(({ label, rules: markRules }) =>
-      markRules.map((r) => ({ name: r.name, text: r.text, source: label })),
-    ),
-  ]
-  return effectsFrom(rules, unit.marks ?? [])
-}
-
 /** The loadout split by model type, for a unit that has more than one. */
 function Loadout({ groups }: { groups: ReturnType<typeof loadoutByModel> }) {
   return (
@@ -262,13 +207,13 @@ export function GameUnitSheet({
   // weapons is what you need when removing casualties or picking who shoots,
   // and a single counted table never says it.
   const loadout = loadoutByModel(unit, sheet)
-  const { grants, mods } = effectsForUnit(
+  const { grants, mods } = effectsForUnit({
     unit,
     sheet,
-    game,
     catalogue,
-    activeMarks.map(({ mark, rules: markRules }) => ({ label: mark.label, rules: markRules })),
-  )
+    detachmentNames: game.detachmentNames,
+    marks,
+  })
   const single = unit.models.length === 1 && unit.models[0]!.total === 1 ? unit.models[0] : undefined
 
   // Opening a unit must land on its stat line — the reason you opened it. The
@@ -395,12 +340,20 @@ export function GameUnitSheet({
       {leaders.map((leader) => {
         const leaderSheet = sheets.get(leader.entryId)
         const leaderWeapons = weaponCounts(leader, leaderSheet)
-        const leaderEffects = effectsForUnit(leader, leaderSheet, game, catalogue, [])
+        const leaderEffects = effectsForUnit({
+          unit: leader,
+          sheet: leaderSheet,
+          catalogue,
+          detachmentNames: game.detachmentNames,
+          marks,
+        })
         const leaderModel = leader.models[0]
         return (
           <section key={leader.id} className="leader">
             <h3 className="leader__head">
-              <span className="chip">Leader</span> {leader.name}
+              {/* "Leader" is one kind of attachment among several — a Support
+                  character or a codex's Retainers follow different rules. */}
+              <span className="chip">{leader.attachedAs ?? 'Leader'}</span> {leader.name}
             </h3>
             {leaderSheet && (
               <StatStrip

@@ -13,6 +13,7 @@ import type { Roster, Selection } from '@/roster/types'
 import type { Validation } from '@/roster/store'
 import type { GameUnit, ModelGroup } from './types'
 import { unitNames } from '@/roster/naming'
+import { attachmentKind, kindOfAssociation } from '@/roster/attachment'
 
 /** "Damaged: 1-4 Wounds Remaining" — the threshold is the upper bound. */
 const DAMAGED = /damaged:\s*\d+\s*[-–]\s*(\d+)/i
@@ -127,6 +128,18 @@ export function modelGroups(unit: Selection, sheet: Datasheet | undefined): Mode
   return groups
 }
 
+/**
+ * How this unit is attached, in the data's own words. The roster remembers
+ * which association was used; failing that (an older roster), the datasheet's
+ * first joining association speaks for it.
+ */
+function attachedAs(unit: Selection, sheet: Datasheet | undefined): string | undefined {
+  if (!sheet) return undefined
+  const association = sheet.associations.find((a) => a.id === unit.associationId)
+  const kind = (association && kindOfAssociation(association)) ?? attachmentKind(sheet)
+  return kind?.label
+}
+
 export function buildGameUnits(
   roster: Roster,
   catalogue: ParsedCatalogue,
@@ -163,7 +176,7 @@ export function buildGameUnits(
       isCharacter: validation.characterSelectionIds.includes(unit.id),
       isWarlord: validation.warlordSelectionId === unit.id,
       ...(unit.attachedTo && roster.selections.some((u) => u.id === unit.attachedTo)
-        ? { leaderOf: unit.attachedTo }
+        ? { leaderOf: unit.attachedTo, ...(attachedAs(unit, sheet) ? { attachedAs: attachedAs(unit, sheet)! } : {}) }
         : {}),
       models: modelGroups(unit, sheet),
       ...(damaged !== undefined ? { damagedAt: Number(damaged) } : {}),

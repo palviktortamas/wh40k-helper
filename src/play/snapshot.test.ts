@@ -164,6 +164,51 @@ describe('game snapshot', () => {
     expect(hero.leaderOf).toBe(squad.id)
   })
 
+  it('remembers what the data calls the attachment, not just that there is one', () => {
+    // A unit may hold one Leader and one Support, and a codex invents its own
+    // kinds; calling every attached character a Leader gets the rules wrong.
+    const sheetWith = (associations: { id: string; action: string; label: string }[]) => ({
+      ...catalogue,
+      datasheets: [
+        ...catalogue.datasheets,
+        {
+          id: 'e-medic',
+          name: 'Medic',
+          keywords: [],
+          factionKeywords: [],
+          type: 'model',
+          stats: [{ name: 'Medic', w: '4' }],
+          weapons: [],
+          abilities: [],
+          models: [],
+          associations,
+          constraints: [],
+          sources: ['bsdata'],
+        },
+      ],
+    })
+    const medic = sel('e-medic', 'Medic', 'model', 1)
+    medic.attachedTo = squad.id
+    medic.associationId = 'a-support'
+    const withMedic: Roster = { ...roster, selections: [squad, medic] }
+    const built = buildGameUnits(
+      withMedic,
+      sheetWith([{ id: 'a-support', action: 'group', label: 'Supported by' }]) as never,
+      validation,
+    )
+    expect(built[1]!.attachedAs).toBe('Support')
+
+    // No association id (an older roster): the datasheet's own kind speaks.
+    const { associationId: _unused, ...plain } = medic
+    expect(
+      buildGameUnits(
+        { ...roster, selections: [squad, plain] },
+        sheetWith([{ id: 'a-lead', action: 'group', label: 'Leading' }]) as never,
+        validation,
+      )[1]!.attachedAs,
+    ).toBe('Leader')
+  })
+
   it('counts weapons from the surviving models only', () => {
     const unit = units[0]!
     const full = weaponCounts(unit, catalogue.datasheets[0])

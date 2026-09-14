@@ -12,7 +12,7 @@
  */
 
 import type { Association } from '@/data/bsdata/schema'
-import type { CatalogueGraph, ResolvedEntry } from './resolve'
+import type { CatalogueGraph } from './resolve'
 import type { Roster, Selection } from './types'
 
 export type AttachmentKind = {
@@ -46,19 +46,22 @@ const kindFromLabel = (label: string | undefined): AttachmentKind | undefined =>
 export const kindOfAssociation = (association: Association): AttachmentKind | undefined =>
   kindFromLabel(association.label) ?? kindFromLabel(association.name)
 
+/** Anything that carries the data's associations: a resolved entry, or a parsed datasheet. */
+type HasAssociations = { associations: Association[] }
+
 /** The associations by which this datasheet joins another unit. */
-export const joiningAssociations = (entry: ResolvedEntry): Association[] =>
+export const joiningAssociations = (entry: HasAssociations): Association[] =>
   entry.associations.filter((a) => a.action === 'group')
 
 /** Whether a datasheet takes part in attachment at all. */
-export const canAttach = (entry: ResolvedEntry): boolean => joiningAssociations(entry).length > 0
+export const canAttach = (entry: HasAssociations): boolean => joiningAssociations(entry).length > 0
 
 /**
  * How a datasheet attaches. A unit that can join in more than one way reports
  * the first the data lists; the picker still offers each association
  * separately, so nothing is lost.
  */
-export function attachmentKind(entry: ResolvedEntry): AttachmentKind | undefined {
+export function attachmentKind(entry: HasAssociations): AttachmentKind | undefined {
   for (const association of joiningAssociations(entry)) {
     const kind = kindOfAssociation(association)
     if (kind) return kind

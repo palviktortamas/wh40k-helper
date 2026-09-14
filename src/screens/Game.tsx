@@ -29,7 +29,9 @@ import { getMissionDeck } from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
 import { getStratagemSet } from '@/stratagems/store'
 import type { StratagemSet } from '@/stratagems/types'
-import type { Datasheet } from '@/data/model'
+import type { Datasheet, ParsedCatalogue } from '@/data/model'
+import { discoverMarks, type Mark } from '@/play/marks'
+import { effectsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { scrollParent } from './scrollToTop'
 import { GameStratagems } from './GameStratagems'
@@ -149,6 +151,9 @@ export function Game() {
     () => new Map((catalogue?.parsed.datasheets ?? []).map((d) => [d.id, d])),
     [catalogue],
   )
+  // The states the installed data names, found once: every card asks which of
+  // them it is in, and what they do to its numbers.
+  const marks = useMemo(() => (catalogue ? discoverMarks(catalogue.parsed) : []), [catalogue])
 
   if (!game) return <p>Loading…</p>
 
@@ -187,10 +192,28 @@ export function Game() {
 
   const renderUnit = (unit: GameUnit, leader = false) => (
     <>
-      <UnitCard unit={unit} sheet={sheets.get(unit.entryId)} game={game} dispatch={dispatch} onOpen={() => openUnitSheet(unit.id)} leader={leader} />
+      <UnitCard
+        unit={unit}
+        sheet={sheets.get(unit.entryId)}
+        game={game}
+        catalogue={catalogue?.parsed}
+        marks={marks}
+        dispatch={dispatch}
+        onOpen={() => openUnitSheet(unit.id)}
+        leader={leader}
+      />
       {(leadersOf.get(unit.id) ?? []).map((l) => (
         <div key={l.id} className={`unit__leader role-stripe role--${roleKey(sheets.get(l.entryId)?.role)} ${l.destroyed ? 'unit--dead' : ''}`}>
-          <UnitCard unit={l} sheet={sheets.get(l.entryId)} game={game} dispatch={dispatch} onOpen={() => openUnitSheet(l.id)} leader />
+          <UnitCard
+            unit={l}
+            sheet={sheets.get(l.entryId)}
+            game={game}
+            catalogue={catalogue?.parsed}
+            marks={marks}
+            dispatch={dispatch}
+            onOpen={() => openUnitSheet(l.id)}
+            leader
+          />
         </div>
       ))}
     </>
@@ -482,6 +505,8 @@ function UnitCard({
   unit,
   sheet,
   game,
+  catalogue,
+  marks,
   dispatch,
   onOpen,
   leader = false,
@@ -489,6 +514,8 @@ function UnitCard({
   unit: GameUnit
   sheet: Datasheet | undefined
   game: GameModel
+  catalogue: ParsedCatalogue | undefined
+  marks: readonly Mark[]
   dispatch: (action: GameAction) => void
   onOpen: () => void
   leader?: boolean
@@ -506,6 +533,12 @@ function UnitCard({
       )
     : []
   const [expanded, setExpanded] = useState(false)
+  // The quick stats have to be the stats: a unit that is riled up rolls
+  // different numbers, and the card is what a player reads between turns.
+  const { mods } = useMemo(
+    () => effectsForUnit({ unit, sheet, catalogue, detachmentNames: game.detachmentNames, marks }),
+    [unit, sheet, catalogue, game.detachmentNames, marks],
+  )
   const alive = modelsAlive(unit)
   const total = modelsTotal(unit)
   const living = unit.models.filter((g) => g.alive > 0)
@@ -521,7 +554,7 @@ function UnitCard({
     <div className="unit__body">
       <button className="units__main" onClick={onOpen}>
         <span className="units__name">
-          {leader && <span className="chip">Leader</span>}
+          {leader && <span className="chip">{unit.attachedAs ?? 'Leader'}</span>}
           {unit.name}
           {unit.isWarlord && <span className="chip">Warlord</span>}
           {unit.destroyed && <span className="chip chip--error">✕ Destroyed</span>}
@@ -531,6 +564,7 @@ function UnitCard({
           <StatStrip
             stats={sheet.stats}
             firstOnly
+            mods={mods}
             {...(single && single.total === 1 ? { wounds: { current: single.currentWounds, total: single.wounds } } : {})}
           />
         )}
