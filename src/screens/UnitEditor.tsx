@@ -9,6 +9,7 @@ import { modelGroups } from '@/play/snapshot'
 import { weaponCounts } from '@/play/weapons'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { canResize, isAtMaxSize, modelCount, withUnitSize } from '@/roster/size'
+import { canSplit, mergeSelection, splitSelection } from '@/roster/split'
 import { roleKey } from '@/roster/roles'
 import { describeLoadout, enhancementsTaken } from './RosterEditor'
 import { StatStrip } from './StatStrip'
@@ -454,22 +455,30 @@ function GroupEditor({
         </span>
       </div>
 
-      {candidates.map((candidate) => (
-        <OptionRow
-          key={candidate.linkId ?? candidate.id}
-          entry={candidate}
-          groupId={group.id}
-          parent={parent}
-          root={root}
-          rootOnChange={rootOnChange}
-          validation={validation}
-          tryChange={tryChange}
-          texts={texts}
-          groupFull={groupFull}
-          atGroupMin={atGroupMin}
-          singleChoice={singleChoice}
-        />
-      ))}
+      {candidates.flatMap((candidate) => {
+        // Once a pick has been separated into individual models, each gets its
+        // own row so its loadout can differ from its twin's.
+        const instances = parent.selections.filter((s) => isSameOption(s, candidate, group.id))
+        const rows = instances.length > 1 ? instances : [undefined]
+        return rows.map((instance, index) => (
+          <OptionRow
+            key={instance?.id ?? candidate.linkId ?? candidate.id}
+            entry={candidate}
+            groupId={group.id}
+            parent={parent}
+            root={root}
+            rootOnChange={rootOnChange}
+            validation={validation}
+            tryChange={tryChange}
+            texts={texts}
+            groupFull={groupFull}
+            atGroupMin={atGroupMin}
+            singleChoice={singleChoice}
+            instance={instance}
+            instanceLabel={instance ? `${index + 1} of ${instances.length}` : undefined}
+          />
+        ))
+      })}
 
       {nested.map((child) => (
         <GroupEditor
@@ -504,10 +513,16 @@ function OptionRow({
   groupFull,
   atGroupMin = false,
   singleChoice = false,
+  instance,
+  instanceLabel,
 }: TreeProps & {
   entry: ResolvedEntry
   groupId?: string
   groupFull: boolean
+  /** One separated copy of this pick, when the owner split them apart. */
+  instance?: Selection | undefined
+  /** "1 of 2" — which copy this row is. */
+  instanceLabel?: string | undefined
   /** The group is at its compulsory minimum, so nothing here may be removed. */
   atGroupMin?: boolean
   /** Exactly one of this group is taken: picking another swaps to it. */
@@ -518,7 +533,7 @@ function OptionRow({
   // Enhancements are a paragraph of rules; choosing one by name alone is
   // guesswork, so anything the catalogue has text for can be read in place.
   const text = texts?.get(entry.id)
-  const existing = parent.selections.find((s) => isSameOption(s, entry, groupId))
+  const existing = instance ?? parent.selections.find((s) => isSameOption(s, entry, groupId))
   const count = existing?.count ?? 0
   const points = entry.costs[COST_TYPE.points]
 
@@ -561,16 +576,40 @@ function OptionRow({
       updated = { ...parent, selections: [...parent.selections, child] }
     }
 
-    const nextRoot =
+    const rootWith = (next: Selection): Selection =>
       parent.id === root.id
-        ? updated
-        : { ...root, selections: replaceSelection(root.selections, parent.id, updated) }
+        ? next
+        : { ...root, selections: replaceSelection(root.selections, parent.id, next) }
+    const nextRoot = rootWith(updated)
 
     // A swap does not grow the unit, so the "would this break a cap?" guard
     // that refuses increments must not refuse it.
     if (value > count && tryChange && !swaps) {
       const refusal = tryChange(nextRoot)
       if (refusal) {
+        // A special-weapon model *replaces* an ordinary one rather than
+        // joining it — a Boy with a rokkit launcha is still one of the mob's
+        // Boyz — so at full size there is no room to simply add one. Offer the
+        // data a version that takes one from a sibling model instead, largest
+        // group first, and use the first it accepts. Which sibling is the right
+        // donor is not assumed: the evaluator decides.
+        const donors = parent.selections
+          .filter((s) => s.type === 'model' && s.count > 1 && s !== existing && s.entryId !== entry.id)
+          .sort((a, b) => b.count - a.count)
+        for (const donor of donors) {
+          const swapped = rootWith({
+            ...updated,
+            selections: updated.selections.map((s) =>
+              s.id === donor.id ? { ...s, count: s.count - 1 } : s,
+            ),
+          })
+          if (!tryChange(swapped)) {
+            setHint(`Replaced one ${donor.name}`)
+            setTimeout(() => setHint(null), 2500)
+            rootOnChange(swapped)
+            return
+          }
+        }
         setHint(refusal)
         setTimeout(() => setHint(null), 2500)
         return
@@ -584,6 +623,7 @@ function OptionRow({
     <div className={`option ${count > 0 ? 'option--taken' : ''}`}>
       <div className="option__label">
         <span>{entry.name}</span>
+        {instanceLabel && <span className="muted option__which"> {instanceLabel}</span>}
         {points ? <span className="muted"> {points} pts</span> : null}
         {/* Worth a word only when more than one could be taken; a fixed single pick just greys its "+". */}
         {room !== undefined && count > 0 && count + Math.max(room, 0) > 1 && (
@@ -644,6 +684,29 @@ function OptionRow({
       {existing && (entry.entries.length > 0 || entry.groups.length > 0) && (
         <details className="option__sub" open={existing.selections.length > 0}>
           <summary>Loadout</summary>
+          {canSplit(existing, entry.entries.length + entry.groups.length > 0) && (
+            <button
+              className="button button--quiet option__split"
+              onClick={() => rootOnChange(splitSelection(root, existing.id))}
+            >
+              Give each of the {existing.count} its own loadout
+            </button>
+          )}
+          {instance && (
+            <button
+              className="button button--quiet option__split"
+              // Only identical copies merge, so this never throws a loadout away.
+              disabled={mergeSelection(root, instance.id) === root}
+              title={
+                mergeSelection(root, instance.id) === root
+                  ? 'These are equipped differently, so they cannot be combined'
+                  : undefined
+              }
+              onClick={() => rootOnChange(mergeSelection(root, instance.id))}
+            >
+              Combine the identical ones
+            </button>
+          )}
           <OptionTree
             parent={existing}
             entry={entry}

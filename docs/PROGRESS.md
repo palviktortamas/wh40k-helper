@@ -705,6 +705,36 @@ Watch out when testing enhancements: a detachment's enhancements are often gated
 only"), so an empty Enhancements group on a Warboss is the *data* being right. Blitz Brigade shows
 none; War Horde offers four.
 
+### Loadouts on a full-size unit (2026-09-14, later still)
+
+Three bugs, one root: **a special-weapon model replaces an ordinary one**. "Boy w/ Rokkit launcha"
+is not an extra Boy, it is one of the mob's Boyz carrying a rokkit. The data says so by nesting the
+Special Weapons group *inside* the size group — worth knowing, because the editor renders those
+rows against the **unit**, not against the Boy, so the plain Boy is their *sibling*, not their
+parent. An hour went into that; the DOM nesting suggests otherwise.
+
+1. **Taking a special weapon at full size was refused.** The unit is 18/18, so adding one breaks the
+   size cap and the increment guard says "At the limit the data allows for this option" while the
+   owner has zero of them. `OptionRow` now, on refusal, offers the evaluator a version that takes
+   one from a sibling model (largest first) and uses the first it accepts — hint: "Replaced one
+   Boy". Which sibling is the right donor is never assumed; the evaluator decides.
+2. **Two Nobz shared one loadout.** Two models are one selection with `count: 2`, so the loadout
+   hanging off it is shared. `roster/split.ts` separates a pick into one selection per model, each
+   with its own copy, and `GroupEditor` then renders a row per copy ("Nob 1 of 2"). `mergeSelection`
+   puts identical copies back, so it is not a one-way door; copies equipped differently refuse to
+   merge rather than silently discarding one. The offer is capped at **6 copies** — sixteen
+   expandable loadouts is not an editor, and a big unit's variation is what the data's own
+   special-weapon entries are for.
+3. **Reinforcing a mob that already had a special weapon overshot to 19/18** — my own bug from the
+   Reinforced toggle. `withUnitSize` grew the replacement model too (changing the loadout) and could
+   not see the size cap, because that model's group is the nested one. Growth now skips models
+   outside the unit's own size groups **and** offers every step to the evaluator, largest first,
+   keeping the first that adds no error. No group topology is hard-coded.
+
+Fixture note: a synthetic catalogue only reproduces this if the special-weapons group is nested in
+the **size group**, not in the model entry. Put it in the model entry and the evaluator will happily
+allow 21 models, and the test will lie.
+
 ---
 
 ## Next

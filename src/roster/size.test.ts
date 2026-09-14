@@ -42,18 +42,17 @@ const mob: SelectionEntry = {
             { id: 'c-t-min', type: 'min', value: 6, field: 'selections', scope: 'parent' },
             { id: 'c-t-max', type: 'max', value: 18, field: 'selections', scope: 'parent' },
           ],
-          // Special weapons hang off the trooper. Growing the mob must not
-          // help itself to these: size is not loadout.
-          selectionEntryGroups: [
-            {
-              id: 'g-special',
-              name: 'Special Weapons',
-              constraints: [{ id: 'c-sp-max', type: 'max', value: 3, field: 'selections', scope: 'parent' }],
-              selectionEntries: [
-                { id: 'e-gunner', name: 'Trooper w/ Big gun', type: 'model' },
-              ],
-            },
-          ],
+        },
+      ],
+      // Special weapons are *replacement* troopers: the data nests their group
+      // inside the size group, so one of them is one of the unit's models
+      // rather than an extra. Growing the mob must not help itself to these.
+      selectionEntryGroups: [
+        {
+          id: 'g-special',
+          name: 'Special Weapons',
+          constraints: [{ id: 'c-sp-max', type: 'max', value: 3, field: 'selections', scope: 'parent' }],
+          selectionEntries: [{ id: 'e-gunner', name: 'Trooper w/ Big gun', type: 'model' }],
         },
       ],
     },
@@ -174,6 +173,24 @@ describe('withUnitSize', () => {
     const grown = withUnitSize(withGun, graph(), 'max')
     const kept = grown.selections.flatMap((s) => s.selections).filter((s) => s.entryId === 'e-gunner')
     expect(kept).toHaveLength(1)
+  })
+
+  it('does not grow a replacement model — that is loadout, not size', () => {
+    // A trooper with a big gun *is* one of the unit's troopers. Growing it
+    // would both change the loadout and overshoot the unit's size cap.
+    const withGunner: Selection = {
+      ...aMob(),
+      selections: [
+        ...aMob().selections,
+        { id: 'g1', entryId: 'e-gunner', groupId: 'g-special', name: 'Trooper w/ Big gun', type: 'model' as const, count: 1, selections: [] },
+      ],
+    }
+    const grown = withUnitSize(withGunner, graph(), 'max')
+
+    const gunners = grown.selections.filter((s) => s.entryId === 'e-gunner')
+    expect(gunners.map((g) => g.count)).toEqual([1])
+    expect(modelCount(grown)).toBe(20)
+    expect(errorsIn(grown)).toEqual([])
   })
 
   it('does nothing to a unit that has only one legal size', () => {

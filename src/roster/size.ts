@@ -27,6 +27,19 @@ const MAX_PASSES = 24
 export const modelCount = (unit: Selection): number =>
   unit.selections.filter((s) => s.type === 'model').reduce((sum, s) => sum + s.count, 0)
 
+/** Errors the unit itself is guilty of — the army around it is not the question. */
+function errorCount(unit: Selection, graph: CatalogueGraph): number {
+  const ids = new Set<string>()
+  const walk = (s: Selection) => {
+    ids.add(s.id)
+    s.selections.forEach(walk)
+  }
+  walk(unit)
+  return analyseRoster(probeRoster(unit), graph).issues.filter(
+    (i) => i.severity === 'error' && i.selectionId !== undefined && ids.has(i.selectionId),
+  ).length
+}
+
 /** A one-unit roster, so the evaluator can be asked about a unit on its own. */
 const probeRoster = (unit: Selection): Roster => ({
   id: 'probe',
@@ -40,12 +53,23 @@ const probeRoster = (unit: Selection): Roster => ({
   builtWith: { bsdataRevision: 0 },
 })
 
+/**
+ * The groups the unit entry itself offers — its size groups. A nested group
+ * ("Special Weapons") holds *replacement* models: a Boy with a rokkit launcha
+ * is one of the mob's Boyz, not an extra one, so growing it would both change
+ * the loadout and push the unit past its own size cap.
+ */
+const sizeGroupIds = (unit: Selection, graph: CatalogueGraph): Set<string> =>
+  new Set((graph.resolve(unit.entryId)?.groups ?? []).map((group) => group.id))
+
 /** How many more copies of each direct model the data still allows. */
 function roomPerModel(unit: Selection, graph: CatalogueGraph): Map<string, number> {
   const analysis = analyseRoster(probeRoster(unit), graph)
+  const sizeGroups = sizeGroupIds(unit, graph)
   const room = new Map<string, number>()
   for (const child of unit.selections) {
     if (child.type !== 'model') continue
+    if (child.groupId !== undefined && !sizeGroups.has(child.groupId)) continue
     const own = analysis.headroom[child.id]
     const group =
       child.groupId === undefined ? undefined : analysis.groupHeadroom[`${unit.id}:${child.groupId}`]
@@ -86,8 +110,10 @@ export function withUnitSize(unit: Selection, graph: CatalogueGraph, size: 'min'
     // Several selections can share one entry; the first carries the minimum and
     // the rest go to zero-but-kept-at-one, which the group minimum then governs.
     const used = new Set<string>()
+    const sizeGroups = sizeGroupIds(unit, graph)
     for (const child of unit.selections) {
       if (child.type !== 'model') continue
+      if (child.groupId !== undefined && !sizeGroups.has(child.groupId)) continue
       const key = `${child.entryId}:${child.groupId ?? ''}`
       const floor = used.has(key) ? 1 : (minimums.get(key) ?? child.count)
       used.add(key)
@@ -97,19 +123,39 @@ export function withUnitSize(unit: Selection, graph: CatalogueGraph, size: 'min'
   }
 
   let current = unit
+  const allowed = errorCount(unit, graph)
+  const exhausted = new Set<string>()
+
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const room = roomPerModel(current, graph)
     // One model at a time: room is shared, so taking all of it everywhere at
-    // once would overshoot a group cap that two models draw on.
-    const next = [...room.entries()].find(([, left]) => left > 0)
+    // once would overshoot a cap that two models draw on.
+    const next = [...room.entries()].find(([id, left]) => left > 0 && !exhausted.has(id))
     if (!next) break
     const [id, left] = next
-    current = {
-      ...current,
-      selections: current.selections.map((child) =>
-        child.id === id ? { ...child, count: child.count + left } : child,
-      ),
+
+    // The room a model reports is its own; a model can still be capped by a
+    // group it is not listed in — a replacement model counts towards the unit's
+    // size. So every step is offered to the evaluator, largest first, and the
+    // first it accepts is kept. Nothing here has to know the group topology.
+    let grown: Selection | undefined
+    for (let by = left; by >= 1; by--) {
+      const candidate: Selection = {
+        ...current,
+        selections: current.selections.map((child) =>
+          child.id === id ? { ...child, count: child.count + by } : child,
+        ),
+      }
+      if (errorCount(candidate, graph) <= allowed) {
+        grown = candidate
+        break
+      }
     }
+    if (!grown) {
+      exhausted.add(id)
+      continue
+    }
+    current = grown
   }
   return current
 }

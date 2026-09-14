@@ -910,3 +910,13 @@
   margin: 0 0 0.25rem;
   font-size: 0.8rem;
 }
+
+/* Separating a multi-model pick so each can be equipped differently. */
+.option__split {
+  display: block;
+  min-height: 44px;
+  margin: 0 0 0.5rem;
+}
+.option__which {
+  font-size: 0.8rem;
+}
