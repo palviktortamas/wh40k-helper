@@ -76,20 +76,29 @@ const TRIGGER_RULES: [RegExp, Trigger][] = [
 
   // Moments inside a phase, for rules that never name the phase outright.
   [/\b(battle-?shock test|at the start of (?:your|the) command phase)/i, 'command_phase'],
-  [/\b(selected to move|makes? a normal move|is selected to (?:advance|fall back)|when this unit advances)/i, 'movement_phase'],
+  [/\b(selected to move|selected to make an? (?:advance|normal|fall.?back|advance\/fall-back)|makes? a normal move|is selected to (?:advance|fall back)|when this unit advances|disembark move)/i, 'movement_phase'],
   [/\b(selected to shoot|has shot|makes? ranged attacks|overwatch)/i, 'shooting_phase'],
-  [/\b(selected to charge|declares? a charge|makes? a charge (?:move|roll))/i, 'charge_phase'],
+  // "eligible to declare a charge" describes the state a move leaves a unit
+  // in; it is not a moment in the Charge phase.
+  [/\b(selected to charge|(?<!eligible to )declares? a charge|makes? a charge (?:move|roll))/i, 'charge_phase'],
   [/\b(selected to fight|fights? first|pile.?in|consolidat)/i, 'fight_phase'],
 ]
 
 /**
- * A reminder is something the player has to *do*: use an ability, pick a
- * target, roll something, remember a once-per-X. A rule that simply changes a
- * profile or grants a keyword needs no reminding — it is always true — and
- * putting it in the phase panel is noise that buries the rules that matter.
+ * A rule that belongs to building the list rather than playing the game. These
+ * are settled before the first turn and can never be acted on at the table, so
+ * they are noise in a phase panel.
+ *
+ * Deliberately narrow. A passive rule is *not* useless — "attacks that target
+ * this unit have -1 to wound" is exactly what you need reminding of the moment
+ * you are shot at — so only rules that are about army composition are dropped.
  */
-const ACTIONABLE =
-  /\b(can|may|must|select one|select a|choose one|choose a|roll one|roll a|re-?roll|gain \d|score|place|remove|set up|return|revive|repair|heal)\b/i
+const LIST_BUILDING =
+  /\b(muster armies|mustering your army|army roster|army composition|can be attached to the following|this model can be attached to|points value of your army)\b/i
+
+/** A rule whose entire content is granting a keyword or a battlefield role. */
+const ONLY_A_KEYWORD_GRANT =
+  /^[-\s•]*(?:friendly\s+)?[A-Za-z' ]{0,40}\b(?:units?|models?)\s+(?:have|has|gains?)\s+[A-Z][A-Z'\- ]{2,}\.?$/
 
 // "Once per battle" and "once per battle round" differ by one word and by a
 // whole game: a once-per-round ability filed as once-per-battle disappears
@@ -124,6 +133,23 @@ export function inferTrigger(text: string, ownText = text): Trigger {
  * with no phase of its own is an "any time, once" reminder; a rule with
  * neither a moment nor a limit is passive and starts disabled.
  */
+/**
+ * The clause a rule's reminder should quote: the one that says when to act.
+ *
+ * A rule can open with an aside that belongs to list-building — "Friendly
+ * WARBIKERS units have BATTLELINE." — and carry its real content in the next
+ * bullet. Quoting the first sentence then showed the aside and nothing else,
+ * which reads as a reminder that reminds you of nothing.
+ */
+function momentClause(rawText: string, trigger: Trigger): string | undefined {
+  if (trigger === 'custom') return undefined
+  const clauses = plainText(rawText)
+    .split(/(?<=[.;:])\s+|\s+(?=[-•]\s)/)
+    .map((clause) => clause.replace(/^[-•]\s*/, '').trim())
+    .filter((clause) => clause.length > 12)
+  return clauses.find((clause) => inferTrigger(clause, clause) === trigger)
+}
+
 export function infer(name: string, rawText: string): Inferred {
   const text = plainText(`${name}. ${rawText}`)
   const once = inferOnce(text)
@@ -132,13 +158,15 @@ export function infer(name: string, rawText: string): Inferred {
   if (trigger === 'custom' && once === 'turn') trigger = 'once_per_turn'
   return {
     trigger,
-    text: shortText(rawText) || plainText(name),
+    text: shortText(momentClause(rawText, trigger) ?? rawText) || plainText(name),
     ...(once ? { once } : {}),
-    // Enabled by default only when there is a moment to act on *and*
-    // something to do — or a once-per-X the owner must not forget.
+    // Enabled when there is a moment to act on and the rule is about playing
+    // rather than list-building. A passive that changes what happens at that
+    // moment still earns its place.
     enabled:
       trigger !== 'custom' &&
       !ON_DESTRUCTION.test(text) &&
-      (ACTIONABLE.test(text) || once !== undefined),
+      !LIST_BUILDING.test(text) &&
+      !ONLY_A_KEYWORD_GRANT.test(plainText(rawText)),
   }
 }

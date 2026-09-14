@@ -69,4 +69,47 @@ describe('reminder heuristics', () => {
     const r = infer('Big Guns', 'In your Shooting phase, each time this unit destroys an enemy unit, gain 1 CP.')
     expect(r.enabled).toBe(true)
   })
+
+  it('keeps a passive that matters at the table', () => {
+    // Nothing to *do*, but you must remember it the moment you are shot at.
+    const r = infer(
+      'Thick Plates',
+      "Attacks that target this unit with a S greater than this unit's T have -1 to wound rolls.",
+    )
+    expect(r.trigger).toBe('when_targeted')
+    expect(r.enabled).toBe(true)
+  })
+
+  it('drops a rule that is only about building the list', () => {
+    expect(infer('Support', 'This model can be attached to the following unit: - BIG MOB - SMALL MOB').enabled).toBe(false)
+    expect(
+      infer('Leader', 'Before the battle, in the Muster Armies step, you can select one friendly bodyguard unit.').enabled,
+    ).toBe(false)
+  })
+
+  it('drops a rule whose whole content is a keyword grant', () => {
+    expect(infer('Fast Attack', 'Friendly **WARBIKERS** units have **BATTLELINE**.').enabled).toBe(false)
+  })
+
+  it('summarises a rule by the clause that says when to act', () => {
+    // A rule can open with a list-building aside and carry its real content
+    // below. Summarising by the first sentence showed the aside and nothing
+    // else, which read as a reminder that reminds you of nothing.
+    const r = infer(
+      'Adrenaline',
+      '- Friendly **WARBIKERS** units have **BATTLELINE**.\n- When a friendly **SPEED FREEKS** unit is selected to make an **advance/fall-back move**, that unit\'s ranged attacks have [ASSAULT] until the end of the turn.',
+    )
+    expect(r.text).toContain('selected to make an advance/fall-back move')
+    expect(r.text).not.toContain('BATTLELINE')
+    expect(r.enabled).toBe(true)
+  })
+
+  it('does not read "eligible to declare a charge" as the Charge phase', () => {
+    // It describes a state the unit is left in, not a moment to act.
+    const r = infer(
+      'Roll On',
+      'When this unit is selected to make an advance move, that move does not prevent it from being eligible to declare a charge.',
+    )
+    expect(r.trigger).toBe('movement_phase')
+  })
 })

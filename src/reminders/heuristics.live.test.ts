@@ -69,11 +69,21 @@ describe.skipIf(!available)('reminder heuristics on a real catalogue', () => {
       console.log(faction.name, 'rules stating a phase, misfiled:', misfiled.length)
       expect(misfiled).toEqual([])
 
-      // Most of a codex is passive profile changes. If more than a third of it
-      // is switched on, the panel is noise rather than a reminder.
+      // A passive rule is not useless — "attacks targeting this unit have -1 to
+      // wound" is exactly what you need at the moment you are shot at — so
+      // plenty stays on. What must not stay on is the half of a codex that is
+      // settled before the first turn.
       const enabled = abilities.filter((a) => infer(a.name, a.text).enabled)
       console.log(faction.name, `enabled by default: ${enabled.length} of ${abilities.length}`)
-      expect(enabled.length / abilities.length).toBeLessThan(0.45)
+      expect(enabled.length / abilities.length).toBeLessThan(0.6)
+
+      // Rules about building the list can never be acted on at the table.
+      const listBuilding = abilities.filter((a) =>
+        /\b(muster armies|can be attached to the following)\b/i.test(plainText(a.text)),
+      )
+      console.log(faction.name, 'list-building rules:', listBuilding.length)
+      expect(listBuilding.length).toBeGreaterThan(0)
+      expect(listBuilding.filter((a) => infer(a.name, a.text).enabled)).toEqual([])
 
       const stillOn = onDeath.filter((a) => infer(a.name, a.text).enabled)
       console.log(faction.name, 'on-destruction abilities:', onDeath.length, '· still enabled:', stillOn.length)

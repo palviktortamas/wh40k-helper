@@ -807,9 +807,20 @@ the turn" matched the `end_of_turn` rule, which sat above the phase rules, and l
 panel. A rule that *opens* by naming its phase now wins outright — checked against the rule's own
 text, because `infer` prepends the ability name and its full stop breaks an anchored match.
 
-**And a reminder must be something to do.** A rule that only changes a profile or grants a keyword
-("Friendly WARBIKERS units have BATTLELINE") needs no reminding; it is always true. Enabled now
-requires a moment **and** an action ("you can", "select", "roll", "re-roll", …) or a once-per-X.
+**And a reminder must be worth having at the table** — but "passive" is *not* the test, which the
+first attempt got wrong. Requiring an action switched off "Attacks that target this unit with a S
+greater than its T have -1 to wound rolls", which is exactly what you need reminding of the moment
+you are shot at. What is genuinely useless is what is settled **before** the first turn, so only
+that is dropped: army composition ("in the Muster Armies step", "can be attached to the following
+unit") and a rule whose entire content is granting a keyword.
+
+**The BATTLELINE example was not a useless rule at all — it was a useless summary.** "Adrenaline
+Junkies" opens with a list-building aside and carries its real content in the next bullet ("when a
+friendly SPEED FREEKS unit is selected to make an advance/fall-back move…"), and the panel quoted
+the first sentence. A reminder is now summarised by **the clause that says when to act**, so it
+shows the half that matters. Same rule, and its trigger also moved from Charge to Movement once
+"eligible to declare a charge" stopped counting as a moment — that phrase describes the state a
+move leaves a unit in.
 
 Measured on the owner's data: rules that state a phase and are filed elsewhere went **3 → 0**
 (Necrons) and **4 → 0** (Orks); passive-but-enabled went **13 → 4** and **42 → 6**. Both examples
