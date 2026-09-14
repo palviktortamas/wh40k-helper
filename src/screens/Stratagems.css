@@ -108,3 +108,19 @@
 .strats--compact .strat {
   border-left-color: var(--border);
 }
+
+/* The expander, on every row. A stratagem not timed for this phase is dimmed
+   rather than disabled — its rules are still worth reading before you commit
+   to a turn, so it must not look untappable. */
+.strat__chevron {
+  display: inline-block;
+  width: 1em;
+  margin-right: 0.15rem;
+  color: var(--text-muted);
+}
+.strat--later .strat__name {
+  opacity: 0.75;
+}
+.strat--later .strat__chevron {
+  color: var(--accent);
+}

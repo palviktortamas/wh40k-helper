@@ -31,7 +31,12 @@ describe.skipIf(!available)('reminder heuristics on a real catalogue', () => {
       for (const r of all) byTrigger[r.trigger] = (byTrigger[r.trigger] ?? 0) + 1
       // Printed for the journal, never asserted on exact numbers — the data moves.
       console.log(faction.name, 'trigger histogram', byTrigger, 'once', all.filter((r) => r.once).length, 'enabled', all.filter((r) => r.enabled).length)
-      expect(all.filter((r) => r.trigger !== 'custom').length / all.length).toBeGreaterThan(0.5)
+      // A trigger means "there is a moment to act on". Most of a codex is
+      // passive profile changes, so most rules *should* have none — but if
+      // almost nothing did, the phase panel would be empty and useless.
+      const withTrigger = all.filter((r) => r.trigger !== 'custom').length / all.length
+      expect(withTrigger).toBeGreaterThan(0.2)
+      expect(withTrigger).toBeLessThan(0.7)
       expect(all.some((r) => r.once === 'battle')).toBe(true)
       expect(all.every((r) => r.text.length > 0 && r.text.length <= 140)).toBe(true)
 
@@ -45,6 +50,31 @@ describe.skipIf(!available)('reminder heuristics on a real catalogue', () => {
       const onDeath = abilities.filter((a) =>
         /each time (a|this) (model|unit)\b[^.]{0,80}is destroyed/i.test(plainText(`${a.name}. ${a.text}`)),
       )
+      // A rule that opens by naming its phase must land in that phase. This
+      // caught rules whose *duration* ("until the end of the turn") was being
+      // read as their trigger, which put them in the wrong panel entirely.
+      const STATED: [RegExp, string][] = [
+        [/^[^.]{0,60}\bin (?:your|the) command phase\b/i, 'command_phase'],
+        [/^[^.]{0,60}\bin (?:your|the) movement phase\b/i, 'movement_phase'],
+        [/^[^.]{0,60}\bin (?:your|the) shooting phase\b/i, 'shooting_phase'],
+        [/^[^.]{0,60}\bin (?:your|the) charge phase\b/i, 'charge_phase'],
+        [/^[^.]{0,60}\bin (?:your|the) fight phase\b/i, 'fight_phase'],
+      ]
+      const misfiled = abilities.flatMap((a) => {
+        const says = STATED.find(([re]) => re.test(plainText(a.text)))?.[1]
+        if (!says) return []
+        const got = infer(a.name, a.text).trigger
+        return got === says ? [] : [`${a.name}: says ${says}, got ${got}`]
+      })
+      console.log(faction.name, 'rules stating a phase, misfiled:', misfiled.length)
+      expect(misfiled).toEqual([])
+
+      // Most of a codex is passive profile changes. If more than a third of it
+      // is switched on, the panel is noise rather than a reminder.
+      const enabled = abilities.filter((a) => infer(a.name, a.text).enabled)
+      console.log(faction.name, `enabled by default: ${enabled.length} of ${abilities.length}`)
+      expect(enabled.length / abilities.length).toBeLessThan(0.45)
+
       const stillOn = onDeath.filter((a) => infer(a.name, a.text).enabled)
       console.log(faction.name, 'on-destruction abilities:', onDeath.length, '· still enabled:', stillOn.length)
       expect(onDeath.length).toBeGreaterThan(0)

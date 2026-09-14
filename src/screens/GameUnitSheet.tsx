@@ -1,15 +1,14 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
 import { weaponCounts } from '@/play/weapons'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { roleKey } from '@/roster/roles'
-import { forUnit, stratagemUseKey } from '@/stratagems/select'
-import type { Stratagem } from '@/stratagems/types'
 import { StatStrip } from './StatStrip'
 import { WeaponTable } from './WeaponTable'
 import { Marked } from './Marked'
+import { scrollToTop } from './scrollToTop'
 import { discoverMarks, invulnerableFrom, rulesAboutMark } from '@/play/marks'
 import './Datasheets.css'
 import './Game.css'
@@ -122,15 +121,18 @@ function OnceBox({
 /**
  * The datasheet during play (spec §6.3): stats, the weapons table with the
  * counts the surviving models actually carry, abilities with once-per-battle
- * checkboxes, the detachment's rules that name this unit, the stratagems that
- * can target it, and an attached Leader's sheet merged in below.
+ * checkboxes, the detachment's rules that name this unit, and an attached
+ * Leader's sheet merged in below.
+ *
+ * Stratagems are deliberately not here: the phase panel already lists them,
+ * and repeating them pushed the stat line — the reason you opened the unit —
+ * off the screen.
  */
 export function GameUnitSheet({
   game,
   unit,
   sheets,
   catalogue,
-  stratagems,
   dispatch,
   onBack,
 }: {
@@ -138,7 +140,6 @@ export function GameUnitSheet({
   unit: GameUnit
   sheets: Map<string, Datasheet>
   catalogue: ParsedCatalogue | undefined
-  stratagems: Stratagem[]
   dispatch: (action: GameAction) => void
   onBack: () => void
 }) {
@@ -165,10 +166,17 @@ export function GameUnitSheet({
   )
   const { rows, unmatched } = weaponCounts(unit, sheet)
   const single = unit.models.length === 1 && unit.models[0]!.total === 1 ? unit.models[0] : undefined
-  const targeting = sheet ? forUnit(stratagems, [...sheet.keywords, ...sheet.factionKeywords]) : []
+
+  // Opening a unit must land on its stat line — the reason you opened it. The
+  // army list behind it may be scrolled a long way down, and swapping the
+  // rendered component keeps that scroll position.
+  const top = useRef<HTMLElement>(null)
+  useEffect(() => {
+    scrollToTop(top.current)
+  }, [unit.id])
 
   return (
-    <article className={`sheet game role--${roleKey(sheet?.role)}`}>
+    <article ref={top} className={`sheet game role--${roleKey(sheet?.role)}`}>
       <button className="sheet__back tap" onClick={onBack}>
         ‹ Army
       </button>
@@ -264,35 +272,6 @@ export function GameUnitSheet({
         <>
           <h3>Abilities</h3>
           <Abilities unit={unit} sheet={sheet} detachmentNames={game.detachmentNames} catalogue={catalogue} dispatch={dispatch} />
-        </>
-      )}
-
-      {targeting.length > 0 && (
-        <>
-          <h3>Stratagems for this unit</h3>
-          <ul className="strats strats--compact">
-            {targeting.map((s) => {
-              const key = stratagemUseKey(s.id, game.round, game.turn, game.phase)
-              const used = Boolean(game.stratagemsUsed?.[key])
-              return (
-                <li key={s.id} className={`strat ${used ? 'strat--used' : ''}`}>
-                  <div className="strat__head">
-                    <span className="rule-chip rule-chip--cp">{s.cp} CP</span>
-                    <span className="strat__name">{s.name}</span>
-                    <span className={`rule-chip ${s.core ? 'rule-chip--core' : 'rule-chip--detachment'}`}>
-                      {s.core ? 'Core' : s.detachment}
-                    </span>
-                  </div>
-                  <p className="abilities__text">
-                    <Marked text={s.when} />
-                  </p>
-                  <p className="abilities__text">
-                    <b>Effect:</b> <Marked text={s.effect} />
-                  </p>
-                </li>
-              )
-            })}
-          </ul>
         </>
       )}
 

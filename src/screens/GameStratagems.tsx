@@ -61,7 +61,17 @@ export function GameStratagems({
       <li key={s.id} className={`strat ${used ? 'strat--used' : ''} ${relevant ? '' : 'strat--later'}`}>
         <div className="strat__head">
           <span className="rule-chip rule-chip--cp">{s.cp} CP</span>
-          <button className="strat__name strat__toggle" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : s.id)}>
+          {/* Every row expands, including the ones not timed for this phase —
+              they are dimmed, not disabled, so they need the same affordance. */}
+          <button
+            className="strat__name strat__toggle"
+            aria-expanded={expanded}
+            aria-label={`${expanded ? 'Hide' : 'Show'} the full rule for ${s.name}`}
+            onClick={() => setOpen(expanded ? null : s.id)}
+          >
+            <span className="strat__chevron" aria-hidden="true">
+              {expanded ? '▾' : '▸'}
+            </span>
             {s.name}
             {s.category && <span className="muted strat__cat"> · {s.category}</span>}
           </button>

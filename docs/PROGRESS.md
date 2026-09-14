@@ -791,6 +791,46 @@ progress can now be deleted from the Play screen; only finished ones could be.
   its text happened to name. Those start switched off (31 abilities in one faction, 23 in the
   other) and can be switched on in Settings like any other.
 
+### Reminder quality, and three Play fixes (2026-09-14, late)
+
+The owner read the reminders one by one and found them full of errors. Two root causes, both
+measurable, both now guarded by live tests over the real catalogues.
+
+**Phase vocabulary was being read as a moment.** `TRIGGER_RULES` matched things like
+`ranged (attack|weapon)s?` and `melee attacks`, so a passive modifier — "Ranged attacks that target
+this unit have -1 D" — was filed under Shooting and shown every Shooting phase. That is why
+reminders appeared "on the whole page". The patterns now match **moments** ("in your Shooting
+phase", "selected to shoot", "has shot") and never bare vocabulary.
+
+**A rule's duration was being read as its trigger.** "In your Shooting phase, …, until the end of
+the turn" matched the `end_of_turn` rule, which sat above the phase rules, and landed in the wrong
+panel. A rule that *opens* by naming its phase now wins outright — checked against the rule's own
+text, because `infer` prepends the ability name and its full stop breaks an anchored match.
+
+**And a reminder must be something to do.** A rule that only changes a profile or grants a keyword
+("Friendly WARBIKERS units have BATTLELINE") needs no reminding; it is always true. Enabled now
+requires a moment **and** an action ("you can", "select", "roll", "re-roll", …) or a once-per-X.
+
+Measured on the owner's data: rules that state a phase and are filed elsewhere went **3 → 0**
+(Necrons) and **4 → 0** (Orks); passive-but-enabled went **13 → 4** and **42 → 6**. Both examples
+the owner named are fixed — one is no longer a reminder at all, the other moved to the phase it
+states. Two live assertions now hold the line: zero misfiled, and fewer than 45% of a codex enabled.
+
+Note the older assertion "most rules must get a trigger" had to be inverted: most of a codex *is*
+passive, so it now checks a band rather than a floor.
+
+**Three Play fixes:**
+
+- **Opening a unit landed wherever the list was scrolled.** `window.scrollTo` does nothing here —
+  the app scrolls the shell's `<main>`, not the document. `screens/scrollToTop.ts` finds the
+  scrolling ancestor rather than naming it. Measured: 3879 → 0.
+- Stratagems are gone from the unit sheet. The phase panel already lists them, and repeating them
+  pushed the stat line off the screen.
+- Every stratagem row expands, including those not timed for this phase. They always could — they
+  simply had no affordance, so a chevron is now on every row and the dimmed ones keep it in the
+  accent colour: dimmed is not disabled, and their rules are worth reading before committing to a
+  turn.
+
 ---
 
 ## Next

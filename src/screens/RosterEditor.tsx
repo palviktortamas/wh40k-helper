@@ -34,6 +34,7 @@ import { groupByRole, roleKey, roleOf } from '@/roster/roles'
 import { WARLORD_CATEGORY } from '@/roster/vocabulary'
 import { COST_TYPE } from '@/data/bsdata/schema'
 import { OptionTree, UnitEditor, type AttachedUnit } from './UnitEditor'
+import { scrollToTop } from './scrollToTop'
 import { StatStrip } from './StatStrip'
 import { Marked } from './Marked'
 import { shortText } from '@/reminders/heuristics'
@@ -77,6 +78,12 @@ export function RosterEditor() {
     void getSetting<UnitsView>(VIEW_KEY, 'role').then(setView)
     void getStratagemSet().then((set) => setStratagems(set ?? null))
   }, [rosterId])
+
+  // Opening the unit editor or the picker should land at the top, not wherever
+  // the list behind them was scrolled to.
+  useEffect(() => {
+    scrollToTop(document.querySelector('.rosters'))
+  }, [editing, picking])
 
   const changeView = (next: UnitsView) => {
     setView(next)

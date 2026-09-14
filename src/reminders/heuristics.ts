@@ -38,23 +38,58 @@ export function shortText(text: string): string {
 }
 
 /**
- * Ordered: the first pattern that matches wins, so the specific ("selected to
- * charge") is listed before the general ("Charge phase"), and the opponent's
- * moments before your own phases.
+ * A rule names a **moment** when it says when to act — "in your Shooting
+ * phase", "each time this unit is selected to fight", "when an enemy unit
+ * declares a charge". It merely uses a phase's **vocabulary** when it changes
+ * something continuously — "ranged attacks that target this unit have -1 D".
+ *
+ * Only a moment is a trigger. Matching vocabulary was what put a passive
+ * modifier into every Shooting phase, and a rule's *duration* ("until the end
+ * of the turn") into End of turn.
+ *
+ * Ordered: the first match wins, so a stated phase ("in your Shooting phase")
+ * is tried before the looser moments that a long rule may also mention.
  */
+/**
+ * A rule that opens by naming its phase means that phase, whatever it goes on
+ * to mention — "In your Shooting phase, …, until the end of the turn" is a
+ * Shooting phase rule, not an End of turn one. Tested against the rule's own
+ * text, where the opening clause really is the opening clause.
+ */
+const STATED_PHASE: [RegExp, Trigger][] = [
+  [/^[^.]{0,70}\b(?:in|at the start of|at the end of|during) (?:your|the|each|each player'?s) command phase\b/i, 'command_phase'],
+  [/^[^.]{0,70}\b(?:in|at the start of|at the end of|during) (?:your|the|each) movement phase\b/i, 'movement_phase'],
+  [/^[^.]{0,70}\b(?:in|at the start of|at the end of|during) (?:your|the|each) shooting phase\b/i, 'shooting_phase'],
+  [/^[^.]{0,70}\b(?:in|at the start of|at the end of|during) (?:your|the|each) charge phase\b/i, 'charge_phase'],
+  [/^[^.]{0,70}\b(?:in|at the start of|at the end of|during) (?:your|the|each) fight phase\b/i, 'fight_phase'],
+]
+
 const TRIGGER_RULES: [RegExp, Trigger][] = [
   [/\b(start of the battle|before the (first )?battle round|during deployment|after both players have deployed|at the start of the first battle round|set up .* in reserves)/i, 'start_of_battle'],
   [/\b(arrives? from (strategic )?reserves|set up (on the battlefield )?as reinforcements|arrives? as reinforcements|deep strike|when this unit is set up on the battlefield)/i, 'on_arrival_from_reserves'],
   [/\b(is charged|are charged|declares? a charge against|charges? (this|a friendly)|when an enemy unit .{0,40}charges|heroic intervention|ends a charge move within)/i, 'when_charged'],
-  [/\b(selected as the target|is targeted|are targeted|targeted by|targets? (this|a friendly) (unit|model)|each time an attack (targets|is allocated))/i, 'when_targeted'],
-  [/\b(end of your turn|end of the turn|at the end of each turn|end of your opponent'?s turn)/i, 'end_of_turn'],
+  [/\b(selected as the target|is targeted|are targeted|targets? (this|a friendly) (unit|model)|each time an attack (targets|is allocated))/i, 'when_targeted'],
+  // A *duration* is not a moment: "until the end of the turn" says how long an
+  // effect lasts, not when to do anything.
+  [/\b(?<!until the )(end of your turn|end of the turn|at the end of each turn|end of your opponent'?s turn)/i, 'end_of_turn'],
   [/\b(your opponent'?s (turn|command|movement|shooting|charge|fight) phase|in your opponent'?s turn|during (your|the) opponent'?s|enemy (unit'?s )?(shooting|charge|fight) phase|in the enemy)/i, 'opponent_turn'],
-  [/\b((in|at the start of|at the end of|during) (your|each|the|each player'?s) command phase|battle-?shock test|command phase)/i, 'command_phase'],
-  [/\b((in|during) (your|the) movement phase|normal move|advances?\b|falls? back|movement phase)/i, 'movement_phase'],
-  [/\b((in|during) (your|the) shooting phase|selected to shoot|ranged (attack|weapon)s?|shooting phase|makes? ranged attacks|overwatch)/i, 'shooting_phase'],
-  [/\b((in|during) (your|the) charge phase|selected to charge|declares? a charge|charge (move|roll|phase)|made a charge move this turn)/i, 'charge_phase'],
-  [/\b((in|during) (your|the) fight phase|selected to fight|melee (attack|weapon)s?|fights? first|fight phase|pile.?in|consolidat)/i, 'fight_phase'],
+
+  // Moments inside a phase, for rules that never name the phase outright.
+  [/\b(battle-?shock test|at the start of (?:your|the) command phase)/i, 'command_phase'],
+  [/\b(selected to move|makes? a normal move|is selected to (?:advance|fall back)|when this unit advances)/i, 'movement_phase'],
+  [/\b(selected to shoot|has shot|makes? ranged attacks|overwatch)/i, 'shooting_phase'],
+  [/\b(selected to charge|declares? a charge|makes? a charge (?:move|roll))/i, 'charge_phase'],
+  [/\b(selected to fight|fights? first|pile.?in|consolidat)/i, 'fight_phase'],
 ]
+
+/**
+ * A reminder is something the player has to *do*: use an ability, pick a
+ * target, roll something, remember a once-per-X. A rule that simply changes a
+ * profile or grants a keyword needs no reminding — it is always true — and
+ * putting it in the phase panel is noise that buries the rules that matter.
+ */
+const ACTIONABLE =
+  /\b(can|may|must|select one|select a|choose one|choose a|roll one|roll a|re-?roll|gain \d|score|place|remove|set up|return|revive|repair|heal)\b/i
 
 // "Once per battle" and "once per battle round" differ by one word and by a
 // whole game: a once-per-round ability filed as once-per-battle disappears
@@ -76,7 +111,9 @@ export function inferOnce(text: string): Once | undefined {
   return undefined
 }
 
-export function inferTrigger(text: string): Trigger {
+export function inferTrigger(text: string, ownText = text): Trigger {
+  const plainOwn = plainText(ownText)
+  for (const [pattern, trigger] of STATED_PHASE) if (pattern.test(plainOwn)) return trigger
   for (const [pattern, trigger] of TRIGGER_RULES) if (pattern.test(text)) return trigger
   return 'custom'
 }
@@ -90,13 +127,18 @@ export function inferTrigger(text: string): Trigger {
 export function infer(name: string, rawText: string): Inferred {
   const text = plainText(`${name}. ${rawText}`)
   const once = inferOnce(text)
-  let trigger = inferTrigger(text)
+  let trigger = inferTrigger(text, rawText)
   if (trigger === 'custom' && once === 'battle') trigger = 'once_per_battle'
   if (trigger === 'custom' && once === 'turn') trigger = 'once_per_turn'
   return {
     trigger,
     text: shortText(rawText) || plainText(name),
     ...(once ? { once } : {}),
-    enabled: trigger !== 'custom' && !ON_DESTRUCTION.test(text),
+    // Enabled by default only when there is a moment to act on *and*
+    // something to do — or a once-per-X the owner must not forget.
+    enabled:
+      trigger !== 'custom' &&
+      !ON_DESTRUCTION.test(text) &&
+      (ACTIONABLE.test(text) || once !== undefined),
   }
 }

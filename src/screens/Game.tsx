@@ -28,7 +28,6 @@ import type { ReminderOverride } from '@/reminders/types'
 import { getMissionDeck } from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
 import { getStratagemSet } from '@/stratagems/store'
-import { forDetachment } from '@/stratagems/select'
 import type { StratagemSet } from '@/stratagems/types'
 import type { Datasheet } from '@/data/model'
 import { roleKey } from '@/roster/roles'
@@ -102,7 +101,6 @@ export function Game() {
           unit={unit}
           sheets={sheets}
           catalogue={catalogue?.parsed}
-          stratagems={stratagemSet ? forDetachment(stratagemSet.stratagems, game.detachmentNames) : []}
           dispatch={dispatch}
           onBack={() => setOpenUnit(null)}
         />
