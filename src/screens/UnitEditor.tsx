@@ -10,6 +10,7 @@ import { weaponCounts } from '@/play/weapons'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { canResize, isAtMaxSize, modelCount, withUnitSize } from '@/roster/size'
 import { canSplit, mergeSelection, splitSelection } from '@/roster/split'
+import { compulsoryCount, isFixedLoadout } from '@/roster/compulsory'
 import { roleKey } from '@/roster/roles'
 import { describeLoadout, enhancementsTaken } from './RosterEditor'
 import { StatStrip } from './StatStrip'
@@ -390,6 +391,9 @@ function BuiltSheet({
           <li key={ability.id} className="abilities__item">
             <div className="abilities__head">
               {ability.name}
+              {/* The heading the codex filed it under — "Psychic Abilities" —
+                  without which a row called "1-2" says nothing. */}
+              {ability.group && <span className="rule-chip rule-chip--group">{ability.group}</span>}
               {ability.kind === 'faction' && <span className="rule-chip rule-chip--core">Core / faction</span>}
             </div>
             <p className="abilities__text">
@@ -622,8 +626,13 @@ function OptionRow({
   // In a one-of-N group the "+" swaps rather than adds, so a full group is no
   // reason to grey it out.
   const swaps = singleChoice && count === 0
+  // Wargear the data calls compulsory is not a choice: a slugga every Boy
+  // carries must not be steppable down to none, and when the data allows
+  // exactly one number there is nothing to step at all.
+  const mustKeep = compulsoryCount(entry)
+  const fixed = count > 0 && isFixedLoadout(entry)
   const plusDisabled = (groupFull && !swaps) || atCap
-  const minusDisabled = count === 0 || (atGroupMin && count > 0)
+  const minusDisabled = count === 0 || (atGroupMin && count > 0) || count <= mustKeep
 
   const setCount = (next: number) => {
     const value = Math.max(0, next)
@@ -724,12 +733,21 @@ function OptionRow({
           </span>
         )}
       </div>
+      {fixed ? (
+        <span className="option__fixed" title="The datasheet gives every one of these model this wargear">
+          {count > 1 ? `${count}× ` : ''}included
+        </span>
+      ) : (
       <div className="stepper">
         <button
           aria-label={`One fewer ${entry.name}`}
           disabled={minusDisabled}
           title={
-            minusDisabled && count > 0 ? 'This choice is compulsory — pick another instead' : undefined
+            minusDisabled && count > 0
+              ? count <= mustKeep
+                ? 'The datasheet gives the model this — swap it for another option instead'
+                : 'This choice is compulsory — pick another instead'
+              : undefined
           }
           onClick={() => setCount(count - 1)}
         >
@@ -753,6 +771,7 @@ function OptionRow({
           +
         </button>
       </div>
+      )}
       {text && reading && (
         <p className="option__text">
           <Marked text={text} />

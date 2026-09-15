@@ -162,7 +162,10 @@ export function DatasheetDetail() {
           <dl className="sheet__abilities">
             {sheet.abilities.map((ability) => (
               <div key={ability.id}>
-                <dt>{ability.name}</dt>
+                <dt>
+                  {ability.name}
+                  {ability.group && <span className="rule-chip rule-chip--group">{ability.group}</span>}
+                </dt>
                 <dd>{ability.text || '—'}</dd>
               </div>
             ))}

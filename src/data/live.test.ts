@@ -84,6 +84,59 @@ describe.skipIf(!available)('live source files', () => {
       expect(report.matchedDatasheets / own.length).toBeGreaterThan(0.85)
     })
 
+    it('keeps every profile that carries rules text, whatever its type is called', () => {
+      // A unit missing an ability is the one failure the owner cannot work
+      // around at the table: the rule is simply not there to look up. So every
+      // profile printed on a datasheet that holds rules text must come out as
+      // an ability — including the types a codex invents for its psychic
+      // powers, its aura tables and its D6 results. (Profiles reached only
+      // through the shared option trees every datasheet links are another
+      // matter: those are Crusade upgrades, not this unit's abilities.)
+      const parsed = parseCatalogue(loadGameSystem(), loadCatalogue())
+      type Node = {
+        id?: string
+        name?: string
+        typeName?: string
+        characteristics?: { name: string; $text?: string }[]
+        profiles?: Node[]
+        selectionEntries?: Node[]
+        selectionEntryGroups?: Node[]
+      }
+      const printed = (entry: Node): string[] => [
+        ...(entry.profiles ?? [])
+          .filter((profile) => {
+            const names = (profile.characteristics ?? []).map((c) => c.name.toLowerCase())
+            if (names.includes('w') && names.includes('t')) return false
+            if (names.includes('range') && names.includes('a')) return false
+            if (names.includes('capacity')) return false
+            return (profile.characteristics ?? []).some((c) => (c.$text ?? '').trim().length > 20)
+          })
+          .map((profile) => profile.name ?? ''),
+        ...(entry.selectionEntries ?? []).flatMap(printed),
+        ...(entry.selectionEntryGroups ?? []).flatMap(printed),
+      ]
+      const byId = new Map<string, Node>()
+      const walk = (node: unknown): void => {
+        if (Array.isArray(node)) return void node.forEach(walk)
+        if (!node || typeof node !== 'object') return
+        const entry = node as Node
+        if (entry.id && (entry.profiles || entry.selectionEntries)) byId.set(entry.id, entry)
+        for (const value of Object.values(node as Record<string, unknown>))
+          if (value && typeof value === 'object') walk(value)
+      }
+      walk(loadCatalogue())
+
+      const missing = parsed.datasheets.flatMap((sheet) => {
+        const source = byId.get(sheet.id)
+        if (!source) return []
+        const have = new Set(sheet.abilities.map((a) => a.name))
+        return printed(source)
+          .filter((name) => name && !have.has(name))
+          .map((name) => `${sheet.name}: ${name}`)
+      })
+      expect(missing).toEqual([])
+    })
+
     it('parses fast enough to stay inside a single worker message', () => {
       const gs = loadGameSystem()
       const cat = loadCatalogue()

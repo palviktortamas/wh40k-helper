@@ -17,6 +17,51 @@ const containsWord = (haystack: string, needle: string): boolean =>
 
 export type WeaponRow = { profile: WeaponProfile; count: number }
 
+/** One firing mode of a weapon — "Busta" of a rokkit launcha. */
+export type WeaponMode = { label: string | undefined; profile: WeaponProfile }
+
+/**
+ * A weapon as the player holds it: one name, one count, and the modes it can
+ * be fired in.
+ */
+export type WeaponGroup = { name: string; count: number; modes: WeaponMode[] }
+
+/** The name the weapon goes by, without the source's mode marker. */
+const weaponName = (profile: WeaponProfile): string =>
+  (profile.name.split(' - ')[0] ?? profile.name).replace(/^[^\p{L}\p{N}]+/u, '').trim()
+
+/** "Busta" of "➤ Rokkit Launcha - Busta"; nothing for a single-profile weapon. */
+const modeLabel = (profile: WeaponProfile): string | undefined => {
+  const at = profile.name.indexOf(' - ')
+  return at === -1 ? undefined : profile.name.slice(at + 3).trim()
+}
+
+/**
+ * Rows folded into weapons: a weapon with several firing modes is one weapon
+ * carried once, not two weapons carried twice. Printed as separate rows it
+ * doubled every count and read like an option the player had failed to choose
+ * — which is exactly the opposite of what it is. Which mode is fired is a
+ * decision made at the table, so every mode stays in front of the player,
+ * under the weapon it belongs to.
+ */
+export function groupModes(rows: readonly WeaponRow[]): WeaponGroup[] {
+  const out: WeaponGroup[] = []
+  for (const row of rows) {
+    const name = weaponName(row.profile)
+    const label = modeLabel(row.profile)
+    // Only a profile that names a mode joins one: two weapons whose names
+    // simply begin alike stay two weapons.
+    const existing = label === undefined ? undefined : out.find((g) => g.name === name)
+    if (existing) {
+      existing.modes.push({ label, profile: row.profile })
+      existing.count = Math.max(existing.count, row.count)
+    } else {
+      out.push({ name, count: row.count, modes: [{ label, profile: row.profile }] })
+    }
+  }
+  return out
+}
+
 /**
  * The profiles one loadout entry stands for, most specific first, so "Shoota"
  * never matches "Big Shoota":

@@ -224,6 +224,11 @@
   color: var(--role-character);
 }
 
+.rule-chip--group {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .rule-chip--core {
   background: var(--surface-sunken);
   color: var(--text-muted);

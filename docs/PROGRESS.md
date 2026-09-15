@@ -1219,6 +1219,91 @@ M 8" on the mob, the Warboss and the Painboy, everywhere, while the Warboss's ow
 
 ---
 
+## Done 2026-09-15 - states that end, abilities that were never there, loadouts that are not choices
+
+Owner, after a game: "the Waaagh! lasted indefinitely, it should last one round, and I want to take
+it off by hand anyway. Units miss abilities — the Weirdboy had no psychic abilities, and a missing
+ability I cannot look up at all. And the loadout is buggy: compulsory wargear looks optional, and a
+rokkit launcha's two modes are counterproductive to read."
+
+### A state now ends when the rules say it ends (`src/play/duration.ts`)
+
+The previous round decided that reading a duration out of prose would be guesswork, and left every
+state to be cleared by hand. It is not guesswork: durations are written in a small closed
+vocabulary, and a census of both fixture factions turns up exactly seven shapes — end of the
+phase / of the turn / of the (your) next turn, start of your next turn, start of your next
+<phase> phase, start of the next battle round, end of the battle. Every one of those names a
+moment the tracker already has, so `expiryFor()` turns the phrase into the last moment the state
+holds and `nextPhase` drops whatever has lapsed, one log line per unit. A phrase outside the
+vocabulary ("until that move is finished") still keeps no expiry.
+
+Two details worth keeping:
+
+- "Until the start of your next Shooting phase", said **in** your Movement phase, ends this turn:
+  "next" is of the *phase*, not of the turn. Said in the Shooting phase it means next turn's.
+- Moments compare as one number — `((round-1)*2 + which half) * 5 + phase` — with the halves in
+  the game's own order, so the side with the first turn is not assumed to be the owner.
+
+**And the rule the owner actually used says no duration at all.** The faction rule reads "become
+**riled up**, as stated in other rules", and the rule that states it (War Cry, "until the end of
+the next turn") belongs to a datasheet this army does not have. Guessing there would be wrong as
+often as right, so the grant control carries a **lasts** picker — five wordings, the rules' own,
+defaulting to "until I take it off" — and the chosen phrase goes through the same reading. The
+owner picks once and the state comes off by itself. Where the rule *does* state a duration the
+picker is not shown; the wording is.
+
+Also: an army-wide state comes off the army in one tap (**No longer riled up (4)**, beside the
+apply button), states appear as chips on the army-list cards in the accent colour rather than only
+inside a unit sheet, and a sheet says when a timed state ends ("ends after round 1, the opponent's
+fight phase").
+
+Walked on the owner's own game: applied in R4 Movement with "until the start of my next turn", the
+four units keep it through the opponent's whole turn and lose it at R5 Command, with four lines in
+the log.
+
+### Profiles are what their characteristics say they are (`src/data/bsdata/profiles.ts`)
+
+The parser trusted `typeName`, which is "Abilities" on most of the data — and silently dropped
+everything a codex files under a type of its own invention. On the two fixture factions that was
+**six psychic abilities, three engine abilities, three aura abilities, eight D6-table rows and
+three weapon profiles**: the Weirdboy's Da Jump and Warpath were simply not in the app, which is
+the one failure the owner cannot work around at the table.
+
+`classifyProfile()` reads the characteristics instead: Wounds and no Range is a stat line, Range
+and Attacks is a weapon (melee if it rolls WS), Capacity is transport, anything else carrying text
+is an ability. That also recovers weapons a codex files under its own heading — a star god's
+attacks were being dropped the same way. The heading is kept as `Ability.group` and shown as a
+chip, because a D6 row called "1-2" means nothing without it. **`PARSER_VERSION` is 6**; installed
+catalogues re-parse themselves at start.
+
+A live test now holds the line per faction: every profile *printed on* a datasheet that carries
+rules text must come out as one of its abilities. (Profiles reached only through the shared option
+trees every datasheet links are Crusade upgrades, not the unit's abilities — the test walks the
+source without following links, the same distinction the parser makes.)
+
+### A loadout the data settles is not offered as a choice
+
+- **Compulsory wargear was removable.** A Boy's slugga, choppa and shoota are `min 1 max 1` entries
+  and the editor rendered each as a 0/1 stepper: two taps and the model rolls nothing. That is also
+  the unexplained "models with no weapons" from two sessions ago. `roster/compulsory.ts` reads the
+  entry's own floor; a fixed one is **stated** ("included") instead of stepped, and anything with a
+  floor cannot be stepped below it. Model *counts* are deliberately left alone — unit size has its
+  own rules, controls and evaluator.
+- **A weapon with two firing modes read as two weapons.** Both rows carried the full count, so a
+  mob with two rokkit launchas showed 2× Busta *and* 2× Blasta — four weapons' worth of numbers,
+  looking like an option nobody had chosen. `groupModes()` folds the modes into the weapon: one
+  name, one count, the modes indented under it with "pick one profile each time it attacks". Same
+  in the by-model loadout list ("Kombi-skorcha — Skorcha / Shoota (pick one)"). Two weapons whose
+  names merely begin alike stay two weapons: only a profile that actually names a mode joins one.
+
+### Next
+
+- The reminder defaults still want a real game (unchanged from the last session).
+- `DatasheetDetail` prints raw `**bold**` markers in ability text — it is the one screen that does
+  not use `<Marked>`. Cosmetic, noticed here, not fixed.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

@@ -4,6 +4,7 @@
  * result, tests call it directly.
  */
 
+import { hasLapsed, expiryFor } from './duration'
 import {
   LAST_ROUND,
   PHASES,
@@ -35,8 +36,12 @@ export type GameAction =
   | { type: 'destroy'; unitId: string }
   | { type: 'revive'; unitId: string }
   | { type: 'toggleStatus'; unitId: string; status: UnitStatus }
-  | { type: 'toggleMark'; unitId: string; mark: string; label: string }
-  | { type: 'applyMark'; unitIds: string[]; mark: string; label: string; source: string }
+  // A state a rule puts on a unit. `until` is the rule's own wording for how
+  // long it lasts ("until the start of your next turn"); when the tracker can
+  // place that moment, the state lapses there by itself.
+  | { type: 'toggleMark'; unitId: string; mark: string; label: string; until?: string }
+  | { type: 'applyMark'; unitIds: string[]; mark: string; label: string; source: string; until?: string }
+  | { type: 'removeMark'; unitIds: string[]; mark: string; label: string }
   | { type: 'clearMarks' }
   | { type: 'toggleOnce'; unitId: string; abilityId: string; label: string }
   | { type: 'setNote'; unitId: string; note: string }
@@ -85,6 +90,7 @@ const snapshot = (game: Game): GameState => ({
     models: u.models.map((m) => ({ ...m, weapons: m.weapons.map((w) => ({ ...w })) })),
     statuses: [...u.statuses],
     ...(u.marks ? { marks: [...u.marks] } : {}),
+    ...(u.markUntil ? { markUntil: { ...u.markUntil } } : {}),
     usedOnce: [...u.usedOnce],
   })),
   vpByRound: { ...game.vpByRound },
@@ -128,6 +134,57 @@ function updateGroup(
     const alive = models.reduce((sum, m) => sum + m.alive, 0)
     return { ...unit, models, destroyed: alive === 0 }
   })
+}
+
+/**
+ * States a rule gave a time limit drop by themselves once that moment has
+ * passed — the whole point of reading the duration out of the rule. Each one
+ * says so in the log, because a state vanishing unannounced mid-game is worse
+ * than one that overstays.
+ */
+function expireMarks(game: Game): Game {
+  const now = { round: game.round, phase: game.phase, turn: game.turn }
+  let next = game
+  for (const unit of game.units) {
+    const until = unit.markUntil
+    if (!until) continue
+    const lapsed = (unit.marks ?? []).filter(
+      (mark) => until[mark] !== undefined && hasLapsed(until[mark]!, now, game.firstTurn),
+    )
+    if (lapsed.length === 0) continue
+    next = updateUnit(next, unit.id, (u) =>
+      lapsed.reduce((acc, mark) => withoutMark(acc, mark), u),
+    )
+    for (const mark of lapsed) next = withLog(next, `${unit.name}: no longer ${mark}`)
+  }
+  return next
+}
+
+/** The moment a state granted now lapses, from the rule's own wording. */
+const expiryOf = (game: Game, until: string | undefined): number | undefined =>
+  expiryFor(until, { round: game.round, phase: game.phase, turn: game.turn }, game.firstTurn)
+
+/** The log says how long a state lasts only when the rule said so. */
+const untilNote = (until: string | undefined, expiry: number | undefined): string =>
+  until ? ` — ${until}${expiry === undefined ? ' (clear it by hand)' : ''}` : ''
+
+const withMark = <T extends Game['units'][number]>(unit: T, mark: string, until: number | undefined): T => ({
+  ...unit,
+  marks: [...new Set([...(unit.marks ?? []), mark])],
+  ...(until !== undefined ? { markUntil: { ...(unit.markUntil ?? {}), [mark]: until } } : {}),
+})
+
+function withoutMark<T extends Game['units'][number]>(unit: T, mark: string): T {
+  const { markUntil: _old, ...rest } = unit
+  void _old
+  const kept = Object.fromEntries(
+    Object.entries(unit.markUntil ?? {}).filter(([key]) => key !== mark),
+  )
+  return {
+    ...(rest as T),
+    marks: (unit.marks ?? []).filter((m) => m !== mark),
+    ...(Object.keys(kept).length > 0 ? { markUntil: kept } : {}),
+  }
 }
 
 /** Turn-scoped statuses drop when the turn ends. */
@@ -422,7 +479,7 @@ function applyAction(game: Game, action: GameAction): Game {
       return withLog(next, `${unitName(g, action.unitId)} disembarks`)
     }
     case 'nextPhase':
-      return advance(remember(game))
+      return expireMarks(advance(remember(game)))
     case 'prevPhase':
       if (game.phase === 'command' && game.round === 1 && game.turn === game.firstTurn) return game
       return retreat(remember(game))
@@ -523,34 +580,57 @@ function applyAction(game: Game, action: GameAction): Game {
     case 'toggleMark': {
       const g = remember(game)
       const has = g.units.find((u) => u.id === action.unitId)?.marks?.includes(action.mark)
-      const next = updateUnit(g, action.unitId, (u) => ({
-        ...u,
-        marks: has ? (u.marks ?? []).filter((m) => m !== action.mark) : [...new Set([...(u.marks ?? []), action.mark])],
-      }))
-      return withLog(next, `${unitName(g, action.unitId)}: ${has ? 'no longer' : 'now'} ${action.label}`)
+      const until = has ? undefined : expiryOf(g, action.until)
+      const next = updateUnit(g, action.unitId, (u) =>
+        has ? withoutMark(u, action.mark) : withMark(u, action.mark, until),
+      )
+      return withLog(
+        next,
+        `${unitName(g, action.unitId)}: ${has ? 'no longer' : 'now'} ${action.label}${
+          has ? '' : untilNote(action.until, until)
+        }`,
+      )
     }
     case 'applyMark': {
       const g = remember(game)
       // Applying to nobody is a mis-tap, not a state change worth an undo step.
       if (action.unitIds.length === 0) return game
+      const until = expiryOf(g, action.until)
       const next: Game = {
         ...g,
         units: g.units.map((u) =>
-          action.unitIds.includes(u.id)
-            ? { ...u, marks: [...new Set([...(u.marks ?? []), action.mark])] }
-            : u,
+          action.unitIds.includes(u.id) ? withMark(u, action.mark, until) : u,
         ),
       }
       const who =
         action.unitIds.length === g.units.filter((u) => !u.destroyed).length
           ? 'every unit'
           : action.unitIds.map((id) => unitName(g, id)).join(', ')
-      return withLog(next, `${action.source}: ${who} now ${action.label}`)
+      return withLog(next, `${action.source}: ${who} now ${action.label}${untilNote(action.until, until)}`)
+    }
+    case 'removeMark': {
+      const g = remember(game)
+      const touched = action.unitIds.filter((id) =>
+        g.units.find((u) => u.id === id)?.marks?.includes(action.mark),
+      )
+      if (touched.length === 0) return game
+      const next: Game = {
+        ...g,
+        units: g.units.map((u) => (touched.includes(u.id) ? withoutMark(u, action.mark) : u)),
+      }
+      const who =
+        touched.length === g.units.filter((u) => !u.destroyed).length
+          ? 'every unit'
+          : touched.map((id) => unitName(g, id)).join(', ')
+      return withLog(next, `${who}: no longer ${action.label}`)
     }
     case 'clearMarks': {
       const g = remember(game)
       if (!g.units.some((u) => (u.marks ?? []).length > 0)) return game
-      const next: Game = { ...g, units: g.units.map((u) => ({ ...u, marks: [] })) }
+      const next: Game = {
+        ...g,
+        units: g.units.map((u) => (u.marks ?? []).reduce((acc, mark) => withoutMark(acc, mark), u)),
+      }
       return withLog(next, 'Cleared every faction state')
     }
     case 'useStratagem': {

@@ -25,7 +25,13 @@ already holds plus a Detach button, an add-unit picker that stays open with runn
 stopping at 19 of 20 models loses the data's bigger weapon allowance), and compulsory loadout groups
 that can no longer be emptied. Everything was
 walked through in headless Chrome on the real catalogue (recipe in the journal). The owner has
-checked the app on the phone. The sync/proxy Worker is **deferred by the owner** ("not needed
+checked the app on the phone. **2026-09-15:** a faction state now ends when the rules say
+(`play/duration.ts`; where a rule states no duration the grant control asks once) and comes off an
+army in one tap; profiles are classified by their **characteristics**, not by the name of their
+type, so psychic abilities and anything else a codex invents are no longer dropped
+(`data/bsdata/profiles.ts`, `PARSER_VERSION` 6); compulsory wargear reads as "included" instead of
+a stepper that can empty it (`roster/compulsory.ts`), and a weapon's firing modes are folded into
+one weapon with one count. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

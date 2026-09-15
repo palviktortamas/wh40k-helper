@@ -221,6 +221,17 @@
   min-height: 44px;
   max-width: 12rem;
 }
+/* How long it lasts, when the rule does not say. */
+.reminders__lasts {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.reminders__lasts select {
+  min-height: 44px;
+  max-width: 13rem;
+}
 .reminders__until {
   flex: 1 1 100%;
   font-size: 0.78rem;

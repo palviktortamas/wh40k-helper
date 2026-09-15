@@ -87,6 +87,12 @@ export type GameUnit = {
    * from the installed data (see play/marks.ts), so a codex can invent its own.
    */
   marks?: string[]
+  /**
+   * When a mark lapses, by mark key: the last game moment at which it still
+   * holds (see play/duration.ts). A mark whose rule names no moment has no
+   * entry here and stays until it is taken off.
+   */
+  markUntil?: Record<string, number>
   destroyed: boolean
   /** Ids of once-per-battle abilities already used. */
   usedOnce: string[]

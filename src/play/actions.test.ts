@@ -317,3 +317,54 @@ describe('default casualty order', () => {
     expect(defaultCasualtyGroup(u)).toBeUndefined()
   })
 })
+
+describe('states the rules put a time limit on', () => {
+  it('lapses on its own when the moment the rule names has passed', () => {
+    let g = game()
+    g = apply(g, {
+      type: 'applyMark',
+      unitIds: ['a', 'b'],
+      mark: 'worked up',
+      label: 'worked up',
+      source: 'War Chant',
+      until: 'until the end of the next turn',
+    })
+    expect(g.units[0]!.marks).toEqual(['worked up'])
+    // The rest of my turn and all of the opponent's: still on.
+    g = steps(g, 5)
+    expect(g.turn).toBe('opponent')
+    expect(g.units[0]!.marks).toEqual(['worked up'])
+    g = steps(g, 4)
+    expect(g.units[0]!.marks).toEqual(['worked up'])
+    // The next battle round begins and it is gone, with a line in the log.
+    g = steps(g, 1)
+    expect(g.round).toBe(2)
+    expect(g.units[0]!.marks).toEqual([])
+    expect(g.units[1]!.marks).toEqual([])
+    expect(g.log.some((l) => /no longer worked up/i.test(l.text))).toBe(true)
+  })
+
+  it('stays until it is taken off when the rule names no moment', () => {
+    let g = game()
+    g = apply(g, { type: 'toggleMark', unitId: 'a', mark: 'worked up', label: 'worked up' })
+    g = steps(g, 12)
+    expect(g.units[0]!.marks).toEqual(['worked up'])
+  })
+
+  it('is taken off a whole army in one tap', () => {
+    let g = game()
+    g = apply(g, {
+      type: 'applyMark',
+      unitIds: ['a', 'b'],
+      mark: 'worked up',
+      label: 'worked up',
+      source: 'War Chant',
+    })
+    g = apply(g, { type: 'removeMark', unitIds: ['a', 'b'], mark: 'worked up', label: 'worked up' })
+    expect(g.units[0]!.marks).toEqual([])
+    expect(g.units[1]!.marks).toEqual([])
+    // …and undone, because every state change can be.
+    g = apply(g, { type: 'undo' })
+    expect(g.units[0]!.marks).toEqual(['worked up'])
+  })
+})

@@ -555,11 +555,19 @@ function UnitCard({
             ) : null,
           )}
         </span>
-        {unit.statuses.length > 0 && (
+        {(unit.statuses.length > 0 || (unit.marks ?? []).length > 0) && (
           <span className="unit__chips">
             {unit.statuses.map((s) => (
               <span key={s} className="chip chip--status">
                 {STATUS_LABELS[s]}
+              </span>
+            ))}
+            {/* A state the faction's own rules name belongs on the card too:
+                which units are riled up is read off the list, not by opening
+                twenty sheets. */}
+            {(unit.marks ?? []).map((mark) => (
+              <span key={mark} className="chip chip--mark">
+                {marks.find((m) => m.key === mark)?.label ?? mark}
               </span>
             ))}
           </span>

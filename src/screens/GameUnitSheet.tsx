@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
-import { loadoutByModel, weaponCounts } from '@/play/weapons'
+import { groupModes, loadoutByModel, weaponCounts } from '@/play/weapons'
 import { attachedFamily, detachmentRulesFor, effectsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { StatStrip } from './StatStrip'
@@ -10,6 +10,7 @@ import { WeaponTable } from './WeaponTable'
 import { Marked } from './Marked'
 import { scrollToTop } from './scrollToTop'
 import { discoverMarks, invulnerableFrom, rulesAboutMark } from '@/play/marks'
+import { describeExpiry } from '@/play/duration'
 import './Datasheets.css'
 import './Game.css'
 import './Units.css'
@@ -75,6 +76,9 @@ function Abilities({
           <li key={ability.id} className={`abilities__item ${used ? 'abilities__item--used' : ''}`}>
             <div className="abilities__head">
               {ability.name}
+              {/* The heading the codex filed it under — "Psychic Abilities" —
+                  without which a row called "1-2" says nothing. */}
+              {ability.group && <span className="rule-chip rule-chip--group">{ability.group}</span>}
               {ability.kind === 'faction' && <span className="rule-chip rule-chip--core">Core / faction</span>}
               {once && <OnceBox unit={unit} id={ability.id} label={ability.name} used={used} dispatch={dispatch} />}
             </div>
@@ -129,13 +133,24 @@ function Loadout({ groups }: { groups: ReturnType<typeof loadoutByModel> }) {
               {group.name}
             </p>
             <ul className="loadout__weapons">
-              {group.rows.map(({ profile, count }) => (
-                <li key={profile.id}>
-                  <span className={`loadout__kind loadout__kind--${profile.kind}`}>
-                    {profile.kind === 'ranged' ? 'R' : 'M'}
+              {/* One line per weapon, its firing modes after it: a two-mode
+                  weapon listed as two lines reads as two weapons. */}
+              {groupModes(group.rows).map((weapon) => (
+                <li key={weapon.modes[0]!.profile.id}>
+                  <span
+                    className={`loadout__kind loadout__kind--${weapon.modes[0]!.profile.kind}`}
+                  >
+                    {weapon.modes[0]!.profile.kind === 'ranged' ? 'R' : 'M'}
                   </span>
-                  {count > 1 ? `${count}× ` : ''}
-                  {profile.name}
+                  {weapon.count > 1 ? `${weapon.count}× ` : ''}
+                  {weapon.name}
+                  {weapon.modes.length > 1 && (
+                    <span className="loadout__modes">
+                      {' '}
+                      — {weapon.modes.map((mode) => mode.label).join(' / ')}{' '}
+                      <span className="muted">(pick one)</span>
+                    </span>
+                  )}
                 </li>
               ))}
               {group.unmatched.map(([name, count]) => (
@@ -260,6 +275,17 @@ export function GameUnitSheet({
               )
             })}
           </div>
+          {/* A state the rule gave a time limit comes off by itself; saying
+              when means the player can check it against the tracker instead of
+              wondering whether the app forgot. */}
+          {activeMarks.some(({ mark }) => unit.markUntil?.[mark.key] !== undefined) && (
+            <p className="muted marks__until">
+              {activeMarks
+                .filter(({ mark }) => unit.markUntil?.[mark.key] !== undefined)
+                .map(({ mark }) => `${mark.label}: ${describeExpiry(unit.markUntil![mark.key]!, game.firstTurn)}`)
+                .join(' · ')}
+            </p>
+          )}
           {grantedSave < 99 && (
             <p className="marks__save">
               <strong>{grantedSave}+ invulnerable save</strong>{' '}

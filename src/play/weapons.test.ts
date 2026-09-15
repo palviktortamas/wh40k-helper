@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadoutByModel, weaponCounts } from './weapons'
+import { groupModes, loadoutByModel, weaponCounts } from './weapons'
 import type { Datasheet } from '@/data/model'
 import type { ModelGroup } from './types'
 
@@ -102,5 +102,49 @@ describe('weapon counts', () => {
     const withRelic = { models: [group('Boss', 1, [{ name: 'Relic grenade', perModel: 1 }])] }
     const { rows } = weaponCounts(withRelic, sheet)
     expect(rows.find((r) => r.profile.name === 'Relic grenade')?.count).toBe(1)
+  })
+})
+
+describe('weapons with more than one firing mode', () => {
+  it('reads as one weapon, with its modes under it', () => {
+    const { rows } = weaponCounts(
+      { models: [group('Trooper', 2, [{ name: 'Launcher', perModel: 1 }])] },
+      sheet,
+    )
+    const groups = groupModes(rows.filter((r) => r.count > 0))
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.name).toBe('Launcher')
+    // Two profiles, one weapon: the count is the weapon's, not two weapons'.
+    expect(groups[0]!.count).toBe(2)
+    expect(groups[0]!.modes.map((m) => m.label)).toEqual(['Blast', 'Single'])
+  })
+
+  it('leaves a plain weapon alone', () => {
+    const { rows } = weaponCounts(
+      { models: [group('Trooper', 3, [{ name: 'Pistol', perModel: 1 }])] },
+      sheet,
+    )
+    const groups = groupModes(rows.filter((r) => r.count > 0))
+    expect(groups).toEqual([
+      { name: 'Pistol', count: 3, modes: [{ label: undefined, profile: rows[0]!.profile }] },
+    ])
+  })
+
+  it('keeps two weapons that merely start with the same word apart', () => {
+    const { rows } = weaponCounts(
+      {
+        models: [
+          group('Trooper', 1, [
+            { name: 'Pistol', perModel: 1 },
+            { name: 'Heavy gun', perModel: 1 },
+          ]),
+        ],
+      },
+      sheet,
+    )
+    expect(groupModes(rows.filter((r) => r.count > 0)).map((g) => g.name)).toEqual([
+      'Pistol',
+      'Heavy gun',
+    ])
   })
 })

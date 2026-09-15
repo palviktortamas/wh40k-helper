@@ -137,6 +137,24 @@ export function GameReminders({
 
 
 /**
+ * How long a state lasts when the rule granting it does not say.
+ *
+ * Plenty of them do not: a faction rule reads "become **riled up**, as stated
+ * in other rules", and the rule that states it is one the army may not even
+ * have taken. Guessing a duration would be wrong as often as right, so the
+ * player says once, at the moment of applying, and the tracker then takes the
+ * state off by itself. The wordings are the rules' own, and go through the same
+ * reading as a duration found in the text (play/duration.ts).
+ */
+const DURATIONS: { label: string; value: string }[] = [
+  { label: 'until I take it off', value: '' },
+  { label: 'until the end of this phase', value: 'until the end of the phase' },
+  { label: 'until the end of this turn', value: 'until the end of the turn' },
+  { label: 'until the start of my next turn', value: 'until the start of your next turn' },
+  { label: 'until the end of the next turn', value: 'until the end of the next turn' },
+]
+
+/**
  * The control that actually applies a state a rule grants. Which units a rule
  * reaches is read from its own keywords, so nothing here knows a faction.
  */
@@ -158,6 +176,9 @@ function MarkGrant({
   dispatch: (action: GameAction) => void
 }) {
   const [chosen, setChosen] = useState('')
+  // The rule's own wording wins; where it says nothing, the player's choice.
+  const [lasts, setLasts] = useState('')
+  const until = grant.until ?? (lasts || undefined)
   const reaches = (unit: (typeof game.units)[number]) =>
     ruleAppliesTo(ruleText, keywordsOf.get(unit.entryId) ?? []) !== false
   const candidates = game.units.filter((u) => !u.destroyed && reaches(u))
@@ -165,20 +186,41 @@ function MarkGrant({
 
   if (grant.scope === 'army') {
     const targets = candidates.filter((u) => !already(u.id)).map((u) => u.id)
+    const held = candidates.filter((u) => already(u.id)).map((u) => u.id)
     return (
       <div className="reminders__grant">
         <button
           className="button button--quiet"
           disabled={targets.length === 0}
           onClick={() =>
-            dispatch({ type: 'applyMark', unitIds: targets, mark: grant.mark.key, label: grant.mark.label, source })
+            dispatch({
+              type: 'applyMark',
+              unitIds: targets,
+              mark: grant.mark.key,
+              label: grant.mark.label,
+              source,
+              ...(until ? { until } : {}),
+            })
           }
         >
           {targets.length === 0
             ? `Every unit is already ${grant.mark.label}`
             : `Make all ${targets.length} ${grant.mark.label}`}
         </button>
-        {grant.until && <span className="muted reminders__until">{grant.until}</span>}
+        {/* A state applied to the whole army has to come off the whole army
+            too: a rule can end early, or the tap can simply have been a
+            mistake, and taking it off unit by unit is twenty taps. */}
+        {held.length > 0 && (
+          <button
+            className="button button--quiet"
+            onClick={() =>
+              dispatch({ type: 'removeMark', unitIds: held, mark: grant.mark.key, label: grant.mark.label })
+            }
+          >
+            No longer {grant.mark.label} ({held.length})
+          </button>
+        )}
+        <Lasts grant={grant} value={lasts} onChange={setLasts} />
       </div>
     )
   }
@@ -190,15 +232,24 @@ function MarkGrant({
       <div className="reminders__grant">
         <button
           className="button button--quiet"
-          onClick={() => dispatch({ type: 'toggleMark', unitId: self, mark: grant.mark.key, label: grant.mark.label })}
+          onClick={() =>
+            dispatch({
+              type: 'toggleMark',
+              unitId: self,
+              mark: grant.mark.key,
+              label: grant.mark.label,
+              ...(until ? { until } : {}),
+            })
+          }
         >
           {on ? `No longer ${grant.mark.label}` : `Now ${grant.mark.label}`}
         </button>
-        {grant.until && <span className="muted reminders__until">{grant.until}</span>}
+        <Lasts grant={grant} value={lasts} onChange={setLasts} />
       </div>
     )
   }
 
+  const held = candidates.filter((u) => already(u.id)).map((u) => u.id)
   return (
     <div className="reminders__grant">
       <label className="reminders__pick">
@@ -217,13 +268,58 @@ function MarkGrant({
         className="button button--quiet"
         disabled={!chosen || Boolean(already(chosen))}
         onClick={() => {
-          dispatch({ type: 'applyMark', unitIds: [chosen], mark: grant.mark.key, label: grant.mark.label, source })
+          dispatch({
+            type: 'applyMark',
+            unitIds: [chosen],
+            mark: grant.mark.key,
+            label: grant.mark.label,
+            source,
+            ...(until ? { until } : {}),
+          })
           setChosen('')
         }}
       >
         Apply
       </button>
-      {grant.until && <span className="muted reminders__until">{grant.until}</span>}
+      {held.length > 0 && (
+        <button
+          className="button button--quiet"
+          onClick={() =>
+            dispatch({ type: 'removeMark', unitIds: held, mark: grant.mark.key, label: grant.mark.label })
+          }
+        >
+          No longer {grant.mark.label} ({held.length})
+        </button>
+      )}
+      <Lasts grant={grant} value={lasts} onChange={setLasts} />
     </div>
+  )
+}
+
+/**
+ * How long it lasts: the rule's words when it gives them, the player's pick
+ * when it does not. Either way the state comes off by itself at that moment.
+ */
+function Lasts({
+  grant,
+  value,
+  onChange,
+}: {
+  grant: Grant
+  value: string
+  onChange: (value: string) => void
+}) {
+  if (grant.until) return <span className="muted reminders__until">{grant.until}</span>
+  return (
+    <label className="reminders__lasts">
+      <span className="muted">lasts</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        {DURATIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }

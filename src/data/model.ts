@@ -59,6 +59,12 @@ export type Ability = {
   kind: AbilityKind
   /** May contain HTML when it came from a rules-text source. */
   text: string
+  /**
+   * The heading the source filed it under when that is not simply "Abilities" —
+   * "Psychic Abilities", a D6 table's name. Some of those rows are called "1-2"
+   * and mean nothing without it.
+   */
+  group?: string
 }
 
 /**

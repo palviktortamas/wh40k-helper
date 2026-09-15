@@ -20,6 +20,7 @@ import type {
 } from './schema'
 import { COST_TYPE } from './schema'
 import { titleCase } from '@/missions/types'
+import { abilityText, classifyProfile } from './profiles'
 import type {
   Ability,
   Datasheet,
@@ -30,10 +31,6 @@ import type {
   WeaponProfile,
 } from '../model'
 
-/** Profile type names are stable across the 11e data; matched case-insensitively. */
-const PROFILE_UNIT = 'unit'
-const PROFILE_RANGED = 'ranged weapons'
-const PROFILE_MELEE = 'melee weapons'
 /**
  * Bump when the parsed model changes shape or content; installed catalogues
  * with an older number are re-parsed from their stored raw text at app start.
@@ -46,11 +43,12 @@ const PROFILE_MELEE = 'melee weapons'
  * 5: weapon profiles reached only through a shared option tree (the Crusade
  *    relics every datasheet links) are flagged `shared`, so the datasheet no
  *    longer offers weapons the unit has no access to.
+ * 6: profiles are classified by their characteristics rather than by the name
+ *    of their type, so abilities and weapons a codex files under a type of its
+ *    own invention (psychic abilities, aura tables, a star god's attacks) are
+ *    no longer dropped; an ability keeps that type name as its heading.
  */
-export const PARSER_VERSION = 5
-
-const PROFILE_ABILITIES = 'abilities'
-const PROFILE_TRANSPORT = 'transport'
+export const PARSER_VERSION = 6
 
 const FACTION_PREFIX = 'faction:'
 /** The roster setup entry's role — army configuration, not a unit. */
@@ -244,8 +242,10 @@ function collectModels(entry: SelectionEntry): ModelEntry[] {
 
 function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
   const profiles = collectProfiles(entry, index, new Set())
-  const byType = (name: string) =>
-    profiles.filter((p) => (p.typeName ?? '').toLowerCase() === name)
+  // What each profile is, read from its characteristics (see profiles.ts).
+  const kindOf = new Map(profiles.map((p) => [p.id, classifyProfile(p)]))
+  const ofKind = (kind: 'stats' | 'weapon' | 'transport' | 'ability') =>
+    profiles.filter((p) => kindOf.get(p.id)?.kind === kind)
   // Abilities come from the entry, its models and its infoLinks only — see collectProfiles.
   const ownProfiles = collectProfiles(entry, index, new Set(), 0, false)
   // …and so do the weapons the unit has real access to. The shared group links
@@ -266,14 +266,21 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
     .map((n) => n.slice(FACTION_PREFIX.length).trim())
   const keywords = categoryNames.filter((n) => n && !n.toLowerCase().startsWith(FACTION_PREFIX))
 
-  const abilities: Ability[] = ownProfiles
-    .filter((p) => (p.typeName ?? '').toLowerCase() === PROFILE_ABILITIES)
-    .map((p) => ({
-    id: p.id,
-    name: p.name,
-    kind: 'datasheet',
-    text: characteristic(p, 'Description') ?? '',
-  }))
+  const abilities: Ability[] = ownProfiles.flatMap((p) => {
+    const kind = classifyProfile(p)
+    if (kind?.kind !== 'ability') return []
+    return [
+      {
+        id: p.id,
+        name: p.name,
+        kind: 'datasheet' as const,
+        text: abilityText(p),
+        // "Psychic Abilities", "Triarch Abilities": the codex's own heading,
+        // without which a row called "1-2" means nothing on its own.
+        ...(kind.group ? { group: kind.group } : {}),
+      },
+    ]
+  })
   // Rules linked by infoLink are faction/core rules shared across datasheets.
   for (const link of entry.infoLinks ?? []) {
     if (link.type !== 'rule') continue
@@ -281,7 +288,7 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
     if (rule) abilities.push({ id: rule.id, name: rule.name, kind: 'faction', text: rule.description ?? '' })
   }
 
-  const transport = byType(PROFILE_TRANSPORT)[0]
+  const transport = ofKind('transport')[0]
   const points = entry.costs?.find((c) => c.typeId === COST_TYPE.points)?.value
   const variant = VARIANT_TAG.exec(entry.name)?.[1]
 
@@ -293,10 +300,16 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
     keywords,
     factionKeywords,
     type: entry.type,
-    stats: byType(PROFILE_UNIT).map(toStats),
+    stats: ofKind('stats').map(toStats),
     weapons: [
-      ...byType(PROFILE_RANGED).map((p) => toWeapon(p, 'ranged', !own.has(p.id))),
-      ...byType(PROFILE_MELEE).map((p) => toWeapon(p, 'melee', !own.has(p.id))),
+      ...ofKind('weapon')
+        .filter((p) => kindOf.get(p.id)?.kind === 'weapon')
+        .map((p) => {
+          const kind = kindOf.get(p.id)
+          const weapon = kind?.kind === 'weapon' ? kind.weapon : 'ranged'
+          return toWeapon(p, weapon, !own.has(p.id))
+        })
+        .sort((a, b) => Number(a.kind === 'melee') - Number(b.kind === 'melee')),
     ],
     abilities,
     models: collectModels(entry),
@@ -386,13 +399,13 @@ function collectEnhancements(cat: Catalogue, index: Index): Ability[] {
     if (cost !== undefined && cost > 0 && entry.id && entry.name && !seen.has(entry.id)) {
       seen.add(entry.id)
       const profiles = collectProfiles(entry, index, new Set())
-      const ability = profiles.find((p) => (p.typeName ?? '').toLowerCase() === PROFILE_ABILITIES)
+      const ability = profiles.find((p) => classifyProfile(p)?.kind === 'ability')
       const rule = (entry.rules ?? [])[0]
       out.push({
         id: entry.id,
         name: entry.name,
         kind: 'enhancement',
-        text: (ability && characteristic(ability, 'Description')) ?? rule?.description ?? '',
+        text: (ability && abilityText(ability)) || rule?.description || '',
       })
     }
     for (const value of Object.values(node as Record<string, unknown>))

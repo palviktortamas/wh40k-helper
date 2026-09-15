@@ -1,4 +1,4 @@
-import type { WeaponRow } from '@/play/weapons'
+import { groupModes, type WeaponRow } from '@/play/weapons'
 import { grantsFor, type WeaponGrant } from '@/play/grants'
 import { applyMod, modsFor, type StatMod } from '@/play/mods'
 import { ModList } from './StatStrip'
@@ -66,6 +66,8 @@ export function WeaponTable({
   }
   const conditional = here.filter((g) => !live(g))
   const modsHere = mods.filter((mod) => mod.target === kind || mod.target === 'any')
+  // A weapon with several firing modes is one weapon, carried once.
+  const groups = groupModes(rows)
   return (
     <>
       <h3>{title}</h3>
@@ -83,14 +85,31 @@ export function WeaponTable({
               <th scope="col">D</th>
             </tr>
           </thead>
-          <tbody>
-            {rows.map(({ profile, count }) => {
+          {groups.map((weapon) => (
+          <tbody key={weapon.modes[0]!.profile.id} className={weapon.modes.length > 1 ? 'weapon-group' : ''}>
+            {weapon.modes.map(({ label, profile }, index) => {
+              const count = weapon.count
               const absent = showCount && count === 0
               return (
                 <tr key={profile.id} className={absent ? 'weapon--absent' : ''}>
-                  {showCount && <td className="weapon__count">{count > 0 ? `${count}×` : '—'}</td>}
+                  {showCount && index === 0 && (
+                    <td className="weapon__count" rowSpan={weapon.modes.length}>
+                      {count > 0 ? `${count}×` : '—'}
+                    </td>
+                  )}
                   <th scope="row">
-                    {profile.name}
+                    {/* One weapon, its modes under it: printed as separate
+                        rows a two-mode weapon read as two weapons, each with
+                        the full count. */}
+                    {index === 0 && (
+                      <span className="weapon__name">
+                        {weapon.name}
+                        {weapon.modes.length > 1 && (
+                          <span className="weapon__pick">pick one profile each time it attacks</span>
+                        )}
+                      </span>
+                    )}
+                    {label && <span className="weapon__mode">{label}</span>}
                     {(profile.keywords.length > 0 || (!absent && here.length > 0)) && (
                       <span className="sheet__keywords">
                         {profile.keywords.map((keyword) => (
@@ -121,6 +140,7 @@ export function WeaponTable({
               )
             })}
           </tbody>
+          ))}
         </table>
       </div>
       {here.length > 0 && (
