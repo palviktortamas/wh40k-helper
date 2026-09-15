@@ -116,6 +116,22 @@ export function expiryFor(
   return undefined
 }
 
+/**
+ * The durations to offer when the rule granting a state names none — and
+ * plenty do not: a faction rule reads "become **riled up**, as stated in other
+ * rules", and the rule that states it may belong to a datasheet the army never
+ * took. Guessing there would be wrong as often as right, so the player says
+ * once and the tracker takes the state off by itself. The wordings are the
+ * rules' own, so they go through `expiryFor` like any other.
+ */
+export const DURATIONS: { label: string; value: string }[] = [
+  { label: 'until I take it off', value: '' },
+  { label: 'until the end of this phase', value: 'until the end of the phase' },
+  { label: 'until the end of this turn', value: 'until the end of the turn' },
+  { label: 'until the start of my next turn', value: 'until the start of your next turn' },
+  { label: 'until the end of the next turn', value: 'until the end of the next turn' },
+]
+
 /** Whether a state whose expiry is `until` is over at `now`. */
 export const hasLapsed = (until: number, now: Moment, firstTurn: Side): boolean =>
   momentIndex(now, firstTurn) > until

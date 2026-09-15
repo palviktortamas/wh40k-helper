@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { compulsoryCount, isFixedLoadout } from './compulsory'
+import { compulsoryCount, groupShape, isFixedLoadout } from './compulsory'
 import type { ResolvedEntry } from './resolve'
 
 const entry = (
@@ -69,5 +69,33 @@ describe('isFixedLoadout', () => {
     const wider = entry({ min: 1, max: 1 })
     wider.constraints.push({ id: 'c-unit', type: 'max', value: 1, field: 'selections', scope: 'unit' })
     expect(isFixedLoadout(wider)).toBe(true)
+  })
+})
+
+describe('groupShape', () => {
+  it('is a choice when the group must hold exactly one of several', () => {
+    expect(groupShape({ min: 1, limit: 1, candidates: 4 })).toBe('one')
+  })
+
+  it('is fixed when the group must hold everything it offers', () => {
+    expect(groupShape({ min: 1, limit: 1, candidates: 1 })).toBe('all')
+    expect(groupShape({ min: 2, limit: 2, candidates: 2 })).toBe('all')
+  })
+
+  it('leaves a range to the steppers', () => {
+    expect(groupShape({ min: 1, limit: 2, candidates: 3 })).toBe('many')
+    expect(groupShape({ min: 0, limit: 1, candidates: 3 })).toBe('many')
+    expect(groupShape({ min: 9, limit: 18, candidates: 1 })).toBe('many')
+    expect(groupShape({ min: 0, limit: undefined, candidates: 5 })).toBe('many')
+  })
+
+  it('leaves "two of these four" to the steppers, with the floor the group keeps', () => {
+    expect(groupShape({ min: 2, limit: 2, candidates: 4 })).toBe('many')
+  })
+
+  it('reads the cap the evaluator gives, so a cap a rule raises is not frozen', () => {
+    // "One rokkit per ten models" is min 1 / max 1 in the raw data and 2 once
+    // the mob is twenty strong; that is a count, not a fixed choice.
+    expect(groupShape({ min: 1, limit: 2, candidates: 3 })).toBe('many')
   })
 })

@@ -4,6 +4,7 @@ import type { GameAction } from '@/play/actions'
 import { PHASE_LABELS, type Game } from '@/play/types'
 import { doneKey, isDone, remindersForGame, showsNow } from '@/reminders/derive'
 import { discoverMarks, grantedMarks, type Grant } from '@/play/marks'
+import { DURATIONS } from '@/play/duration'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import type { Reminder, ReminderOverride } from '@/reminders/types'
 import './Reminders.css'
@@ -135,24 +136,6 @@ export function GameReminders({
   )
 }
 
-
-/**
- * How long a state lasts when the rule granting it does not say.
- *
- * Plenty of them do not: a faction rule reads "become **riled up**, as stated
- * in other rules", and the rule that states it is one the army may not even
- * have taken. Guessing a duration would be wrong as often as right, so the
- * player says once, at the moment of applying, and the tracker then takes the
- * state off by itself. The wordings are the rules' own, and go through the same
- * reading as a duration found in the text (play/duration.ts).
- */
-const DURATIONS: { label: string; value: string }[] = [
-  { label: 'until I take it off', value: '' },
-  { label: 'until the end of this phase', value: 'until the end of the phase' },
-  { label: 'until the end of this turn', value: 'until the end of the turn' },
-  { label: 'until the start of my next turn', value: 'until the start of your next turn' },
-  { label: 'until the end of the next turn', value: 'until the end of the next turn' },
-]
 
 /**
  * The control that actually applies a state a rule grants. Which units a rule

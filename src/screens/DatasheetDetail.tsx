@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
-import type { Datasheet, WeaponProfile } from '@/data/model'
+import type { Datasheet } from '@/data/model'
+import { WeaponTable } from './WeaponTable'
 import './Datasheets.css'
 
 const STAT_COLUMNS = [
@@ -14,49 +15,6 @@ const STAT_COLUMNS = [
   ['oc', 'OC'],
   ['invSv', 'INV'],
 ] as const
-
-function WeaponTable({ title, weapons }: { title: string; weapons: WeaponProfile[] }) {
-  if (weapons.length === 0) return null
-  const skillLabel = weapons[0]!.kind === 'ranged' ? 'BS' : 'WS'
-  return (
-    <>
-      <h3>{title}</h3>
-      <div className="sheet__scroll">
-        <table className="sheet__table">
-          <thead>
-            <tr>
-              <th scope="col">Weapon</th>
-              <th scope="col">Range</th>
-              <th scope="col">A</th>
-              <th scope="col">{skillLabel}</th>
-              <th scope="col">S</th>
-              <th scope="col">AP</th>
-              <th scope="col">D</th>
-            </tr>
-          </thead>
-          <tbody>
-            {weapons.map((weapon) => (
-              <tr key={weapon.id}>
-                <th scope="row">
-                  {weapon.name}
-                  {weapon.keywords.length > 0 && (
-                    <span className="sheet__keywords">[{weapon.keywords.join(', ')}]</span>
-                  )}
-                </th>
-                <td>{weapon.range ?? '—'}</td>
-                <td>{weapon.a ?? '—'}</td>
-                <td>{weapon.skill ?? '—'}</td>
-                <td>{weapon.s ?? '—'}</td>
-                <td>{weapon.ap ?? '—'}</td>
-                <td>{weapon.d ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  )
-}
 
 function Pricing({ sheet }: { sheet: Datasheet }) {
   if (!sheet.pricing || sheet.pricing.length === 0) {
@@ -134,11 +92,18 @@ export function DatasheetDetail() {
         </div>
       ))}
 
+      {/* The same table the builder and the table use, so a weapon's firing
+          modes read as one weapon here too. */}
       <WeaponTable
         title="Ranged weapons"
-        weapons={sheet.weapons.filter((w) => w.kind === 'ranged')}
+        showCount={false}
+        rows={sheet.weapons.filter((w) => w.kind === 'ranged').map((profile) => ({ profile, count: 0 }))}
       />
-      <WeaponTable title="Melee weapons" weapons={sheet.weapons.filter((w) => w.kind === 'melee')} />
+      <WeaponTable
+        title="Melee weapons"
+        showCount={false}
+        rows={sheet.weapons.filter((w) => w.kind === 'melee').map((profile) => ({ profile, count: 0 }))}
+      />
 
       {sheet.models.length > 0 && (
         <>

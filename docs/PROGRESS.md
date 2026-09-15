@@ -1296,6 +1296,47 @@ source without following links, the same distinction the parser makes.)
   in the by-model loadout list ("Kombi-skorcha — Skorcha / Shoota (pick one)"). Two weapons whose
   names merely begin alike stay two weapons: only a profile that actually names a mode joins one.
 
+### The same fix everywhere it belongs (2026-09-15, later)
+
+Owner: "fixed for Boyz, but only them — fix them for all; I won't say which is wrong, because if
+you fix one again I can't test it." Fair, and the right correction: the morning's round fixed each
+symptom where it was *seen* rather than everywhere the data writes it. So this round started with a
+census of both fixture catalogues instead of a screen.
+
+**The data writes a settled loadout two ways, and only one was handled.** Rank-and-file wargear is
+an entry that is `min 1 max 1` inside a model — a Boy's slugga and choppa — which is what got
+fixed. A character's loadout is written the other way round: a **group** that must hold exactly
+one, with the alternatives inside it ("Weapon: Lord's blade / Staff of light"). Counted on the
+fixtures: 374 entries of the first shape and 45 groups of the second, so skipping either leaves
+half the army wrong. `groupShape()` (roster/compulsory.ts) reads the group:
+
+- everything it offers is compulsory → the rows are **stated** ("included"), no steppers;
+- exactly one of several → the rows *are* the choice: a `take` / `✓ taken` control, the header
+  reads "choose one of 3", and picking another swaps (the swap already worked — it was hiding
+  behind a stepper that read as an optional counter);
+- anything else → counts, as before.
+
+It reads the cap **the evaluator gives**, not the raw constraint: "one rokkit per ten models" is
+`min 1 max 1` in the file and 2 once the mob is twenty strong, and freezing that would be the same
+bug from the other side. On the owner's Warboss the Wargear section is now two choices of 2 and 3;
+the Painboy's fixed gear is two "included" rows; a swap to Power Klaw and back leaves the datasheet
+and the points right.
+
+**Two more places the morning's fixes had not reached**, found by asking "where else does this
+render?" rather than by waiting to be told:
+
+- `DatasheetDetail` had its **own copy** of the weapons table, so in the datasheet browser a
+  rokkit launcha was still two weapons. It now uses the shared `WeaponTable` (with the count
+  column off), which also gives it the granted-ability chips and the proper keyword separators.
+- A state switched on from the **unit sheet's own chips** took no duration, so the one place you
+  would rile up a single unit was the one place the state never came off. The sheet carries the
+  same "lasts" picker as the reminder panel; `DURATIONS` moved to `play/duration.ts` so there is
+  one list.
+
+Rule of thumb for the next session: when a fix is about how the *data* is written, count the shapes
+across every fixture faction before writing the fix, and grep for every screen that renders the
+thing. The owner should not have to be the one who finds the second half.
+
 ### Next
 
 - The reminder defaults still want a real game (unchanged from the last session).

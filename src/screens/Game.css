@@ -552,6 +552,16 @@
 .marks__save {
   margin: 0.5rem 0 0.25rem;
 }
+.marks__lasts {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.marks__lasts select {
+  min-height: 44px;
+  max-width: 12rem;
+}
 .marks__until {
   margin: 0.35rem 0 0;
   font-size: 0.9rem;

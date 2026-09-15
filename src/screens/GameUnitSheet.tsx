@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
@@ -10,7 +10,7 @@ import { WeaponTable } from './WeaponTable'
 import { Marked } from './Marked'
 import { scrollToTop } from './scrollToTop'
 import { discoverMarks, invulnerableFrom, rulesAboutMark } from '@/play/marks'
-import { describeExpiry } from '@/play/duration'
+import { DURATIONS, describeExpiry } from '@/play/duration'
 import './Datasheets.css'
 import './Game.css'
 import './Units.css'
@@ -195,6 +195,8 @@ export function GameUnitSheet({
 }) {
   const sheet = sheets.get(unit.entryId)
   const leaders = game.units.filter((l) => l.leaderOf === unit.id && !l.destroyed)
+  // How long a state switched on here lasts, in the rules' own wordings.
+  const [lasts, setLasts] = useState('')
 
   // States the faction's own rules name. Only those this unit can actually be
   // put into, or that change something for it, are offered here.
@@ -268,12 +270,33 @@ export function GameUnitSheet({
                   key={mark.key}
                   className={`chip chip--toggle ${on ? 'chip--on' : ''}`}
                   aria-pressed={on}
-                  onClick={() => dispatch({ type: 'toggleMark', unitId: unit.id, mark: mark.key, label: mark.label })}
+                  onClick={() =>
+                    dispatch({
+                      type: 'toggleMark',
+                      unitId: unit.id,
+                      mark: mark.key,
+                      label: mark.label,
+                      // Switched on here it lasts as long as the player says,
+                      // the same choice the reminder panel offers — a state put
+                      // on by hand used to be the one that never came off.
+                      ...(lasts ? { until: lasts } : {}),
+                    })
+                  }
                 >
                   {mark.label}
                 </button>
               )
             })}
+            <label className="marks__lasts">
+              <span className="muted">lasts</span>
+              <select value={lasts} onChange={(e) => setLasts(e.target.value)}>
+                {DURATIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
           {/* A state the rule gave a time limit comes off by itself; saying
               when means the player can check it against the tracker instead of

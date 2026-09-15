@@ -29,9 +29,11 @@ checked the app on the phone. **2026-09-15:** a faction state now ends when the 
 (`play/duration.ts`; where a rule states no duration the grant control asks once) and comes off an
 army in one tap; profiles are classified by their **characteristics**, not by the name of their
 type, so psychic abilities and anything else a codex invents are no longer dropped
-(`data/bsdata/profiles.ts`, `PARSER_VERSION` 6); compulsory wargear reads as "included" instead of
-a stepper that can empty it (`roster/compulsory.ts`), and a weapon's firing modes are folded into
-one weapon with one count. The sync/proxy Worker is **deferred by the owner** ("not needed
+(`data/bsdata/profiles.ts`, `PARSER_VERSION` 6); compulsory wargear reads as "included" and a
+one-of-N group reads as a choice instead of a row of steppers (`roster/compulsory.ts` — the data
+writes a settled loadout both ways, 374 entries and 45 groups on the fixtures), and a weapon's
+firing modes are folded into one weapon with one count, in the builder, at the table and in the
+datasheet browser alike. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

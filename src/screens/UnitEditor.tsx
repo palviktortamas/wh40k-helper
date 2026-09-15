@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { bareSelection, fillCompulsoryLoadouts, instantiate, isSameOption } from '@/roster/defaults'
 import { replaceSelection, type Validation } from '@/roster/store'
 import type { CatalogueGraph, ResolvedEntry, ResolvedGroup } from '@/roster/resolve'
+import type { GroupShape } from '@/roster/compulsory'
 import type { Selection } from '@/roster/types'
 import type { Datasheet, Detachment, ParsedCatalogue } from '@/data/model'
 import { COST_TYPE } from '@/data/bsdata/schema'
@@ -10,7 +11,7 @@ import { weaponCounts } from '@/play/weapons'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { canResize, isAtMaxSize, modelCount, withUnitSize } from '@/roster/size'
 import { canSplit, mergeSelection, splitSelection } from '@/roster/split'
-import { compulsoryCount, isFixedLoadout } from '@/roster/compulsory'
+import { compulsoryCount, groupShape, isFixedLoadout } from '@/roster/compulsory'
 import { roleKey } from '@/roster/roles'
 import { describeLoadout, enhancementsTaken } from './RosterEditor'
 import { StatStrip } from './StatStrip'
@@ -521,6 +522,9 @@ function GroupEditor({
   // "Choose exactly one": tapping another option swaps to it, because with the
   // floor in place there is otherwise no way to change your mind.
   const singleChoice = groupMin === 1 && limit === 1
+  // What the group *is*, which decides what it looks like: a fixed list is
+  // stated, a one-of-N is a choice, everything else is counted.
+  const shape = groupShape({ min: groupMin, limit, candidates: candidates.length })
 
   if (candidates.length === 0 && nested.length === 0) return null
 
@@ -528,11 +532,19 @@ function GroupEditor({
     <div className={`group ${groupFull ? 'group--full' : ''}`}>
       <div className="group__head">
         <h3>{group.name}</h3>
-        <span className={`group__count ${groupFull ? 'group__count--full' : ''}`}>
-          {shownTaken}
-          {limit !== undefined ? ` / ${limit}` : ''}
-          {min && min.value > 0 ? ` · min ${min.value}` : ''}
-          {groupFull ? ' · full' : ''}
+        <span className={`group__count ${groupFull && shape === 'many' ? 'group__count--full' : ''}`}>
+          {shape === 'all' ? (
+            'the datasheet settles this'
+          ) : shape === 'one' ? (
+            `choose one of ${candidates.length}`
+          ) : (
+            <>
+              {shownTaken}
+              {limit !== undefined ? ` / ${limit}` : ''}
+              {min && min.value > 0 ? ` · min ${min.value}` : ''}
+              {groupFull ? ' · full' : ''}
+            </>
+          )}
         </span>
       </div>
 
@@ -555,6 +567,7 @@ function GroupEditor({
             groupFull={groupFull}
             atGroupMin={atGroupMin}
             singleChoice={singleChoice}
+            shape={shape}
             instance={instance}
             instanceLabel={instance ? `${index + 1} of ${instances.length}` : undefined}
           />
@@ -594,12 +607,15 @@ function OptionRow({
   groupFull,
   atGroupMin = false,
   singleChoice = false,
+  shape = 'many',
   instance,
   instanceLabel,
 }: TreeProps & {
   entry: ResolvedEntry
   groupId?: string
   groupFull: boolean
+  /** What the group this row sits in is (see roster/compulsory.ts). */
+  shape?: GroupShape
   /** One separated copy of this pick, when the owner split them apart. */
   instance?: Selection | undefined
   /** "1 of 2" — which copy this row is. */
@@ -630,7 +646,11 @@ function OptionRow({
   // carries must not be steppable down to none, and when the data allows
   // exactly one number there is nothing to step at all.
   const mustKeep = compulsoryCount(entry)
-  const fixed = count > 0 && isFixedLoadout(entry)
+  // Fixed because the entry itself says so, or because the group it sits in
+  // holds everything it offers — the two ways the data writes "this is what
+  // the model has".
+  const fixed = count > 0 && (shape === 'all' || isFixedLoadout(entry))
+  const pickOne = shape === 'one'
   const plusDisabled = (groupFull && !swaps) || atCap
   const minusDisabled = count === 0 || (atGroupMin && count > 0) || count <= mustKeep
 
@@ -734,9 +754,23 @@ function OptionRow({
         )}
       </div>
       {fixed ? (
-        <span className="option__fixed" title="The datasheet gives every one of these model this wargear">
+        <span className="option__fixed" title="The datasheet gives the model this wargear">
           {count > 1 ? `${count}× ` : ''}included
         </span>
+      ) : pickOne ? (
+        // One of several, not several counters: the row is the choice.
+        <button
+          className={`option__pick tap ${count > 0 ? 'option__pick--on' : ''}`}
+          role="radio"
+          aria-checked={count > 0}
+          disabled={count === 0 && plusDisabled}
+          title={count > 0 ? 'Taken — pick another to swap' : `Take ${entry.name} instead`}
+          onClick={() => {
+            if (count === 0) setCount(1)
+          }}
+        >
+          {count > 0 ? '✓ taken' : 'take'}
+        </button>
       ) : (
       <div className="stepper">
         <button
