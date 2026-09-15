@@ -368,3 +368,28 @@ describe('states the rules put a time limit on', () => {
     expect(g.units[0]!.marks).toEqual(['worked up'])
   })
 })
+
+describe('a state lands on the whole unit', () => {
+  // A bodyguard and the characters attached to it are one unit at the table.
+  const joined = (): Game => {
+    const g = game()
+    const boss = { ...unit('c', [{ id: 'c1', total: 1, wounds: 6 }]), leaderOf: 'a', isCharacter: true }
+    return { ...g, units: [...g.units, boss] }
+  }
+
+  it('takes the attached character with it, and gives it the same expiry', () => {
+    let g = apply(joined(), { type: 'toggleMark', unitId: 'a', mark: 'worked up', label: 'worked up', until: 'until the end of the turn' })
+    expect(g.units.find((u) => u.id === 'c')!.marks).toEqual(['worked up'])
+    expect(g.units.find((u) => u.id === 'c')!.markUntil).toEqual(
+      g.units.find((u) => u.id === 'a')!.markUntil,
+    )
+    // …and off again together.
+    g = apply(g, { type: 'toggleMark', unitId: 'a', mark: 'worked up', label: 'worked up' })
+    expect(g.units.find((u) => u.id === 'c')!.marks).toEqual([])
+  })
+
+  it('reaches the unit from the character too', () => {
+    const g = apply(joined(), { type: 'applyMark', unitIds: ['c'], mark: 'worked up', label: 'worked up', source: 'Rule' })
+    expect(g.units.find((u) => u.id === 'a')!.marks).toEqual(['worked up'])
+  })
+})

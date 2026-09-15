@@ -1337,6 +1337,51 @@ Rule of thumb for the next session: when a fix is about how the *data* is writte
 across every fixture faction before writing the fix, and grep for every screen that renders the
 thing. The owner should not have to be the one who finds the second half.
 
+### A weapon the source spells slightly differently, and a state that stops at the bodyguard (2026-09-15, later still)
+
+Owner: "still not fixed for units like Deffkopta — his weapons are in optional loadout, but they
+shouldn't be. And when a unit gets Waaagh! its Inv is updated, but the attached characters only
+update when they already had an Inv; with none they showed nothing."
+
+Both were the same shape of mistake as before — a fix that held for the case in front of me — so
+both are now guarded by a live test over every datasheet of every fixture faction, not by an
+example.
+
+**The Deffkopta's rokkit launcha was written `➤ Rokkit Launcha- Busta`.** One profile, one
+datasheet, one missing space. The mode split required the exact `" - "`, so that profile did not
+belong to the weapon the model was holding: the Blasta mode was counted, the Busta mode sat under
+"options not taken", and the unit's own gun read as an option it had failed to take. The separator
+is now a hyphen with whitespace on **either** side — the hyphen inside a name ("Kombi-rokkit",
+"Kustom Mega-blasta") has no space beside it, which is exactly what keeps it out.
+
+The live test written for it immediately found a **second** case the owner had not reached yet:
+Squighog Boyz carry a "Stikka", and its two profiles are `Stikka (ranged)` and `Stikka (melee)` —
+the same idea written with a bracketed qualifier instead of a dash. Neither matched the weapon, so
+the loadout showed "Also carried: 1× Stikka" and both profiles sat in "options not taken". A
+trailing qualifier now reads as a mode when there is no dash.
+
+The test states the invariant rather than the examples: **a profile whose name opens with the name
+of a weapon a model is holding must never be listed among the options not taken.** It runs over
+every datasheet of every fixture faction, with each unit instantiated at its compulsory loadout.
+
+**A state stopped at the bodyguard.** A mob that is riled up gets the faction rule's 5+
+invulnerable; its Leader did not. Two causes, both fixed:
+
+- A state belongs to the **unit**, and a unit is the bodyguard *and* every character attached to
+  it. Applying, toggling or taking one off now lands on the whole family (`wholeUnit` in
+  actions.ts), with one expiry for all of them, and `effectsForUnit` reads the states of the family
+  as well as of the unit — so a game already in progress, where the state sits on one member only,
+  reads right too.
+- **The character's own copy of the rule shadowed the live one.** A faction rule is printed on
+  every datasheet, so the Leader carried "while riled up, 5+ InSv" itself — waiting on a state it
+  was not in. The family's live copy was then dropped as a duplicate, by a key that does not
+  include whether the condition is met. With the state read from the whole unit, both copies are
+  live and the question disappears.
+
+On the owner's roster: riling up the mob now shows `INV 5+` on the Warboss (its own save, so
+unchanged), and `INV 5+*` in the temporary colour on the Big Mek and the Painboy, which print none
+— plus the "riled up" chip on every member of the unit.
+
 ### Next
 
 - The reminder defaults still want a real game (unchanged from the last session).

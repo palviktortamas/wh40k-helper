@@ -140,7 +140,13 @@ export function effectsForUnit({
   attached?: readonly Member[]
 }): Effects {
   const context: Context = { catalogue, detachmentNames, marks }
-  const held = unit.marks ?? []
+  // A state belongs to the *unit*, and a unit is the bodyguard and every
+  // character attached to it — one unit at the table, whatever the app stores
+  // them as. So a mob that is riled up makes its Leader riled up, and the 5+
+  // invulnerable the state grants is the Leader's too. Read from the family as
+  // well as from the unit's own list, so a game already in progress (where the
+  // state may sit on one member only) reads right as well.
+  const held = [...new Set([...(unit.marks ?? []), ...attached.flatMap((m) => m.marks ?? [])])]
   const own = effectsFrom(
     rulesFor({ name: unit.name, sheet, enhancements: unit.enhancements ?? [], marks: held }, context),
     held,
@@ -154,7 +160,7 @@ export function effectsForUnit({
   for (const member of attached) {
     // What the attached model's own rules do for it alone is on its own sheet;
     // here only what they do for the unit it is part of.
-    const theirs = effectsFrom(rulesFor(member, context), member.marks ?? held)
+    const theirs = effectsFrom(rulesFor({ ...member, marks: held }, context), held)
     for (const grant of theirs.grants) {
       if (grant.subject !== 'unit' || seenGrants.has(grantKey(grant))) continue
       seenGrants.add(grantKey(grant))

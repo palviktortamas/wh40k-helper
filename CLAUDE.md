@@ -33,7 +33,9 @@ type, so psychic abilities and anything else a codex invents are no longer dropp
 one-of-N group reads as a choice instead of a row of steppers (`roster/compulsory.ts` — the data
 writes a settled loadout both ways, 374 entries and 45 groups on the fixtures), and a weapon's
 firing modes are folded into one weapon with one count, in the builder, at the table and in the
-datasheet browser alike. The sync/proxy Worker is **deferred by the owner** ("not needed
+datasheet browser alike (the sources spell the mode marker three different ways — see
+`play/weapons.ts` and the live test beside it). A faction **state belongs to the whole unit**: a
+mob that is riled up takes its Leader and Support characters with it, one expiry for all. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

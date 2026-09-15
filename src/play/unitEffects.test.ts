@@ -106,3 +106,75 @@ describe('a unit and the characters attached to it', () => {
     expect(grants.map((g) => [g.keyword, g.source])).toEqual([['SUSTAINED HITS 1', 'Datasheet']])
   })
 })
+
+describe('a state belongs to the whole attached unit', () => {
+  // A codex state, granted by one rule and read by another (see play/marks.ts).
+  const stateful = {
+    ...catalogue,
+    rules: [
+      {
+        id: 'r-state',
+        name: 'War Chant',
+        kind: 'faction',
+        text: 'Friendly **GREENSKINS** units are **worked up**. While a unit is **worked up**, that unit has 5+ **InSv**.',
+      },
+    ],
+  } as unknown as ParsedCatalogue
+  const marks = [{ key: 'worked up', label: 'worked up' }]
+
+  it('gives the character the save when it carries the same rule itself', () => {
+    // The real shape, and the one that bit: a faction rule is printed on every
+    // datasheet, so the character has its own copy of it — waiting on a state
+    // the character is not in, while the unit it has joined is. Deduplicating
+    // by rule alone let that waiting copy shadow the live one, and the
+    // character kept a save it should have had.
+    const both = {
+      ...stateful,
+      datasheets: [
+        sheet('ds-mob', 'Mob', [{ id: 'r-state', name: 'War Chant', text: stateful.rules[0]!.text }]),
+        sheet('ds-boss', 'Boss', [{ id: 'r-state', name: 'War Chant', text: stateful.rules[0]!.text }]),
+      ],
+    } as unknown as ParsedCatalogue
+    const boss = { ...unit('u2', 'ds-boss', 'Boss'), leaderOf: 'u1' }
+    const { mods } = effectsForUnit({
+      unit: boss,
+      sheet: both.datasheets[1]!,
+      catalogue: both,
+      detachmentNames: [],
+      marks,
+      attached: [{ name: 'Mob', sheet: both.datasheets[0]!, marks: ['worked up'] }],
+    })
+    expect(mods.find((m) => m.stat === 'INVSV')?.met).toBe(true)
+  })
+
+  it('gives the character the save the unit’s state grants, even with none printed', () => {
+    // The character is part of the unit the state is on, so it is in that
+    // state too — and an invulnerable save it does not print is exactly the
+    // one a player will not think to look for.
+    const boss = { ...unit('u2', 'ds-boss', 'Boss'), leaderOf: 'u1' }
+    const { mods } = effectsForUnit({
+      unit: boss,
+      sheet: catalogue.datasheets[1]!,
+      catalogue: stateful,
+      detachmentNames: [],
+      marks,
+      attached: [{ name: 'Mob', sheet: catalogue.datasheets[0]!, marks: ['worked up'] }],
+    })
+    const inv = mods.find((m) => m.stat === 'INVSV')
+    expect(inv).toBeDefined()
+    expect(inv!.met).toBe(true)
+  })
+
+  it('leaves the save waiting when nobody in the unit is in that state', () => {
+    const boss = { ...unit('u2', 'ds-boss', 'Boss'), leaderOf: 'u1' }
+    const { mods } = effectsForUnit({
+      unit: boss,
+      sheet: catalogue.datasheets[1]!,
+      catalogue: stateful,
+      detachmentNames: [],
+      marks,
+      attached: [{ name: 'Mob', sheet: catalogue.datasheets[0]!, marks: [] }],
+    })
+    expect(mods.find((m) => m.stat === 'INVSV')?.met ?? false).toBe(false)
+  })
+})

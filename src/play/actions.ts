@@ -160,6 +160,21 @@ function expireMarks(game: Game): Game {
   return next
 }
 
+/**
+ * The unit a state actually lands on: the bodyguard and every character
+ * attached to it. They are one unit at the table, so a mob that is riled up
+ * takes its Leader and its Support character with it — and taking the state
+ * off takes it off all of them.
+ */
+function wholeUnit(game: Game, unitId: string): string[] {
+  const unit = game.units.find((u) => u.id === unitId)
+  if (!unit) return [unitId]
+  const hostId = unit.leaderOf ?? unit.id
+  return game.units
+    .filter((u) => !u.destroyed && (u.id === hostId || u.leaderOf === hostId))
+    .map((u) => u.id)
+}
+
 /** The moment a state granted now lapses, from the rule's own wording. */
 const expiryOf = (game: Game, until: string | undefined): number | undefined =>
   expiryFor(until, { round: game.round, phase: game.phase, turn: game.turn }, game.firstTurn)
@@ -581,9 +596,13 @@ function applyAction(game: Game, action: GameAction): Game {
       const g = remember(game)
       const has = g.units.find((u) => u.id === action.unitId)?.marks?.includes(action.mark)
       const until = has ? undefined : expiryOf(g, action.until)
-      const next = updateUnit(g, action.unitId, (u) =>
-        has ? withoutMark(u, action.mark) : withMark(u, action.mark, until),
-      )
+      const touched = wholeUnit(g, action.unitId)
+      const next: Game = {
+        ...g,
+        units: g.units.map((u) =>
+          touched.includes(u.id) ? (has ? withoutMark(u, action.mark) : withMark(u, action.mark, until)) : u,
+        ),
+      }
       return withLog(
         next,
         `${unitName(g, action.unitId)}: ${has ? 'no longer' : 'now'} ${action.label}${
@@ -596,11 +615,10 @@ function applyAction(game: Game, action: GameAction): Game {
       // Applying to nobody is a mis-tap, not a state change worth an undo step.
       if (action.unitIds.length === 0) return game
       const until = expiryOf(g, action.until)
+      const touched = new Set(action.unitIds.flatMap((id) => wholeUnit(g, id)))
       const next: Game = {
         ...g,
-        units: g.units.map((u) =>
-          action.unitIds.includes(u.id) ? withMark(u, action.mark, until) : u,
-        ),
+        units: g.units.map((u) => (touched.has(u.id) ? withMark(u, action.mark, until) : u)),
       }
       const who =
         action.unitIds.length === g.units.filter((u) => !u.destroyed).length
@@ -610,7 +628,7 @@ function applyAction(game: Game, action: GameAction): Game {
     }
     case 'removeMark': {
       const g = remember(game)
-      const touched = action.unitIds.filter((id) =>
+      const touched = [...new Set(action.unitIds.flatMap((id) => wholeUnit(g, id)))].filter((id) =>
         g.units.find((u) => u.id === id)?.marks?.includes(action.mark),
       )
       if (touched.length === 0) return game

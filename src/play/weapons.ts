@@ -9,8 +9,52 @@ import type { ModelGroup } from './types'
 
 const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
+/**
+ * Where a profile name splits into weapon and firing mode.
+ *
+ * The sources write it "➤ Rokkit Launcha - Busta" — except where they do not:
+ * one profile of one datasheet's rokkit launcha is "➤ Rokkit Launcha- Busta",
+ * and a whole weapon is written without the marker at all ("Kustom Blasta X -
+ * Skorcha"). Requiring the exact " - " dropped that profile out of its own
+ * weapon, and the unit's gun then appeared under "options not taken" — which is
+ * the kind of near-miss a hand-maintained source produces constantly, so the
+ * separator is a hyphen with whitespace on *either* side.
+ *
+ * The hyphen inside a name ("Kombi-rokkit", "Kustom Mega-blasta") has no space
+ * beside it, which is exactly what keeps it out of this.
+ */
+const MODE_SEPARATOR = /\s-\s|\s-(?=\S)|(?<=\S)-\s/
+
+/** The marker a source puts in front of a sub-profile — "➤ ", and anything like it. */
+const MARKER = /^[^\p{L}\p{N}]+\s/u
+
+/**
+ * The other way a source writes two profiles of one weapon: a trailing
+ * qualifier in brackets — "Stikka (ranged)" and "Stikka (melee)" for a weapon
+ * the loadout simply calls a Stikka. Read literally, neither profile belongs to
+ * the weapon the model is holding, and the unit's only gun is listed as an
+ * option it did not take.
+ */
+const QUALIFIER = /^(.*\S)\s*\(([^)]+)\)\s*$/
+
+const splitMode = (name: string): { base: string; mode?: string } => {
+  const clean = (text: string) => text.replace(MARKER, '').trim()
+  const at = MODE_SEPARATOR.exec(name)
+  if (at) {
+    return {
+      base: clean(name.slice(0, at.index)),
+      // Whatever follows the separator is the mode, brackets and all: the
+      // qualifier there belongs to the mode's name, not to the weapon's.
+      mode: name.slice(at.index + at[0].length).trim(),
+    }
+  }
+  const qualified = QUALIFIER.exec(clean(name))
+  if (qualified) return { base: qualified[1]!.trim(), mode: qualified[2]!.trim() }
+  return { base: clean(name) }
+}
+
 /** "➤ Rokkit Launcha - Busta" is one firing mode of the weapon "Rokkit Launcha". */
-const baseOf = (profile: WeaponProfile): string => normalise(profile.name.split(' - ')[0] ?? profile.name)
+const baseOf = (profile: WeaponProfile): string => normalise(splitMode(profile.name).base)
 
 const containsWord = (haystack: string, needle: string): boolean =>
   ` ${haystack} `.includes(` ${needle} `)
@@ -27,14 +71,10 @@ export type WeaponMode = { label: string | undefined; profile: WeaponProfile }
 export type WeaponGroup = { name: string; count: number; modes: WeaponMode[] }
 
 /** The name the weapon goes by, without the source's mode marker. */
-const weaponName = (profile: WeaponProfile): string =>
-  (profile.name.split(' - ')[0] ?? profile.name).replace(/^[^\p{L}\p{N}]+/u, '').trim()
+const weaponName = (profile: WeaponProfile): string => splitMode(profile.name).base
 
 /** "Busta" of "➤ Rokkit Launcha - Busta"; nothing for a single-profile weapon. */
-const modeLabel = (profile: WeaponProfile): string | undefined => {
-  const at = profile.name.indexOf(' - ')
-  return at === -1 ? undefined : profile.name.slice(at + 3).trim()
-}
+const modeLabel = (profile: WeaponProfile): string | undefined => splitMode(profile.name).mode
 
 /**
  * Rows folded into weapons: a weapon with several firing modes is one weapon

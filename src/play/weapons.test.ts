@@ -24,7 +24,13 @@ const sheet = {
     weapon('w-pistol', 'Pistol'),
     weapon('w-heavy', 'Heavy gun'),
     weapon('w-launcher-a', '➤ Launcher - Blast'),
-    weapon('w-launcher-b', '➤ Launcher - Single'),
+    // The sources are hand-maintained and the spacing around the mode marker
+    // is not reliable: one profile of one weapon on one datasheet is written
+    // without the leading space, and that profile used to fall out of the
+    // weapon entirely — the unit's own gun listed under "options not taken".
+    weapon('w-launcher-b', '➤ Launcher- Single'),
+    weapon('w-combi-a', '➤ Combi-gun - Blast'),
+    weapon('w-combi-b', '➤ Combi-gun - Single'),
     weapon('w-blade', 'Blade', 'melee'),
     weapon('w-fist', 'Fist', 'melee'),
     weapon('w-relic', 'Relic grenade', 'ranged', true),
@@ -74,7 +80,7 @@ describe('loadout by model', () => {
   })
 
   it('lists every firing mode of a weapon that has several — the choice is made at the table', () => {
-    expect(groups[2]!.rows.map((r) => r.profile.name)).toEqual(['➤ Launcher - Blast', '➤ Launcher - Single', 'Blade'])
+    expect(groups[2]!.rows.map((r) => r.profile.name)).toEqual(['➤ Launcher - Blast', '➤ Launcher- Single', 'Blade'])
   })
 
   it('keeps wargear that matches no weapon profile rather than dropping it', () => {
@@ -146,5 +152,61 @@ describe('weapons with more than one firing mode', () => {
       'Pistol',
       'Heavy gun',
     ])
+  })
+})
+
+describe('the mode marker, as the sources actually write it', () => {
+  it('folds a mode whose separator is missing a space', () => {
+    const { rows } = weaponCounts(
+      { models: [group('Trooper', 2, [{ name: 'Launcher', perModel: 1 }])] },
+      sheet,
+    )
+    // Both modes belong to the carried weapon, however the source spaced them.
+    expect(rows.filter((r) => r.count > 0).map((r) => r.profile.id).sort()).toEqual([
+      'w-launcher-a',
+      'w-launcher-b',
+    ])
+    const groups = groupModes(rows.filter((r) => r.count > 0))
+    expect(groups).toHaveLength(1)
+    expect(groups[0]!.name).toBe('Launcher')
+    expect(groups[0]!.modes.map((m) => m.label)).toEqual(['Blast', 'Single'])
+  })
+
+  it('does not split a weapon whose own name is hyphenated', () => {
+    const { rows } = weaponCounts(
+      { models: [group('Trooper', 1, [{ name: 'Combi-gun', perModel: 1 }])] },
+      sheet,
+    )
+    const groups = groupModes(rows.filter((r) => r.count > 0))
+    expect(groups.map((g) => g.name)).toEqual(['Combi-gun'])
+    expect(groups[0]!.modes.map((m) => m.label)).toEqual(['Blast', 'Single'])
+  })
+
+  it('keeps a name that merely opens with punctuation', () => {
+    const { rows } = weaponCounts(
+      { models: [group('Trooper', 1, [{ name: '’Eavy gun', perModel: 1 }])] },
+      { ...sheet, weapons: [weapon('w-eavy', '’Eavy gun')] } as never,
+    )
+    expect(groupModes(rows)[0]!.name).toBe('’Eavy gun')
+  })
+})
+
+describe('a weapon whose profiles are told apart by a bracketed qualifier', () => {
+  const stikka = {
+    ...sheet,
+    weapons: [weapon('w-s-r', 'Stikka (ranged)'), weapon('w-s-m', 'Stikka (melee)', 'melee')],
+  } as unknown as typeof sheet
+
+  it('belongs to the weapon the loadout names', () => {
+    const { rows, unmatched } = weaponCounts(
+      { models: [group('Rider', 3, [{ name: 'Stikka', perModel: 1 }])] },
+      stikka,
+    )
+    expect(unmatched).toEqual([])
+    expect(rows.map((r) => r.count)).toEqual([3, 3])
+    expect(groupModes(rows.filter((r) => r.profile.kind === 'ranged'))[0]).toMatchObject({
+      name: 'Stikka',
+      count: 3,
+    })
   })
 })
