@@ -16,7 +16,7 @@
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { effectsFrom, type Effects } from './effects'
-import type { GrantingRule, WeaponGrant } from './grants'
+import { isBackReference, type GrantingRule, type WeaponGrant } from './grants'
 import { rulesAboutMark, type Mark } from './marks'
 import type { StatMod } from './mods'
 import { activePhrases, situationsIn, type Situation } from './situations'
@@ -81,6 +81,28 @@ type Context = {
   marks: readonly Mark[]
 }
 
+/**
+ * A Stratagem used on the unit, an ability activated on it. They read like any
+ * other rule — with one difference: a rule that offers a choice ("you can use
+ * this ability. If you do, …") has that choice *made* by being put into effect,
+ * so its back-reference condition is satisfied and nothing else can satisfy it.
+ */
+function effectsOfActive(member: Member, active: readonly string[]): Effects {
+  const rules = (member.inEffect ?? []).map((rule) => ({
+    name: rule.name,
+    text: rule.text,
+    source: rule.source,
+  }))
+  const { grants, mods } = effectsFrom(rules, active)
+  const settled = <T extends { when?: string; met?: boolean }>(effect: T): T => {
+    if (!effect.when || !isBackReference(effect.when)) return effect
+    const { when: _dropped, ...rest } = effect
+    void _dropped
+    return rest as T
+  }
+  return { grants: grants.map(settled), mods: mods.map(settled) }
+}
+
 /** Every rule that speaks about one member: detachment, datasheet, enhancement, state. */
 function rulesFor(member: Member, context: Context): GrantingRule[] {
   const { catalogue, detachmentNames, marks } = context
@@ -104,13 +126,6 @@ function rulesFor(member: Member, context: Context): GrantingRule[] {
       name: e.name,
       text: (e.id ? byId.get(e.id) : undefined) ?? byName.get(e.name) ?? '',
       source: 'Enhancement',
-    })),
-    // A Stratagem used on the unit is a rule about the unit for as long as it
-    // lasts, and reads like any other.
-    ...(member.inEffect ?? []).map((rule) => ({
-      name: rule.name,
-      text: rule.text,
-      source: rule.source,
     })),
     ...(catalogue && sheet
       ? marks
@@ -158,6 +173,29 @@ export function situationsForUnit(input: {
   return situationsIn(members.flatMap((member) => rulesFor(member, context)).map((rule) => rule.text))
 }
 
+/**
+ * The rule as printed and the rule as used are the same rule: once it is in
+ * effect, the copy still waiting on the player's choice is not a second
+ * modifier, it is the same one answered. Saying both would put "+1 to hit*"
+ * and "+1 to hit" side by side and leave the player counting.
+ */
+function merge(printed: Effects, activated: Effects): Effects {
+  const settled = (rule: string, stat: string, value: string) =>
+    activated.mods.some((m) => m.rule === rule && m.stat === stat && m.value === value)
+  const answered = (rule: string, keyword: string) =>
+    activated.grants.some((g) => g.rule === rule && g.keyword === keyword)
+  return {
+    mods: [
+      ...printed.mods.filter((mod) => !(mod.when && settled(mod.rule, mod.stat, mod.value))),
+      ...activated.mods,
+    ],
+    grants: [
+      ...printed.grants.filter((grant) => !(grant.when && answered(grant.rule, grant.keyword))),
+      ...activated.grants,
+    ],
+  }
+}
+
 const grantKey = (g: WeaponGrant) => `${g.keyword}|${g.kind}|${g.when ?? ''}`
 const modKey = (m: StatMod) => `${m.stat}|${m.op}|${m.value}|${m.target}|${m.when ?? ''}`
 
@@ -200,19 +238,16 @@ export function effectsForUnit({
     ...new Set([...(unit.statuses ?? []), ...attached.flatMap((m) => m.statuses ?? [])]),
   ]
   const active = [...held, ...activePhrases(situations)]
-  const own = effectsFrom(
-    rulesFor(
-      {
-        name: unit.name,
-        sheet,
-        enhancements: unit.enhancements ?? [],
-        marks: held,
-        inEffect: unit.inEffect ?? [],
-      },
-      context,
-    ),
-    active,
-  )
+  const self: Member = {
+    name: unit.name,
+    sheet,
+    enhancements: unit.enhancements ?? [],
+    marks: held,
+    inEffect: unit.inEffect ?? [],
+  }
+  const printed = effectsFrom(rulesFor(self, context), active)
+  const activated = effectsOfActive(self, active)
+  const own = merge(printed, activated)
 
   const grants = [...own.grants]
   const mods = [...own.mods]
@@ -222,7 +257,10 @@ export function effectsForUnit({
   for (const member of attached) {
     // What the attached model's own rules do for it alone is on its own sheet;
     // here only what they do for the unit it is part of.
-    const theirs = effectsFrom(rulesFor({ ...member, marks: held }, context), active)
+    const theirs = merge(
+      effectsFrom(rulesFor({ ...member, marks: held }, context), active),
+      effectsOfActive(member, active),
+    )
     for (const grant of theirs.grants) {
       if (grant.subject !== 'unit' || seenGrants.has(grantKey(grant))) continue
       seenGrants.add(grantKey(grant))

@@ -1,6 +1,6 @@
 import { groupModes, type WeaponRow } from '@/play/weapons'
 import { grantsFor, type WeaponGrant } from '@/play/grants'
-import { applyMod, modsFor, type StatMod } from '@/play/mods'
+import { applyMod, modsFor, skillMods, type StatMod } from '@/play/mods'
 import { ModList, modLabel } from './StatStrip'
 import './Datasheets.css'
 
@@ -156,7 +156,18 @@ export function WeaponTable({
                   </th>
                   <Cell value={profile.range} mods={absent ? [] : modsFor(modsHere, kind, 'R')} />
                   <Cell value={profile.a} mods={absent ? [] : modsFor(modsHere, kind, 'A')} />
-                  <Cell value={profile.skill} mods={absent ? [] : modsFor(modsHere, kind, skillLabel)} />
+                  {/* The skill cell carries the hit-roll modifiers too: the
+                      number a player reads here is the one they roll against,
+                      and doing that arithmetic by hand mid-phase is the whole
+                      job. The modifier is still named as "+1 to hit" below. */}
+                  <Cell
+                    value={profile.skill}
+                    mods={
+                      absent
+                        ? []
+                        : [...modsFor(modsHere, kind, skillLabel), ...skillMods(modsHere, kind)]
+                    }
+                  />
                   <Cell value={profile.s} mods={absent ? [] : modsFor(modsHere, kind, 'S')} />
                   <Cell value={profile.ap} mods={absent ? [] : modsFor(modsHere, kind, 'AP')} />
                   <Cell value={profile.d} mods={absent ? [] : modsFor(modsHere, kind, 'D')} />

@@ -45,7 +45,9 @@ weapon has a `used?` tick that clears with the turn. A **Stratagem can be used o
 reminder **put into effect** on one (`GameUnit.inEffect`): the rule's own text is read like any
 other, so the stat strip, the weapons table and the card follow, and it lapses at the moment its
 words name. The stratagem export bolds with `__`, addresses "your unit", and writes roll modifiers
-("+1 to hit rolls") that are their own kind of modifier — never folded into BS/WS. The sync/proxy Worker is **deferred by the owner** ("not needed
+("+1 to hit rolls"), which are their own kind of modifier and *also* shown on the BS/WS cell
+(`skillMods` — better is lower, clamped to 2+…6+). "If you do" stays a condition; putting the rule
+into effect is what settles it. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

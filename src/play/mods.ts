@@ -298,6 +298,33 @@ export const isLive = (mod: StatMod): boolean => !mod.when || mod.met === true
 export const resolveMods = (mods: readonly StatMod[], activeStates: readonly string[]): StatMod[] =>
   mods.map((mod) => (mod.when && conditionMet(mod.when, activeStates) ? { ...mod, met: true } : mod))
 
+/**
+ * A modifier to the hit roll, as the skill cell reads it.
+ *
+ * A "+1 to hit" is not a better Ballistic Skill — it modifies the roll, and the
+ * two come apart when several modifiers meet. But what a player reads off the
+ * table is the number they roll against, and a 5+ with +1 to hit *is* rolled
+ * against 4+; leaving the cell at 5+ with a note underneath is the arithmetic
+ * this app exists to do. So the cell shows the modified number, marked as a
+ * change and named under the table, while the modifier itself stays a HIT
+ * modifier everywhere else.
+ *
+ * Better is *lower*, which is why the sign flips.
+ */
+export function skillMods(mods: readonly StatMod[], kind: 'ranged' | 'melee'): StatMod[] {
+  const stat = kind === 'ranged' ? 'BS' : 'WS'
+  return mods
+    .filter((mod) => mod.stat === 'HIT' && (mod.target === kind || mod.target === 'any'))
+    .map((mod) => ({
+      ...mod,
+      stat,
+      value: mod.value.startsWith('-') ? `+${mod.value.slice(1)}` : `-${mod.value.replace('+', '')}`,
+    }))
+}
+
+/** Characteristics that are a roll on one die: never better than 2+, never worse than 6+. */
+const ROLLED = new Set(['BS', 'WS', 'SV', 'INVSV'])
+
 /** The modifiers that land on one characteristic of one thing. */
 export const modsFor = (mods: readonly StatMod[], target: ModTarget, stat: string): StatMod[] =>
   mods.filter(
@@ -354,11 +381,17 @@ export function applyMod(printed: string | undefined, mods: readonly StatMod[]):
     const sum = deltas.reduce((total, mod) => total + (Number.parseInt(mod.value, 10) || 0), 0)
     const unit = deltas.map((mod) => (mod.value.endsWith('"') ? '"' : '')).find(Boolean) ?? ''
     if (!parts) {
-      value = `${value}${sum >= 0 ? '+' : ''}${sum}${unit}`
+      // "N/A" is what a weapon that does not roll to hit prints; a modifier to
+      // that roll does nothing to it, and must not invent a number.
+      if (!ROLLED.has(live[0]!.stat)) value = `${value}${sum >= 0 ? '+' : ''}${sum}${unit}`
     } else if (isAp) {
       // "+1 AP" means one better, and better AP is further from zero.
       const magnitude = Math.max(0, Math.abs(Number(parts[1])) + sum)
       value = magnitude === 0 ? '0' : `-${magnitude}`
+    } else if (ROLLED.has(live[0]!.stat)) {
+      // One die, so the printed number stays between 2+ and 6+ however many
+      // modifiers pile on.
+      value = `${Math.min(6, Math.max(2, Number(parts[1]) + sum))}${parts[2] || unit}`
     } else {
       value = `${Number(parts[1]) + sum}${parts[2] || unit}`
     }

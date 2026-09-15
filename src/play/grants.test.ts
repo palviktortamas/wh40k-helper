@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveGrants, weaponGrants } from './grants'
+import { resolveGrants, weaponGrants, isBackReference } from './grants'
 
 // Invented rules written in the sources' own grammar — no game data here.
 
@@ -127,10 +127,11 @@ describe('a weapon ability a Stratagem gives', () => {
   })
 })
 
-describe('"if you do" is not a condition', () => {
-  it('reads a rule the player chooses to use as in force once it is used', () => {
-    // "You can use this ability. If you do, …" waits on the player, not on the
-    // battlefield — and putting the rule into effect *is* the player doing it.
+describe('"if you do" stays a condition', () => {
+  it('does not print an optional ability as though it were always on', () => {
+    // "You can use this ability. If you do, …" is a choice the player makes.
+    // What satisfies it is putting the rule into effect on the unit, which is
+    // a different thing from the rule existing on the datasheet.
     const [grant] = weaponGrants([
       {
         name: 'Ammo Runts',
@@ -138,6 +139,7 @@ describe('"if you do" is not a condition', () => {
         source: 'Datasheet',
       },
     ])
-    expect(grant?.when).toBeUndefined()
+    expect(grant?.when).toBe('If you do')
+    expect(isBackReference(grant!.when!)).toBe(true)
   })
 })

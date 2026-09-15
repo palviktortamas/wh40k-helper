@@ -142,7 +142,10 @@ export function ModList({ mods }: { mods: readonly StatMod[] }) {
   return (
     <ul className="mods">
       {mods.map((mod) => (
-        <li key={`${mod.rule}:${mod.stat}:${mod.value}`} className={mod.when ? 'mods__item--temporary' : ''}>
+        <li
+          key={`${mod.rule}:${mod.stat}:${mod.value}:${mod.source}:${mod.when ?? ''}`}
+          className={mod.when ? 'mods__item--temporary' : ''}
+        >
           <span className={mod.when ? 'value--temporary' : 'value--changed'}>
             {modLabel(mod)}
             {mod.when ? '*' : ''}

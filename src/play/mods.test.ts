@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyMod, modsFor, resolveMods, statMods } from './mods'
+import { applyMod, modsFor, resolveMods, skillMods, statMods } from './mods'
 
 // Invented rules in the sources' own grammar — no game data here.
 
@@ -329,5 +329,43 @@ describe('the marker a source happens to bold with', () => {
     expect(
       statMods([{ name: 'Plate', text: 'Your unit has 4+ __Sv__.', source: 'Stratagem' }])[0],
     ).toMatchObject({ stat: 'SV', op: 'set', value: '4+' })
+  })
+})
+
+describe('a roll modifier as the skill cell reads it', () => {
+  const hit = (value: string, target: 'ranged' | 'melee' | 'any' = 'any') => ({
+    stat: 'HIT',
+    op: 'delta' as const,
+    value,
+    target,
+    subject: 'unit' as const,
+    rule: 'Ammo Runts',
+    source: 'Datasheet',
+  })
+
+  it('is one better on the characteristic, not one higher', () => {
+    // A 5+ hitting on 4+ is what the player rolls against; arithmetic on the
+    // printed number would make it 6+, which is the opposite of the rule.
+    const [mod] = skillMods([hit('+1', 'ranged')], 'ranged')
+    expect(mod).toMatchObject({ stat: 'BS', op: 'delta', value: '-1' })
+    expect(applyMod('5+', [mod!])).toMatchObject({ value: '4+', changed: true })
+  })
+
+  it('lands on the skill the half of the datasheet rolls', () => {
+    expect(skillMods([hit('+1', 'melee')], 'ranged')).toEqual([])
+    expect(skillMods([hit('+1', 'melee')], 'melee')[0]).toMatchObject({ stat: 'WS' })
+    // A modifier that names neither half lands on both.
+    expect(skillMods([hit('-1')], 'ranged')[0]).toMatchObject({ stat: 'BS', value: '+1' })
+  })
+
+  it('never shows a roll better than 2+ or worse than 6+', () => {
+    expect(applyMod('2+', skillMods([hit('+1')], 'ranged')).value).toBe('2+')
+    expect(applyMod('6+', skillMods([hit('-1')], 'ranged')).value).toBe('6+')
+  })
+
+  it('leaves a weapon that does not roll to hit alone', () => {
+    // A Torrent weapon's BS is "N/A"; a hit modifier does nothing to it and
+    // must not invent a number.
+    expect(applyMod('N/A', skillMods([hit('+1')], 'ranged')).value).toBe('N/A')
   })
 })

@@ -110,13 +110,15 @@ export const clausesOf = (text: string): string[] =>
     .filter(Boolean)
 
 /**
- * "If you do" is not a condition about the battlefield — it points back at the
- * choice the rule just offered ("you can use this ability. If you do, …"). Read
- * as a condition it marks the effect as waiting on something, when the thing it
- * waits on is the player having used it, which is exactly what putting the rule
- * into effect means.
+ * "If you do" points back at the choice the rule just offered ("you can use
+ * this ability. If you do, …"). It *is* a condition — the ability is optional,
+ * and its effect must not be printed as though it were always on — but it is a
+ * condition about the player rather than about the battlefield, so the thing
+ * that satisfies it is the player putting the rule into effect on the unit
+ * (see unitEffects.ts). Nothing else can ever meet it.
  */
-const BACK_REFERENCE = /^if (?:you|it|they) (?:do|did|does)(?: so)?$/i
+export const isBackReference = (when: string): boolean =>
+  /^if (?:you|it|they) (?:do|did|does)(?: so)?$/i.test(when.trim())
 
 /** The condition in front of a grant or a modifier, if the clause carries one. */
 export function conditionOf(prefix: string): string | undefined {
@@ -126,7 +128,7 @@ export function conditionOf(prefix: string): string | undefined {
   // prefix, after the last comma; what comes before it is the condition.
   const cut = trimmed.lastIndexOf(',')
   const candidate = (cut === -1 ? trimmed : trimmed.slice(0, cut)).trim().replace(/[,\s]+$/, '')
-  if (!candidate || !CONDITION.test(candidate) || BACK_REFERENCE.test(candidate)) return undefined
+  if (!candidate || !CONDITION.test(candidate)) return undefined
   return unbold(candidate)
 }
 

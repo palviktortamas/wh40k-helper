@@ -259,3 +259,56 @@ describe('a rule the player has put into effect', () => {
     expect(mods.map((m) => [m.stat, m.source])).toEqual([['T', 'Stratagem · Mob']])
   })
 })
+
+describe('an optional ability', () => {
+  const optional = {
+    ...catalogue,
+    datasheets: [
+      sheet('ds-mob', 'Mob', [
+        {
+          id: 'a-runts',
+          name: 'Runts',
+          text: "When this unit is selected to shoot, you can use this ability. If you do, this unit's ranged attacks have +1 to **hit rolls**.",
+        },
+      ]),
+      sheet('ds-boss', 'Boss'),
+    ],
+  } as unknown as ParsedCatalogue
+
+  it('waits on the player while it is only printed on the datasheet', () => {
+    const { mods } = effectsForUnit({
+      unit: mob,
+      sheet: optional.datasheets[0]!,
+      catalogue: optional,
+      detachmentNames: [],
+    })
+    const waiting = mods.find((m) => m.stat === 'HIT')
+    expect(waiting?.when).toBe('If you do')
+    expect(waiting?.met).toBeUndefined()
+  })
+
+  it('is settled by putting it into effect, and by nothing else', () => {
+    const using = {
+      ...mob,
+      inEffect: [
+        {
+          id: 'a-runts',
+          name: 'Runts',
+          source: 'Ability',
+          text: optional.datasheets[0]!.abilities[0]!.text,
+        },
+      ],
+    } as unknown as GameUnit
+    const { mods } = effectsForUnit({
+      unit: using,
+      sheet: optional.datasheets[0]!,
+      catalogue: optional,
+      detachmentNames: [],
+    })
+    // Exactly one modifier, in force: the printed copy was the same rule
+    // waiting on the choice that has now been made.
+    const hit = mods.filter((m) => m.stat === 'HIT')
+    expect(hit).toHaveLength(1)
+    expect(hit[0]!.when).toBeUndefined()
+  })
+})

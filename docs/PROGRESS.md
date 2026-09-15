@@ -1552,6 +1552,36 @@ effect shows "+1 to hit" on the ranged table with no asterisk. Both come off wit
 
 ---
 
+### The hit modifier belongs on the skill cell (2026-09-15, last +1)
+
+Owner: "the +1 to hit is not visible on the weapon's BS stat (maybe true for melee too)."
+
+It was a deliberate choice and the wrong one. A "+1 to hit" is not a better Ballistic Skill — the
+two come apart when several modifiers meet — so the modifier was shown beside the weapon and named,
+with the cell left at the printed number. But what a player reads off that table is *the number they
+roll against*, and a 5+ with +1 to hit is rolled against 4+. Doing that arithmetic mid-phase is the
+job this app exists for.
+
+`skillMods` maps a HIT modifier onto the cell the half of the datasheet rolls — BS for ranged, WS
+for melee — with the sign flipped, because better is lower. The modifier itself stays a HIT
+modifier everywhere else, so the line under the table still reads "+1 to hit", which is what the
+rule says. Two guards came with it: a one-die characteristic never prints better than 2+ or worse
+than 6+ however many modifiers pile on, and a weapon that does not roll to hit ("N/A" on a Torrent
+weapon) is left alone rather than given an invented number.
+
+**And a correction to the round before.** That round made "if you do" a non-condition, on the
+grounds that putting a rule into effect answers it. That is true of the *activated* copy and false
+of the printed one — so every optional ability on every datasheet read as permanently on, and the
+owner's Boyz hit on 4+ all game without anyone using anything. "If you do" is a condition again;
+what settles it is `effectsOfActive`, which clears a back-reference *only* on a rule the player has
+actually put into effect. The printed copy is then dropped as the same rule answered, so the table
+shows one modifier rather than "+1 to hit*" beside "+1 to hit".
+
+On the owner's mob: Ammo Runts printed but unused reads BS **5+\*** with "+1 to hit* If you do";
+put into effect it reads **4+** with "+1 to hit"; taken off again it is back to 5+*.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone
