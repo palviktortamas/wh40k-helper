@@ -109,6 +109,15 @@ export const clausesOf = (text: string): string[] =>
     .map((clause) => clause.trim())
     .filter(Boolean)
 
+/**
+ * "If you do" is not a condition about the battlefield — it points back at the
+ * choice the rule just offered ("you can use this ability. If you do, …"). Read
+ * as a condition it marks the effect as waiting on something, when the thing it
+ * waits on is the player having used it, which is exactly what putting the rule
+ * into effect means.
+ */
+const BACK_REFERENCE = /^if (?:you|it|they) (?:do|did|does)(?: so)?$/i
+
 /** The condition in front of a grant or a modifier, if the clause carries one. */
 export function conditionOf(prefix: string): string | undefined {
   const trimmed = prefix.trim().replace(/[,\s]+$/, '')
@@ -117,7 +126,7 @@ export function conditionOf(prefix: string): string | undefined {
   // prefix, after the last comma; what comes before it is the condition.
   const cut = trimmed.lastIndexOf(',')
   const candidate = (cut === -1 ? trimmed : trimmed.slice(0, cut)).trim().replace(/[,\s]+$/, '')
-  if (!candidate || !CONDITION.test(candidate)) return undefined
+  if (!candidate || !CONDITION.test(candidate) || BACK_REFERENCE.test(candidate)) return undefined
   return unbold(candidate)
 }
 

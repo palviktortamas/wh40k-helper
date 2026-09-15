@@ -450,3 +450,42 @@ describe('ticking off a weapon that has been used', () => {
     expect(g.units[0]!.usedWeapons ?? []).toEqual([])
   })
 })
+
+describe('putting a rule into effect on a unit', () => {
+  const rule = { id: 's1', name: 'Roar', source: 'Stratagem', text: "This unit's melee attacks have +1 **A**." }
+
+  it('puts it on the unit, and takes it off again', () => {
+    let g = apply(game(), { type: 'applyRule', unitId: 'a', rule })
+    expect(g.units[0]!.inEffect?.map((r) => r.name)).toEqual(['Roar'])
+    expect(g.log.at(-1)!.text).toMatch(/Roar/)
+    g = apply(g, { type: 'clearRule', unitId: 'a', ruleId: 's1', name: 'Roar' })
+    expect(g.units[0]!.inEffect ?? []).toEqual([])
+  })
+
+  it('never doubles a rule that is already in effect', () => {
+    let g = apply(game(), { type: 'applyRule', unitId: 'a', rule })
+    g = apply(g, { type: 'applyRule', unitId: 'a', rule })
+    expect(g.units[0]!.inEffect).toHaveLength(1)
+  })
+
+  it('lapses by itself at the moment its own words name', () => {
+    let g = apply(game(), {
+      type: 'applyRule',
+      unitId: 'a',
+      rule,
+      until: 'until the end of the turn',
+    })
+    g = steps(g, 4)
+    expect(g.units[0]!.inEffect).toHaveLength(1)
+    g = steps(g, 1)
+    expect(g.units[0]!.inEffect ?? []).toEqual([])
+    expect(g.log.some((l) => /Roar.*(?:ends|over)/i.test(l.text))).toBe(true)
+  })
+
+  it('reaches the whole unit, characters included', () => {
+    const g0 = game()
+    const boss = { ...unit('c', [{ id: 'c1', total: 1, wounds: 6 }]), leaderOf: 'a' }
+    const g = apply({ ...g0, units: [...g0.units, boss] }, { type: 'applyRule', unitId: 'a', rule })
+    expect(g.units.find((u) => u.id === 'c')!.inEffect).toHaveLength(1)
+  })
+})

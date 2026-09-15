@@ -117,3 +117,27 @@ describe('who a granted ability is for', () => {
     ])
   })
 })
+
+describe('a weapon ability a Stratagem gives', () => {
+  it('is read from plain brackets, which is how the export writes it', () => {
+    const grants = weaponGrants([
+      { name: "Hit 'em Harder", text: "Your unit's melee attacks have [Lethal Hits].", source: 'Stratagem' },
+    ])
+    expect(grants.map((g) => [g.keyword, g.kind])).toEqual([['Lethal Hits', 'melee']])
+  })
+})
+
+describe('"if you do" is not a condition', () => {
+  it('reads a rule the player chooses to use as in force once it is used', () => {
+    // "You can use this ability. If you do, …" waits on the player, not on the
+    // battlefield — and putting the rule into effect *is* the player doing it.
+    const [grant] = weaponGrants([
+      {
+        name: 'Ammo Runts',
+        text: 'When this unit is selected to shoot, you can use this ability. If you do, this unit’s ranged attacks have **[IGNORES COVER]**.',
+        source: 'Datasheet',
+      },
+    ])
+    expect(grant?.when).toBeUndefined()
+  })
+})

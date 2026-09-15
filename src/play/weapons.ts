@@ -170,10 +170,20 @@ export type ModelLoadout = {
  * who shoots. Dead groups drop out; the table follows the models still on the
  * board.
  */
-export function loadoutByModel(unit: { models: ModelGroup[] }, sheet: Datasheet | undefined): ModelLoadout[] {
+export function loadoutByModel(
+  unit: { models: ModelGroup[] },
+  sheet: Datasheet | undefined,
+  /**
+   * Keep the groups nothing survives in. The weapons list follows the models
+   * on the board, so they are dropped by default — but the screen that takes
+   * casualties is also the screen that puts a model back, and a group that
+   * has vanished cannot be healed.
+   */
+  includeDead = false,
+): ModelLoadout[] {
   const profiles = sheet?.weapons ?? []
   return unit.models
-    .filter((group) => group.alive > 0)
+    .filter((group) => includeDead || group.alive > 0)
     .map((group) => {
       const rows: WeaponRow[] = []
       const unmatched: [string, number][] = []

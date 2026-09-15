@@ -106,12 +106,32 @@ export type GameUnit = {
    * turn does.
    */
   usedWeapons?: string[]
+  /**
+   * Rules in effect on this unit right now because the player put them there —
+   * a Stratagem used on it, an ability it activated. Their text comes along,
+   * because a Stratagem's lives in another store and a game must keep working
+   * when that store is gone.
+   */
+  inEffect?: ActiveRule[]
   destroyed: boolean
   /** Ids of once-per-battle abilities already used. */
   usedOnce: string[]
   note?: string
   /** Enhancements taken on this unit (catalogue entry id + name), for the reminders. */
   enhancements?: { id: string; name: string }[]
+}
+
+/** A rule the player has put into effect on a unit (a Stratagem, an ability). */
+export type ActiveRule = {
+  /** The Stratagem's or ability's own id, so it can be taken off again. */
+  id: string
+  name: string
+  /** "Stratagem", "Ability", the detachment's name — whose rule it is. */
+  source: string
+  /** Its text, so its effects can be read wherever the unit is shown. */
+  text: string
+  /** The moment it lapses (see duration.ts); absent means until it is taken off. */
+  until?: number
 }
 
 export type PlayerScore = {

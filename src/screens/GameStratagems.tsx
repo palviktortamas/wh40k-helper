@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { GameAction } from '@/play/actions'
 import { PHASE_LABELS, type Game } from '@/play/types'
-import { appliesNow, forDetachment, stratagemUseKey } from '@/stratagems/select'
+import { appliesNow, durationOf, forDetachment, stratagemUseKey } from '@/stratagems/select'
 import { normaliseName } from '@/data/link/merge'
 import type { Stratagem, StratagemSet } from '@/stratagems/types'
 import { Marked } from './Marked'
@@ -30,6 +30,8 @@ export function GameStratagems({
 }) {
   const [showAll, setShowAll] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
+  /** Which unit each stratagem is aimed at, until it is used. */
+  const [on, setOn] = useState<Record<string, string>>({})
   const list = useMemo(
     () => (set ? forDetachment(set.stratagems, game.detachmentNames) : []),
     [set, game.detachmentNames],
@@ -82,11 +84,42 @@ export function GameStratagems({
             className={`button ${used ? 'button--quiet' : ''} strat__use`}
             disabled={cannotAfford}
             title={cannotAfford ? 'Not enough CP' : undefined}
-            onClick={() => dispatch({ type: 'useStratagem', key, id: s.id, name: s.name, cp: s.cp })}
+            onClick={() => {
+              dispatch({ type: 'useStratagem', key, id: s.id, name: s.name, cp: s.cp })
+              // Used *on* a unit, its effect belongs to that unit until it
+              // ends: +1 Attack is a number the player has to read off the
+              // weapons table two minutes later, not a paragraph to remember.
+              if (!used && on[s.id]) {
+                dispatch({
+                  type: 'applyRule',
+                  unitId: on[s.id]!,
+                  rule: { id: s.id, name: s.name, source: 'Stratagem', text: s.effect },
+                  ...(durationOf(s) ? { until: durationOf(s)! } : {}),
+                })
+              }
+            }}
           >
             {used ? 'Used ✓' : 'Use'}
           </button>
         </div>
+        {/* Which unit it is used on. Only the ones that change a number need
+            it, but which those are is the rule's business, not a list here. */}
+        <label className="strat__on">
+          <span className="muted">on</span>
+          <select
+            value={on[s.id] ?? ''}
+            onChange={(e) => setOn((current) => ({ ...current, [s.id]: e.target.value }))}
+          >
+            <option value="">— no unit —</option>
+            {game.units
+              .filter((u) => !u.destroyed)
+              .map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+          </select>
+        </label>
         <p className="strat__when">
           <span className="muted">
             {s.turn}

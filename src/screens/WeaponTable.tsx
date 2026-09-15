@@ -1,7 +1,7 @@
 import { groupModes, type WeaponRow } from '@/play/weapons'
 import { grantsFor, type WeaponGrant } from '@/play/grants'
 import { applyMod, modsFor, type StatMod } from '@/play/mods'
-import { ModList } from './StatStrip'
+import { ModList, modLabel } from './StatStrip'
 import './Datasheets.css'
 
 /**
@@ -12,7 +12,7 @@ import './Datasheets.css'
 function Cell({ value, mods }: { value: string | undefined; mods: readonly StatMod[] }) {
   const applied = applyMod(value, mods)
   const title = applied.pending
-    .map((mod) => `${mod.value} ${mod.stat} ${mod.when ?? ''} (${mod.rule})`.trim())
+    .map((mod) => `${modLabel(mod)} ${mod.when ?? ''} (${mod.rule})`.trim())
     .join('; ')
   return (
     <td

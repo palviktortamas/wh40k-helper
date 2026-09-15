@@ -44,10 +44,12 @@ describe('stat modifiers', () => {
     ).toEqual([])
   })
 
-  it('ignores the many rules that change something that is not a characteristic', () => {
+  it('ignores the many rules that change something it cannot print as a number', () => {
+    // A re-roll, a model count and a weapon ability are all real and all
+    // carried by the rule's own text; only what lands on a characteristic or a
+    // roll is read here.
     expect(
       statMods([
-        { name: 'A', text: "This unit's ranged attacks have +1 to **hit rolls**.", source: 'Detachment' },
         { name: 'B', text: 'This unit can re-roll **charge rolls**.', source: 'Detachment' },
         { name: 'C', text: 'This unit has 11+ models.', source: 'Detachment' },
         { name: 'D', text: "This unit's melee attacks have **[SUSTAINED HITS 1]**.", source: 'Detachment' },
@@ -229,5 +231,103 @@ describe('who a modifier is about', () => {
       ['Might', 'model'],
       ['Might', 'model'],
     ])
+  })
+})
+
+describe('modifiers to the rolls, not to the characteristics', () => {
+  // "+1 to hit rolls" is the commonest thing a rule gives, and it is not a
+  // characteristic: it belongs beside the weapons, named, rather than silently
+  // rewritten into BS (a roll modifier and a better BS are not the same thing,
+  // and the app must not claim they are).
+  it('reads a hit-roll modifier and says which half of the datasheet it is for', () => {
+    const [mod] = statMods([
+      { name: 'Dead Keen', text: "This unit's ranged attacks have +1 to **hit rolls**.", source: 'Datasheet' },
+    ])
+    expect(mod).toMatchObject({ stat: 'HIT', op: 'delta', value: '+1', target: 'ranged' })
+  })
+
+  it('reads a wound-roll modifier, and a minus', () => {
+    expect(
+      statMods([
+        { name: 'Blunt', text: "This unit's melee attacks have -1 to **wound rolls**.", source: 'Datasheet' },
+      ])[0],
+    ).toMatchObject({ stat: 'WOUND', value: '-1', target: 'melee' })
+  })
+
+  it('keeps the condition it hangs on', () => {
+    const [mod] = statMods([
+      {
+        name: 'Fury',
+        text: 'If this unit made a charge move this turn, this unit has +1 to **hit rolls**.',
+        source: 'Datasheet',
+      },
+    ])
+    expect(mod?.when).toMatch(/charge move/)
+  })
+
+  it('leaves an enemy’s roll alone', () => {
+    expect(
+      statMods([
+        {
+          name: 'Hard to See',
+          text: 'Attacks that target this unit have -1 to **hit rolls**.',
+          source: 'Datasheet',
+        },
+      ]),
+    ).toEqual([])
+  })
+})
+
+describe('the dialect a Stratagem is written in', () => {
+  // A Stratagem speaks to the player about "your unit", spells its
+  // characteristics out, and marks its keywords with underscores. None of that
+  // was read, so using one on a unit changed no number at all.
+  it('reads "add 1 to the Attacks characteristic of melee weapons equipped by models in your unit"', () => {
+    const [mod] = statMods([
+      {
+        name: 'Avenge',
+        text: 'Until the end of the phase, add 1 to the Attacks characteristic of melee weapons equipped by models in your unit.',
+        source: 'Stratagem',
+      },
+    ])
+    expect(mod).toMatchObject({ stat: 'A', op: 'delta', value: '+1', target: 'melee' })
+  })
+
+  it('reads a roll modifier written without any bold at all', () => {
+    expect(
+      statMods([
+        { name: 'Volley', text: "Your unit's ranged attacks have +1 to hit rolls.", source: 'Stratagem' },
+      ])[0],
+    ).toMatchObject({ stat: 'HIT', value: '+1', target: 'ranged' })
+  })
+
+  it('still refuses what the enemy does to you, however it is addressed', () => {
+    expect(
+      statMods([
+        {
+          name: 'Flawless',
+          text: 'Attacks that target your unit with a S greater than your unit’s T have -1 to wound rolls.',
+          source: 'Stratagem',
+        },
+        {
+          name: 'Focused Fear',
+          text: 'Each time an attack targets your unit, worsen the Armour Penetration characteristic of that attack by 1.',
+          source: 'Stratagem',
+        },
+      ]),
+    ).toEqual([])
+  })
+})
+
+describe('the marker a source happens to bold with', () => {
+  it('reads a characteristic marked with underscores as well as with stars', () => {
+    // The datasheets use **M**; the stratagem export uses __M__. Reading only
+    // one of them meant a Stratagem that gives +2" M changed nothing.
+    expect(
+      statMods([{ name: 'Fuel', text: 'Your unit has +2" __M__.', source: 'Stratagem' }])[0],
+    ).toMatchObject({ stat: 'M', op: 'delta', value: '+2"', target: 'unit' })
+    expect(
+      statMods([{ name: 'Plate', text: 'Your unit has 4+ __Sv__.', source: 'Stratagem' }])[0],
+    ).toMatchObject({ stat: 'SV', op: 'set', value: '4+' })
   })
 })

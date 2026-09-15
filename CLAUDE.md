@@ -40,7 +40,12 @@ builder warns when a unit is not one of the sizes its datasheet is priced at; Pl
 next/previous **turn** buttons, per-unit **situation toggles** that make conditional rules live
 (`play/situations.ts` — only the situations that unit's rules react to are offered), and every
 reminder can be expanded to the whole rule. Casualties are taken per model type on the unit sheet
-(the weapons table follows them), and each weapon has a `used?` tick that clears with the turn. The sync/proxy Worker is **deferred by the owner** ("not needed
+(the weapons table follows them, and a wiped group stays listed so it can be healed back), and each
+weapon has a `used?` tick that clears with the turn. A **Stratagem can be used on a unit** and a
+reminder **put into effect** on one (`GameUnit.inEffect`): the rule's own text is read like any
+other, so the stat strip, the weapons table and the card follow, and it lapses at the moment its
+words name. The stratagem export bolds with `__`, addresses "your unit", and writes roll modifiers
+("+1 to hit rolls") that are their own kind of modifier — never folded into BS/WS. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

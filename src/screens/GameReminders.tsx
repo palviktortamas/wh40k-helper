@@ -6,6 +6,8 @@ import { doneKey, isDone, remindersForGame, showsNow } from '@/reminders/derive'
 import { discoverMarks, grantedMarks, type Grant } from '@/play/marks'
 import { DURATIONS } from '@/play/duration'
 import { plainText } from '@/reminders/heuristics'
+import { statMods } from '@/play/mods'
+import { weaponGrants } from '@/play/grants'
 import { Marked } from './Marked'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import type { Reminder, ReminderOverride } from '@/reminders/types'
@@ -120,6 +122,22 @@ export function GameReminders({
                         thing that settles an argument. One tap, never a
                         navigation. */}
                     <FullRule text={abilityText.get(r.id) ?? ''} summary={r.text} />
+                    {/* A reminder whose rule changes a number can be put into
+                        effect on the unit it belongs to: "+1 to hit rolls" is
+                        worth having on the weapons table, not only in prose. */}
+                    {r.unitId && changesSomething(abilityText.get(r.id) ?? '') && (
+                      <InEffect
+                        unitId={r.unitId}
+                        rule={{
+                          id: r.id,
+                          name: r.sourceName,
+                          source: r.owner === 'detachment' ? 'Detachment' : 'Ability',
+                          text: abilityText.get(r.id) ?? '',
+                        }}
+                        on={game.units.find((u) => u.id === r.unitId)?.inEffect ?? []}
+                        dispatch={dispatch}
+                      />
+                    )}
                     {grantsOf(r).map((grant) => (
                       <MarkGrant
                         key={grant.mark.key}
@@ -143,6 +161,49 @@ export function GameReminders({
   )
 }
 
+
+/**
+ * Whether a rule has anything the numbers can show. A reminder is worth putting
+ * *into effect* only when it changes a characteristic, a roll or a weapon
+ * ability; the rest are things to do, not things to carry.
+ */
+const changesSomething = (text: string): boolean =>
+  statMods([{ name: '', text, source: '' }]).length > 0 ||
+  weaponGrants([{ name: '', text, source: '' }]).length > 0
+
+/**
+ * Put this rule into effect on the unit it belongs to, or take it off again.
+ * Its duration is the rule's own words where it gives them.
+ */
+function InEffect({
+  unitId,
+  rule,
+  on,
+  dispatch,
+}: {
+  unitId: string
+  rule: { id: string; name: string; source: string; text: string }
+  on: readonly { id: string }[]
+  dispatch: (action: GameAction) => void
+}) {
+  const active = on.some((r) => r.id === rule.id)
+  const until = /\buntil [^.;,]{3,60}/i.exec(rule.text)?.[0]?.trim()
+  return (
+    <div className="reminders__grant">
+      <button
+        className="button button--quiet"
+        onClick={() =>
+          active
+            ? dispatch({ type: 'clearRule', unitId, ruleId: rule.id, name: rule.name })
+            : dispatch({ type: 'applyRule', unitId, rule, ...(until ? { until } : {}) })
+        }
+      >
+        {active ? 'Take it off the numbers' : 'Put it in effect'}
+      </button>
+      {until && <span className="muted reminders__until">{until}</span>}
+    </div>
+  )
+}
 
 /** The whole rule, behind a chevron, for when the one-liner is not enough. */
 function FullRule({ text, summary }: { text: string; summary: string }) {

@@ -37,3 +37,14 @@ export function forUnit(list: readonly Stratagem[], keywords: readonly string[])
 /** The per-phase "used" key; a Stratagem is once per phase (Core Rules). */
 export const stratagemUseKey = (id: string, round: number, turn: Side, phase: Phase): string =>
   `${round}:${turn}:${phase}:${id}`
+
+/**
+ * How long a Stratagem's effect lasts, in its own words — "until the end of
+ * the phase", "until the start of your next turn" — so a stratagem used on a
+ * unit comes off by itself (see play/duration.ts, which reads the phrase).
+ *
+ * Most say it in the effect; the ones that do not are taken off by hand, which
+ * is what happens today for every one of them.
+ */
+export const durationOf = (stratagem: { effect: string }): string | undefined =>
+  /\buntil [^.;,]{3,60}/i.exec(stratagem.effect)?.[0]?.trim()

@@ -12,7 +12,9 @@
  * sources use and nothing else. Two signals keep it honest:
  *
  * - the characteristic must be **bold** in the source, which is how the data
- *   marks a characteristic rather than an ordinary number ("11+ models");
+ *   marks a characteristic rather than an ordinary number ("11+ models") —
+ *   with either marker, since the datasheets bold with `**` and the stratagem
+ *   export with `__`;
  * - a unit characteristic is taken only when the clause's subject is this very
  *   unit, so "a TRANSPORT unit this unit is embarked within has +2\" M" does
  *   not quietly speed up the passenger.
@@ -76,10 +78,25 @@ const WEAPON_STATS: Record<string, string> = {
   d: 'D',
 }
 
+/**
+ * "+1 to **hit rolls**" — the commonest thing a rule gives, and not a
+ * characteristic: a modifier to the roll. It is kept as its own kind rather
+ * than folded into BS/WS, because a +1 to hit and a better Ballistic Skill are
+ * not the same thing and the app must not claim they are. It shows beside the
+ * weapons it applies to, named.
+ *
+ * The bold marks are optional here, unlike a characteristic's: "+1 to hit
+ * rolls" cannot mean anything else, there is no "11+ models" to be fooled by,
+ * and the sources mark it three different ways — `**`, `__`, and one rule that
+ * closes the bold a star short.
+ */
+const ROLL = /([+\-−]\d+)\s*to\s*[*_]{0,2}(hit|wound)\s+rolls?[*_]{0,2}/gi
+const ROLL_STATS: Record<string, string> = { hit: 'HIT', wound: 'WOUND' }
+
 /** "+2\" **M**", "-1 **T**" — a change to whatever characteristic follows. */
-const DELTA = /([+\-−]\d+"?)\s*\*\*([A-Za-z]{1,5})\*\*(?:\s+and\s+\*\*([A-Za-z]{1,5})\*\*)?/g
+const DELTA = /([+\-−]\d+"?)\s*[*_]{2}([A-Za-z]{1,5})[*_]{2}(?:\s+and\s+[*_]{2}([A-Za-z]{1,5})[*_]{2})?/g
 /** "4+ **Sv**", "5+ **InSv**" — a characteristic set outright. */
-const SET = /\b(\d\+)\s*\*\*([A-Za-z]{1,5})\*\*/g
+const SET = /\b(\d\+)\s*[*_]{2}([A-Za-z]{1,5})[*_]{2}/g
 
 /**
  * The same changes, spelled out the way the older books (and the codex text a
@@ -87,7 +104,7 @@ const SET = /\b(\d\+)\s*\*\*([A-Za-z]{1,5})\*\*/g
  * weapons equipped by the bearer", "improve the Armour Penetration
  * characteristic of that attack by 1".
  */
-const PROSE = /\b(add|subtract|improve)\b([^.;:]*?)\b(move|toughness|save|invulnerable save|wounds|leadership|objective control|attacks|strength|armour penetration|ballistic skill|weapon skill|damage|range)\s+characteristic\b([^.;:]*)/gi
+const PROSE = /\b(add|subtract|improve|worsen)\b([^.;:]*?)\b(move|toughness|save|invulnerable save|wounds|leadership|objective control|attacks|strength|armour penetration|ballistic skill|weapon skill|damage|range)\s+characteristic\b([^.;:]*)/gi
 const PROSE_STATS: Record<string, string> = {
   move: 'M',
   toughness: 'T',
@@ -110,7 +127,7 @@ const PROSE_STATS: Record<string, string> = {
  * "each time an attack is allocated to this model, subtract 1 from the Damage
  * characteristic of that attack".
  */
-const INCOMING = /\battacks?\b[^.;]*(?:\btargets?\s+(?:this|that|the bearer)\b|\ballocated\b)/i
+const INCOMING = /\battacks?\b[^.;]*(?:\btargets?\s+(?:this|that|your|the bearer)\b|\ballocated\b)/i
 /** An aura hands a characteristic to whoever stands near, not to the model with it. */
 const AURA = /\bwithin\s+\d+"/i
 /** "While a friendly X unit is within 6\" of this model, that unit has …" — for the others. */
@@ -118,7 +135,9 @@ const AURA_FOR_OTHERS = /friendly[^.;]*within\s+\d+"\s*of\s+(?:this|the bearer)/
 /** "+2 A for each model embarked" cannot be printed as one number. */
 const COUNTED = /\bfor (?:each|every)\b|\bmaximum of\b/i
 /** The clause has to be speaking about the unit in hand at all. */
-const SELF_MENTION = /\b(?:this|that)\s+(?:unit|model)\b|\bthe\s+bearer\b|\bbearer'?’?s\b/i
+// "your unit" is how a Stratagem addresses the player about the unit it is
+// used on; the datasheets say "this unit" and the older text "the bearer".
+const SELF_MENTION = /\b(?:this|that|your)\s+(?:unit|model)s?\b|\bthe\s+bearer\b|\bbearer'?’?s\b/i
 const SOMEBODY_ELSE = /\benemy\b/i
 /** Words that open a clause without saying anything about when it holds. */
 const CONNECTIVE = /^(?:in addition|instead|and|also|then)$/i
@@ -130,7 +149,8 @@ const ATTACKS = /\b(melee|ranged)\s+(?:attacks?|weapons?)\b/i
  * The clause's subject is the unit in front of you. The first noun phrase is
  * the subject; a rule that speaks about somebody else names them first.
  */
-const SELF = /^\W*(?:this|that|the)\s+(?:unit|model|bearer)|^\W*the\s+bearer/i
+// "Your unit" is the subject a Stratagem uses for the unit it is used on.
+const SELF = /^\W*(?:this|that|the|your)\s+(?:unit|model|bearer)|^\W*the\s+bearer/i
 
 
 const subjectIsSelf = (clause: string): boolean => {
@@ -220,6 +240,25 @@ export function statMods(rules: readonly GrantingRule[]): StatMod[] {
         }
       }
 
+      // Roll modifiers. Like a weapon characteristic they need no subject test
+      // — "+1 to hit rolls" is about the attacks the clause names — but the
+      // clause must still be about our attacks and not about incoming ones,
+      // which INCOMING has already ruled out above.
+      for (const match of clause.matchAll(ROLL)) {
+        const stat = ROLL_STATS[(match[2] ?? '').toLowerCase()]
+        if (!stat) continue
+        const target: ModTarget =
+          (ATTACKS.exec(clause)?.[1]?.toLowerCase() as ModTarget | undefined) ?? 'any'
+        take(
+          stat,
+          'delta',
+          (match[1] ?? '').replace('−', '-'),
+          target,
+          match.index,
+          subjectOf(clause.slice(0, match.index), clause, headingSubject),
+        )
+      }
+
       // The spelled-out grammar. Its subject is a whole phrase ("models in the
       // bearer's unit"), so it is enough that the clause speaks about us and
       // about nobody else.
@@ -227,9 +266,12 @@ export function statMods(rules: readonly GrantingRule[]): StatMod[] {
       for (const match of clause.matchAll(PROSE)) {
         const stat = PROSE_STATS[(match[3] ?? '').toLowerCase()]
         if (!stat) continue
-        const amount = /(\d+)\s*("?)/.exec(match[1]?.toLowerCase() === 'improve' ? (match[4] ?? '') : (match[2] ?? ''))
+        const verb = match[1]?.toLowerCase()
+        const amount = /(\d+)\s*("?)/.exec(
+          verb === 'improve' || verb === 'worsen' ? (match[4] ?? '') : (match[2] ?? ''),
+        )
         if (!amount) continue
-        const sign = match[1]?.toLowerCase() === 'subtract' ? '-' : '+'
+        const sign = verb === 'subtract' || verb === 'worsen' ? '-' : '+'
         const target: ModTarget = WEAPON_STATS[stat.toLowerCase()]
           ? ((ATTACKS.exec(clause)?.[1]?.toLowerCase() as ModTarget | undefined) ?? 'any')
           : 'unit'

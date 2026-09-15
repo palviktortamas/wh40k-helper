@@ -210,3 +210,19 @@ describe('a weapon whose profiles are told apart by a bracketed qualifier', () =
     })
   })
 })
+
+describe('the model list a player takes casualties on', () => {
+  it('keeps a group nothing survives in, when asked, so it can be healed back', () => {
+    const wiped = {
+      models: [
+        { ...group('Trooper', 0, [{ name: 'Pistol', perModel: 1 }]), total: 2 },
+        group('Boss', 1, [{ name: 'Blade', perModel: 1 }]),
+      ],
+    }
+    expect(loadoutByModel(wiped, sheet).map((m) => m.name)).toEqual(['Boss'])
+    expect(loadoutByModel(wiped, sheet, true).map((m) => [m.name, m.alive])).toEqual([
+      ['Trooper', 0],
+      ['Boss', 1],
+    ])
+  })
+})

@@ -5,6 +5,7 @@
  */
 
 import { hasLapsed, expiryFor } from './duration'
+import type { ActiveRule } from './types'
 import {
   LAST_ROUND,
   PHASES,
@@ -50,6 +51,10 @@ export type GameAction =
   | { type: 'toggleOnce'; unitId: string; abilityId: string; label: string }
   // "Have I shot with the burnas yet?" — ticked off per weapon, cleared with the turn.
   | { type: 'toggleWeaponUsed'; unitId: string; weaponId: string; name: string }
+  // A Stratagem used on a unit, an ability it activated: while it is in effect
+  // the unit's numbers are the ones the rule gives it.
+  | { type: 'applyRule'; unitId: string; rule: Omit<ActiveRule, 'until'>; until?: string }
+  | { type: 'clearRule'; unitId: string; ruleId: string; name: string }
   | { type: 'setNote'; unitId: string; note: string }
   | { type: 'embark'; unitId: string; transportId: string }
   | { type: 'disembark'; unitId: string }
@@ -98,6 +103,7 @@ const snapshot = (game: Game): GameState => ({
     ...(u.marks ? { marks: [...u.marks] } : {}),
     ...(u.markUntil ? { markUntil: { ...u.markUntil } } : {}),
     ...(u.usedWeapons ? { usedWeapons: [...u.usedWeapons] } : {}),
+    ...(u.inEffect ? { inEffect: u.inEffect.map((r) => ({ ...r })) } : {}),
     usedOnce: [...u.usedOnce],
   })),
   vpByRound: { ...game.vpByRound },
@@ -153,6 +159,17 @@ function expireMarks(game: Game): Game {
   const now = { round: game.round, phase: game.phase, turn: game.turn }
   let next = game
   for (const unit of game.units) {
+    const over = (unit.inEffect ?? []).filter(
+      (rule) => rule.until !== undefined && hasLapsed(rule.until, now, game.firstTurn),
+    )
+    if (over.length > 0) {
+      const ids = over.map((rule) => rule.id)
+      next = updateUnit(next, unit.id, (u) => ({
+        ...u,
+        inEffect: (u.inEffect ?? []).filter((rule) => !ids.includes(rule.id)),
+      }))
+      for (const rule of over) next = withLog(next, `${unit.name}: ${rule.name} ends`)
+    }
     const until = unit.markUntil
     if (!until) continue
     const lapsed = (unit.marks ?? []).filter(
@@ -717,6 +734,36 @@ function applyAction(game: Game, action: GameAction): Game {
         next,
         `${unitName(g, action.unitId)}: ${action.name} ${used ? 'not used yet' : 'used'}`,
       )
+    }
+    case 'applyRule': {
+      const g = remember(game)
+      const until = expiryOf(g, action.until)
+      const touched = wholeUnit(g, action.unitId)
+      const rule: ActiveRule = { ...action.rule, ...(until !== undefined ? { until } : {}) }
+      const next: Game = {
+        ...g,
+        units: g.units.map((u) =>
+          touched.includes(u.id) && !(u.inEffect ?? []).some((r) => r.id === rule.id)
+            ? { ...u, inEffect: [...(u.inEffect ?? []), rule] }
+            : u,
+        ),
+      }
+      if (next.units.every((u, i) => u === g.units[i])) return game
+      return withLog(
+        next,
+        `${unitName(g, action.unitId)}: ${action.rule.name} in effect${untilNote(action.until, until)}`,
+      )
+    }
+    case 'clearRule': {
+      const g = remember(game)
+      const touched = wholeUnit(g, action.unitId)
+      const next: Game = {
+        ...g,
+        units: g.units.map((u) =>
+          touched.includes(u.id) ? { ...u, inEffect: (u.inEffect ?? []).filter((r) => r.id !== action.ruleId) } : u,
+        ),
+      }
+      return withLog(next, `${unitName(g, action.unitId)}: ${action.name} is over`)
     }
     case 'toggleOnce': {
       const g = remember(game)

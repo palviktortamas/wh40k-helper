@@ -11,12 +11,23 @@ const COLUMNS = [
   ['oc', 'OC', 'OC'],
 ] as const
 
+/**
+ * How a change reads. Most are "SV 4+"; a modifier to a roll is not a
+ * characteristic and has to read as what it is, or the player looks for a
+ * column that does not exist.
+ */
+export function modLabel(mod: StatMod): string {
+  if (mod.stat === 'HIT' || mod.stat === 'WOUND')
+    return `${mod.value} to ${mod.stat.toLowerCase()}`
+  return `${mod.stat === 'INVSV' ? 'Inv' : mod.stat} ${mod.value}`
+}
+
 /** What a change that has not happened yet would do, for a tooltip. */
 const pendingTitle = (applied: Applied): string | undefined =>
   applied.pending.length === 0
     ? undefined
     : applied.pending
-        .map((mod) => `${mod.value} ${mod.stat === 'INVSV' ? 'Inv' : mod.stat} ${mod.when ?? ''} (${mod.rule})`.trim())
+        .map((mod) => `${modLabel(mod)} ${mod.when ?? ''} (${mod.rule})`.trim())
         .join('; ')
 
 /** One cell of the stat line, with whatever the rules do to it. */
@@ -133,7 +144,7 @@ export function ModList({ mods }: { mods: readonly StatMod[] }) {
       {mods.map((mod) => (
         <li key={`${mod.rule}:${mod.stat}:${mod.value}`} className={mod.when ? 'mods__item--temporary' : ''}>
           <span className={mod.when ? 'value--temporary' : 'value--changed'}>
-            {mod.stat === 'INVSV' ? 'Inv' : mod.stat} {mod.value}
+            {modLabel(mod)}
             {mod.when ? '*' : ''}
           </span>{' '}
           {mod.when ? `${mod.when}${mod.met ? ' — now' : ''} — ` : ''}

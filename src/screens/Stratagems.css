@@ -124,3 +124,18 @@
 .strat--later .strat__chevron {
   color: var(--accent);
 }
+
+/* Which unit a Stratagem is used on: its effect then belongs to that unit
+   until it ends, instead of being a paragraph to remember. */
+.strat__on {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.15rem;
+  font-size: 0.85rem;
+}
+
+.strat__on select {
+  min-height: 44px;
+  max-width: 14rem;
+}

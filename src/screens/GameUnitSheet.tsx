@@ -140,7 +140,7 @@ function Loadout({
       <h3>Loadout</h3>
       <ul className="loadout">
         {groups.map((group) => (
-          <li key={group.id} className="loadout__group">
+          <li key={group.id} className={`loadout__group ${group.alive === 0 ? 'loadout__group--gone' : ''}`}>
             <p className="loadout__head">
               <span className="loadout__count">
                 {group.alive}
@@ -255,7 +255,9 @@ export function GameUnitSheet({
   // A mob is several model types at once — which models carry the special
   // weapons is what you need when removing casualties or picking who shoots,
   // and a single counted table never says it.
-  const loadout = loadoutByModel(unit, sheet)
+  // Dead groups stay on this list: it is where a model is put back, and a
+  // group that has vanished cannot be healed.
+  const loadout = loadoutByModel(unit, sheet, true)
   // A unit and the characters attached to it are one unit: an enhancement that
   // gives "this unit" a 4+ save gives it to all of them.
   const family = attachedFamily(unit, game.units, sheets)
@@ -373,6 +375,32 @@ export function GameUnitSheet({
                 </p>
               </div>
             )),
+          )}
+        </section>
+      )}
+
+      {(unit.inEffect ?? []).length > 0 && (
+        <section className="marks" aria-label="In effect now">
+          <div className="marks__row">
+            <span className="muted marks__lead">In effect</span>
+            {(unit.inEffect ?? []).map((rule) => (
+              <button
+                key={rule.id}
+                className="chip chip--toggle chip--on"
+                title={`${rule.source} — tap to end it`}
+                onClick={() => dispatch({ type: 'clearRule', unitId: unit.id, ruleId: rule.id, name: rule.name })}
+              >
+                {rule.name} ✕
+              </button>
+            ))}
+          </div>
+          {(unit.inEffect ?? []).some((rule) => rule.until !== undefined) && (
+            <p className="muted marks__until">
+              {(unit.inEffect ?? [])
+                .filter((rule) => rule.until !== undefined)
+                .map((rule) => `${rule.name}: ${describeExpiry(rule.until!, game.firstTurn)}`)
+                .join(' · ')}
+            </p>
           )}
         </section>
       )}

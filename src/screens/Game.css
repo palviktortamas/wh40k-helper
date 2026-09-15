@@ -329,6 +329,12 @@
   color: var(--accent);
 }
 
+/* A model type nothing survives in: still listed, because this is where one
+   is put back. */
+.loadout__group--gone {
+  opacity: 0.5;
+}
+
 /* Casualties, on the model group that carries the weapons. */
 .loadout__casualties {
   float: right;

@@ -1492,6 +1492,66 @@ and an attached character's weapons tick off against its own unit.
 
 ---
 
+## Done 2026-09-15 (last) - a rule in effect on a unit
+
+Owner: "let me revive models when none are left, I can heal units back up. And let me use a
+stratagem on a unit — +1 A to the Boyz — so its stats update. True for some other stratagems, and
+for some reminders, like the Deffkoptas' +1 to hit."
+
+### A model type nothing survives in is still on the list
+
+`loadoutByModel` dropped a group once its last model died — right for the weapons table, wrong for
+the screen that *takes* the casualties, because a group that has vanished cannot be healed. It now
+takes a flag, and the unit sheet passes it: the group stays, dimmed, with its + still there. Adding
+a model to a destroyed unit already un-destroys it (the reducer recomputes that from the models),
+so this is the whole of the fix.
+
+### A rule the player puts into effect (`ActiveRule`)
+
+The mechanism the owner asked for twice over — a Stratagem used on a unit, an ability activated —
+is one thing: **a rule in effect on a unit for a while**. `GameUnit.inEffect` holds the rule with
+its text (a Stratagem's text lives in another store, and a game must keep working when that store
+is gone), `applyRule` / `clearRule` put it on and take it off, it lands on the whole attached unit
+like a state does, and it lapses by itself at the moment its own words name (`until the end of the
+phase` → `duration.ts`). `effectsForUnit` reads it like any other rule, so the stat strip, the
+weapons table and the army-list card all follow at once.
+
+- **Stratagems**: each row gains an "on …" unit picker; using it with a unit chosen spends the CP
+  *and* puts the effect on that unit, with its own duration.
+- **Reminders**: a reminder whose rule actually changes a number or a weapon ability gets "Put it
+  in effect" (and "Take it off the numbers" after). Which reminders those are is asked of the
+  rule, not listed anywhere.
+- The unit sheet shows an **In effect** row of chips; tapping one ends it, and the expiry is
+  spelled out underneath.
+
+### Four things the readers could not read, all found by trying it
+
+The export a Stratagem comes from writes in a different dialect from the datasheets, and none of it
+was being read — using a Stratagem changed nothing at all:
+
+1. **`__M__` is bold too.** The datasheets bold with `**`, Wahapedia's stratagem export with `__`
+   (132 of its 1570 effects). Both markers now count.
+2. **"Your unit" is a subject.** A Stratagem addresses the player — "Your unit has +2\" M" — where
+   a datasheet says "this unit". Both the subject test and the self-mention test now accept it,
+   and, just as importantly, so does the *incoming*-attacks test: "attacks that target your unit
+   have -1 to wound rolls" must not give our attacks -1.
+3. **Roll modifiers are not characteristics.** "+1 to hit rolls" is the commonest thing a rule
+   gives and was read by nothing. It is now its own kind of modifier (`HIT`, `WOUND`), shown beside
+   the weapons it applies to and named as what it is — *not* folded into BS/WS, because a +1 to hit
+   and a better Ballistic Skill are not the same thing and the app must not claim they are. The
+   bold marks are optional here, unlike a characteristic's: "+1 to hit rolls" cannot be mistaken
+   for anything else, and the sources write it three different ways.
+4. **"If you do" is not a condition.** It points back at the choice the rule just offered ("you can
+   use this ability. If you do, …"). Read as a condition it marked the effect as waiting on
+   something — when the thing it waits on is the player having used it, which is exactly what
+   putting the rule into effect means.
+
+Walked on the owner's game: FUNGUS-FUEL INJECTION used on the mob puts **M 8"** on the card and the
+sheet with "M +2\" FUNGUS-FUEL INJECTION · Stratagem" under the strip, and Ammo Runts put into
+effect shows "+1 to hit" on the ranged table with no asterisk. Both come off with one tap.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

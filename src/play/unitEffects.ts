@@ -20,7 +20,7 @@ import type { GrantingRule, WeaponGrant } from './grants'
 import { rulesAboutMark, type Mark } from './marks'
 import type { StatMod } from './mods'
 import { activePhrases, situationsIn, type Situation } from './situations'
-import type { GameUnit, UnitStatus } from './types'
+import type { ActiveRule, GameUnit, UnitStatus } from './types'
 
 /** The rules a detachment the army took grants to a unit it names. */
 export function detachmentRulesFor(
@@ -56,6 +56,7 @@ export function attachedFamily(
       enhancements: other.enhancements ?? [],
       marks: other.marks ?? [],
       statuses: other.statuses,
+      inEffect: other.inEffect ?? [],
     }))
 }
 
@@ -70,6 +71,8 @@ export type Member = {
   marks?: readonly string[]
   /** Situations it is in — it charged, it advanced (see situations.ts). */
   statuses?: readonly UnitStatus[]
+  /** Rules the player has put into effect on it — a Stratagem, an ability. */
+  inEffect?: readonly ActiveRule[]
 }
 
 type Context = {
@@ -101,6 +104,13 @@ function rulesFor(member: Member, context: Context): GrantingRule[] {
       name: e.name,
       text: (e.id ? byId.get(e.id) : undefined) ?? byName.get(e.name) ?? '',
       source: 'Enhancement',
+    })),
+    // A Stratagem used on the unit is a rule about the unit for as long as it
+    // lasts, and reads like any other.
+    ...(member.inEffect ?? []).map((rule) => ({
+      name: rule.name,
+      text: rule.text,
+      source: rule.source,
     })),
     ...(catalogue && sheet
       ? marks
@@ -191,7 +201,16 @@ export function effectsForUnit({
   ]
   const active = [...held, ...activePhrases(situations)]
   const own = effectsFrom(
-    rulesFor({ name: unit.name, sheet, enhancements: unit.enhancements ?? [], marks: held }, context),
+    rulesFor(
+      {
+        name: unit.name,
+        sheet,
+        enhancements: unit.enhancements ?? [],
+        marks: held,
+        inEffect: unit.inEffect ?? [],
+      },
+      context,
+    ),
     active,
   )
 

@@ -225,3 +225,37 @@ describe('situations the unit is in', () => {
     expect(mods.find((m) => m.stat === 'A')?.met).toBe(true)
   })
 })
+
+describe('a rule the player has put into effect', () => {
+  it('changes the unit’s numbers while it lasts', () => {
+    const boosted = {
+      ...mob,
+      inEffect: [{ id: 's1', name: 'Roar', source: 'Stratagem', text: "This unit's melee attacks have +1 **A**." }],
+    } as unknown as GameUnit
+    const { mods } = effectsForUnit({
+      unit: boosted,
+      sheet: catalogue.datasheets[0]!,
+      catalogue,
+      detachmentNames: [],
+    })
+    expect(mods.map((m) => [m.stat, m.value, m.target, m.source])).toEqual([['A', '+1', 'melee', 'Stratagem']])
+  })
+
+  it('reaches the character in the unit it was used on', () => {
+    const boss = { ...unit('u2', 'ds-boss', 'Boss'), leaderOf: 'u1' }
+    const { mods } = effectsForUnit({
+      unit: boss,
+      sheet: catalogue.datasheets[1]!,
+      catalogue,
+      detachmentNames: [],
+      attached: [
+        {
+          name: 'Mob',
+          sheet: catalogue.datasheets[0]!,
+          inEffect: [{ id: 's1', name: 'Roar', source: 'Stratagem', text: 'This unit has +1 **T**.' }],
+        },
+      ],
+    })
+    expect(mods.map((m) => [m.stat, m.source])).toEqual([['T', 'Stratagem · Mob']])
+  })
+})
