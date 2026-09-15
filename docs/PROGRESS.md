@@ -453,6 +453,23 @@ force constraint). The owner agreed and §9 now states the current build.
 
 ## Learned the hard way
 
+### Confirming a deploy: key the wait to the commit, not to "the latest run"
+
+`gh run list --limit 1` right after a push can return the **previous** run — the new one is not
+registered yet — so waiting on that id reports success for the deploy before the one just pushed.
+It happened on 2026-09-14: the deploy of "Share what an attached unit shares" failed
+(`actions/deploy-pages` 403 fetching the artifact, a GitHub-side blip; the build step itself
+passed), the session reported success, and the owner found the feature missing. Check by SHA:
+
+```sh
+gh run list --commit "$(git rev-parse HEAD)" --json databaseId,status,conclusion
+# and confirm what is actually live:
+curl -s https://palviktortamas.github.io/wh40k-helper/ | grep -o 'assets/index-[^"]*\.js'
+# then grep that file for the commit: the build stamps __BUILD_COMMIT__.
+```
+
+A failed deploy is re-run with `gh run rerun <id> --failed`; nothing has to be rebuilt.
+
 Things that cost time and are not obvious from the spec:
 
 - **`.gitignore` patterns are not anchored by default.** The rule `data/` also matched
