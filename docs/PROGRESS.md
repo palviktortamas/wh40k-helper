@@ -1459,6 +1459,39 @@ live at exactly the wrong moment. A negation counts only when it sits right in f
 
 ---
 
+### Casualties where the weapons are, and a tick per weapon (2026-09-15, last)
+
+Owner: "more toggles: battle-shocked. And let me mark units died/returned — for Boyz I can mark
+that one burna died and the weapon profile updates, so it is easier to count what I can shoot with.
+And a simple done/not-done toggle per weapon, reset every round, so I know which I have shot with."
+
+**Battle-shock is always offered.** A situation is normally offered only where the unit's own rules
+react to it, but the core rules' own states earn an exception: Battle-shock changes a unit's OC,
+its Leadership and what it may spend CP on wherever it happens, so waiting for a codex to say the
+word is the wrong test. `Situation.always` marks it; the live test now measures the *derived* half
+(Necrons 29 of 68 datasheets, Orks 73 of 74) and separately asserts the core state is on every
+unit. Its phrases are the bare word, because half the rules that care are written "if this unit is
+**not** battle-shocked" and the negation guard already handles those.
+
+**Casualties are taken where the weapons are.** Removing models has been possible since Phase 3 —
+in the card's "Remove models…" panel, two taps away from the weapons table it changes. The Loadout
+block on the unit sheet already lists one card per model type with the weapons that model carries,
+so the − and + belong there: tap − on "Boy w/ Rokkit launcha" and the table above goes from 2× to
+1× under the same thumb. Walked on the owner's mob: 18 sluggas → 17, rokkits 2 → 1, and back. The
+block now shows for any multi-model unit, not only one with several model types.
+
+**A tick per weapon, cleared with the turn.** `usedWeapons` on the unit, keyed by the profile the
+weapon is listed under, with a `used?` / `✓ used` toggle on each weapon row and the row dimmed once
+it is ticked (dimmed *and* marked, never colour alone). It clears when the turn does, beside the
+turn-scoped statuses — both answer "what has already happened this turn", and a stale answer is
+worse than none. The owner said "every round"; a turn is what the question actually means, and the
+tick would otherwise survive into the phase where it is asked again.
+
+The toggle appears only where a handler is passed, so the builder's identical table is unchanged,
+and an attached character's weapons tick off against its own unit.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

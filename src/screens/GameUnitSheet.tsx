@@ -117,8 +117,24 @@ function OnceBox({
   )
 }
 
-/** The loadout split by model type, for a unit that has more than one. */
-function Loadout({ groups }: { groups: ReturnType<typeof loadoutByModel> }) {
+/**
+ * The loadout split by model type — and where casualties are taken.
+ *
+ * Which models died is the question the weapons table above depends on: a mob
+ * that has lost one of its two burnas shoots one burna, and counting that by
+ * hand in the middle of a phase is exactly the arithmetic the app exists to
+ * remove. The − and + sit on the model group that carries the weapons, so the
+ * table updates under the thumb that pressed them.
+ */
+function Loadout({
+  groups,
+  unitId,
+  dispatch,
+}: {
+  groups: ReturnType<typeof loadoutByModel>
+  unitId: string
+  dispatch: (action: GameAction) => void
+}) {
   return (
     <>
       <h3>Loadout</h3>
@@ -131,6 +147,22 @@ function Loadout({ groups }: { groups: ReturnType<typeof loadoutByModel> }) {
                 {group.alive !== group.total && <span className="muted">/{group.total}</span>}×
               </span>{' '}
               {group.name}
+              <span className="loadout__casualties">
+                <button
+                  aria-label={`One ${group.name} destroyed`}
+                  disabled={group.alive === 0}
+                  onClick={() => dispatch({ type: 'removeModel', unitId, groupId: group.id })}
+                >
+                  −
+                </button>
+                <button
+                  aria-label={`Bring one ${group.name} back`}
+                  disabled={group.alive >= group.total}
+                  onClick={() => dispatch({ type: 'addModel', unitId, groupId: group.id })}
+                >
+                  +
+                </button>
+              </span>
             </p>
             <ul className="loadout__weapons">
               {/* One line per weapon, its firing modes after it: a two-mode
@@ -246,6 +278,9 @@ export function GameUnitSheet({
     attached: family,
   })
   const single = unit.models.length === 1 && unit.models[0]!.total === 1 ? unit.models[0] : undefined
+  const usedWeapons = useMemo(() => new Set(unit.usedWeapons ?? []), [unit.usedWeapons])
+  const toggleUsed = (weaponId: string, name: string) =>
+    dispatch({ type: 'toggleWeaponUsed', unitId: unit.id, weaponId, name })
 
   // Opening a unit must land on its stat line — the reason you opened it. The
   // army list behind it may be scrolled a long way down, and swapping the
@@ -378,19 +413,25 @@ export function GameUnitSheet({
         />
       )}
 
-      {loadout.length > 1 && <Loadout groups={loadout} />}
+      {(loadout.length > 1 || modelsTotal(unit) > 1) && (
+        <Loadout groups={loadout} unitId={unit.id} dispatch={dispatch} />
+      )}
 
       <WeaponTable
         title="Ranged weapons"
         rows={rows.filter((r) => r.profile.kind === 'ranged' && r.count > 0)}
         grants={grants}
         mods={mods}
+        used={usedWeapons}
+        onToggleUsed={toggleUsed}
       />
       <WeaponTable
         title="Melee weapons"
         rows={rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)}
         grants={grants}
         mods={mods}
+        used={usedWeapons}
+        onToggleUsed={toggleUsed}
       />
       {rows.some((r) => r.count === 0) && (
         // The datasheet's other options — weapons this unit can take and did
@@ -457,12 +498,20 @@ export function GameUnitSheet({
               rows={leaderWeapons.rows.filter((r) => r.profile.kind === 'ranged' && r.count > 0)}
               grants={leaderEffects.grants}
               mods={leaderEffects.mods}
+              used={new Set(leader.usedWeapons ?? [])}
+              onToggleUsed={(weaponId, name) =>
+                dispatch({ type: 'toggleWeaponUsed', unitId: leader.id, weaponId, name })
+              }
             />
             <WeaponTable
               title="Melee weapons"
               rows={leaderWeapons.rows.filter((r) => r.profile.kind === 'melee' && r.count > 0)}
               grants={leaderEffects.grants}
               mods={leaderEffects.mods}
+              used={new Set(leader.usedWeapons ?? [])}
+              onToggleUsed={(weaponId, name) =>
+                dispatch({ type: 'toggleWeaponUsed', unitId: leader.id, weaponId, name })
+              }
             />
             {leaderSheet && (
               <Abilities unit={leader} sheet={leaderSheet} detachmentNames={game.detachmentNames} catalogue={catalogue} dispatch={dispatch} />

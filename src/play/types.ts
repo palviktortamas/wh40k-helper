@@ -99,6 +99,13 @@ export type GameUnit = {
    * entry here and stays until it is taken off.
    */
   markUntil?: Record<string, number>
+  /**
+   * Weapons already used this turn, by the id of the profile they are listed
+   * under. Twenty models with four different guns is four things to remember
+   * mid-phase, and the table has no room for remembering. Cleared when the
+   * turn does.
+   */
+  usedWeapons?: string[]
   destroyed: boolean
   /** Ids of once-per-battle abilities already used. */
   usedOnce: string[]

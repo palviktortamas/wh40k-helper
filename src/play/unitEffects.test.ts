@@ -191,21 +191,17 @@ describe('situations the unit is in', () => {
   } as unknown as ParsedCatalogue
 
   it('is offered only where a rule reacts to it', () => {
+    // The core states (Battle-shock) are offered everywhere; the rest are read
+    // from the unit's own rules.
+    const derived = (input: Parameters<typeof situationsForUnit>[0]) =>
+      situationsForUnit(input)
+        .filter((s) => !s.always)
+        .map((s) => s.status)
     expect(
-      situationsForUnit({
-        unit: mob,
-        sheet: charging.datasheets[0]!,
-        catalogue: charging,
-        detachmentNames: [],
-      }).map((s) => s.status),
+      derived({ unit: mob, sheet: charging.datasheets[0]!, catalogue: charging, detachmentNames: [] }),
     ).toEqual(['charged'])
     expect(
-      situationsForUnit({
-        unit: mob,
-        sheet: catalogue.datasheets[0]!,
-        catalogue,
-        detachmentNames: [],
-      }),
+      derived({ unit: mob, sheet: catalogue.datasheets[0]!, catalogue, detachmentNames: [] }),
     ).toEqual([])
   })
 

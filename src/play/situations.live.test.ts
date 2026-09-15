@@ -33,6 +33,8 @@ describe.skipIf(!available)('situations offered on a real catalogue', () => {
       // One detachment, as an army has: its rules speak for every unit it names.
       const detachmentNames = parsed.detachments.slice(0, 1).map((d) => d.name)
 
+      // The core states are on every unit by design; what is measured here is
+      // the part that is read from the unit's own rules.
       const counts = parsed.datasheets.map((sheet) => {
         const unit = {
           id: 'u',
@@ -43,7 +45,9 @@ describe.skipIf(!available)('situations offered on a real catalogue', () => {
           models: [],
           usedOnce: [],
         } as unknown as GameUnit
-        return situationsForUnit({ unit, sheet, catalogue: parsed, detachmentNames, marks }).length
+        return situationsForUnit({ unit, sheet, catalogue: parsed, detachmentNames, marks }).filter(
+          (situation) => !situation.always,
+        ).length
       })
       const withAny = counts.filter((n) => n > 0).length
       console.log(
@@ -63,6 +67,24 @@ describe.skipIf(!available)('situations offered on a real catalogue', () => {
       expect(withAny).toBeGreaterThan(0)
       expect(counts.some((n) => n === 0)).toBe(true)
       expect(Math.max(...counts)).toBeLessThan(SITUATIONS.length)
+      // …and the core states really are on every unit.
+      expect(
+        situationsForUnit({
+          unit: {
+            id: 'u',
+            name: 'x',
+            entryId: parsed.datasheets[0]!.id,
+            marks: [],
+            statuses: [],
+            models: [],
+            usedOnce: [],
+          } as unknown as GameUnit,
+          sheet: parsed.datasheets[0]!,
+          catalogue: parsed,
+          detachmentNames,
+          marks,
+        }).some((situation) => situation.status === 'battleShocked'),
+      ).toBe(true)
     })
   })
 })

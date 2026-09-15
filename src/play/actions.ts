@@ -48,6 +48,8 @@ export type GameAction =
   | { type: 'removeMark'; unitIds: string[]; mark: string; label: string }
   | { type: 'clearMarks' }
   | { type: 'toggleOnce'; unitId: string; abilityId: string; label: string }
+  // "Have I shot with the burnas yet?" — ticked off per weapon, cleared with the turn.
+  | { type: 'toggleWeaponUsed'; unitId: string; weaponId: string; name: string }
   | { type: 'setNote'; unitId: string; note: string }
   | { type: 'embark'; unitId: string; transportId: string }
   | { type: 'disembark'; unitId: string }
@@ -95,6 +97,7 @@ const snapshot = (game: Game): GameState => ({
     statuses: [...u.statuses],
     ...(u.marks ? { marks: [...u.marks] } : {}),
     ...(u.markUntil ? { markUntil: { ...u.markUntil } } : {}),
+    ...(u.usedWeapons ? { usedWeapons: [...u.usedWeapons] } : {}),
     usedOnce: [...u.usedOnce],
   })),
   vpByRound: { ...game.vpByRound },
@@ -206,13 +209,18 @@ function withoutMark<T extends Game['units'][number]>(unit: T, mark: string): T 
   }
 }
 
-/** Turn-scoped statuses drop when the turn ends. */
-const clearTurnStatuses = (game: Game): Game => ({
+/**
+ * What lasts a turn and no longer: the turn-scoped statuses, and the weapons
+ * ticked off as used — both are answers to "what has already happened this
+ * turn", and a stale one is worse than none.
+ */
+const clearTurnState = (game: Game): Game => ({
   ...game,
-  units: game.units.map((u) => ({
-    ...u,
-    statuses: u.statuses.filter((s) => !TURN_STATUSES.includes(s)),
-  })),
+  units: game.units.map((u) => {
+    const { usedWeapons: _used, ...rest } = u
+    void _used
+    return { ...rest, statuses: u.statuses.filter((s) => !TURN_STATUSES.includes(s)) }
+  }),
 })
 
 function advance(game: Game): Game {
@@ -222,7 +230,7 @@ function advance(game: Game): Game {
     return withLog({ ...game, phase }, `${PHASE_LABELS[phase]} phase`)
   }
   // End of a turn.
-  let next = clearTurnStatuses(game)
+  let next = clearTurnState(game)
   if (next.mission) next = { ...next, mission: { ...next.mission, cpForDiscardThisTurn: false } }
   const secondPlayer = other(game.firstTurn)
   if (game.turn === secondPlayer) {
@@ -694,6 +702,20 @@ function applyAction(game: Game, action: GameAction): Game {
       return withLog(
         next,
         used ? `${action.name} taken back (+${action.cp} CP)` : `Stratagem: ${action.name} (−${action.cp} CP)`,
+      )
+    }
+    case 'toggleWeaponUsed': {
+      const g = remember(game)
+      const used = g.units.find((u) => u.id === action.unitId)?.usedWeapons?.includes(action.weaponId)
+      const next = updateUnit(g, action.unitId, (u) => ({
+        ...u,
+        usedWeapons: used
+          ? (u.usedWeapons ?? []).filter((id) => id !== action.weaponId)
+          : [...(u.usedWeapons ?? []), action.weaponId],
+      }))
+      return withLog(
+        next,
+        `${unitName(g, action.unitId)}: ${action.name} ${used ? 'not used yet' : 'used'}`,
       )
     }
     case 'toggleOnce': {

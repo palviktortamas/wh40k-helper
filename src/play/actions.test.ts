@@ -434,3 +434,19 @@ describe('jumping a whole turn', () => {
     expect(g.round).toBeLessThanOrEqual(LAST_ROUND + 1)
   })
 })
+
+describe('ticking off a weapon that has been used', () => {
+  it('remembers it, and forgets it when the turn ends', () => {
+    let g = apply(game(), { type: 'toggleWeaponUsed', unitId: 'a', weaponId: 'w1', name: 'Gun' })
+    expect(g.units[0]!.usedWeapons).toEqual(['w1'])
+    // Tapping again takes it back — a mis-tap must not cost a phase of doubt.
+    g = apply(g, { type: 'toggleWeaponUsed', unitId: 'a', weaponId: 'w1', name: 'Gun' })
+    expect(g.units[0]!.usedWeapons).toEqual([])
+
+    g = apply(g, { type: 'toggleWeaponUsed', unitId: 'a', weaponId: 'w1', name: 'Gun' })
+    g = steps(g, 4)
+    expect(g.units[0]!.usedWeapons).toEqual(['w1'])
+    g = steps(g, 1) // the turn passes
+    expect(g.units[0]!.usedWeapons ?? []).toEqual([])
+  })
+})

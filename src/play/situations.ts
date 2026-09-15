@@ -26,6 +26,13 @@ export type Situation = {
   label: string
   /** How the rules write it; matched against a condition, lower-cased. */
   phrases: readonly string[]
+  /**
+   * Offered on every unit, whether or not its own rules mention it. Only the
+   * core rules' own states earn this: Battle-shock changes a unit's OC, its
+   * Stratagems and its Leadership wherever it happens, so the toggle has to be
+   * at hand rather than conditional on a codex happening to say the word.
+   */
+  always?: true
 }
 
 export const SITUATIONS: readonly Situation[] = [
@@ -53,21 +60,26 @@ export const SITUATIONS: readonly Situation[] = [
   {
     status: 'battleShocked',
     label: 'Battle-shocked',
-    phrases: ['is battle-shocked', 'are battle-shocked', 'while battle-shocked'],
+    // The bare word: "not battle-shocked" is handled by the negation guard in
+    // conditions.ts, and half the rules that care are written that way.
+    phrases: ['battle-shocked', 'battle shocked'],
+    always: true,
   },
 ]
 
 const has = (text: string, phrase: string) => text.includes(phrase)
 
 /**
- * The situations the given rule texts react to, in the order above. A unit
- * whose rules never mention one is offered nothing for it — the toggles have
- * to be the ones that change something, or nobody reads them.
+ * The situations the given rule texts react to, in the order above, plus the
+ * core states that are always offered. A unit whose rules never mention a
+ * situation is not offered it: the toggles have to be the ones that change
+ * something, or nobody reads them.
  */
 export function situationsIn(texts: readonly string[]): Situation[] {
   const folded = texts.map((text) => text.toLowerCase())
-  return SITUATIONS.filter((situation) =>
-    folded.some((text) => situation.phrases.some((phrase) => has(text, phrase))),
+  return SITUATIONS.filter(
+    (situation) =>
+      situation.always || folded.some((text) => situation.phrases.some((phrase) => has(text, phrase))),
   )
 }
 

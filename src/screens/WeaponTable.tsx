@@ -45,6 +45,8 @@ export function WeaponTable({
   showCount = true,
   grants = [],
   mods = [],
+  used,
+  onToggleUsed,
 }: {
   title: string
   rows: WeaponRow[]
@@ -52,6 +54,13 @@ export function WeaponTable({
   grants?: readonly WeaponGrant[]
   /** Characteristics the army's rules change on these weapons. */
   mods?: readonly StatMod[]
+  /**
+   * Weapons already used this turn, by profile id — at the table only. A mob
+   * with four different guns is four things to remember in the middle of a
+   * phase, and remembering is what this app is for.
+   */
+  used?: ReadonlySet<string>
+  onToggleUsed?: (weaponId: string, name: string) => void
 }) {
   if (rows.length === 0) return null
   const kind = rows[0]!.profile.kind
@@ -85,8 +94,13 @@ export function WeaponTable({
               <th scope="col">D</th>
             </tr>
           </thead>
-          {groups.map((weapon) => (
-          <tbody key={weapon.modes[0]!.profile.id} className={weapon.modes.length > 1 ? 'weapon-group' : ''}>
+          {groups.map((weapon) => {
+          const isUsed = Boolean(used?.has(weapon.modes[0]!.profile.id))
+          return (
+          <tbody
+            key={weapon.modes[0]!.profile.id}
+            className={`${weapon.modes.length > 1 ? 'weapon-group' : ''} ${isUsed ? 'weapon-group--used' : ''}`}
+          >
             {weapon.modes.map(({ label, profile }, index) => {
               const count = weapon.count
               const absent = showCount && count === 0
@@ -104,6 +118,16 @@ export function WeaponTable({
                     {index === 0 && (
                       <span className="weapon__name">
                         {weapon.name}
+                        {onToggleUsed && !absent && (
+                          <button
+                            className={`weapon__used ${isUsed ? 'weapon__used--on' : ''}`}
+                            aria-pressed={isUsed}
+                            aria-label={`${weapon.name}: ${isUsed ? 'not used yet' : 'used this turn'}`}
+                            onClick={() => onToggleUsed(weapon.modes[0]!.profile.id, weapon.name)}
+                          >
+                            {isUsed ? '✓ used' : 'used?'}
+                          </button>
+                        )}
                         {weapon.modes.length > 1 && (
                           <span className="weapon__pick">pick one profile each time it attacks</span>
                         )}
@@ -140,7 +164,8 @@ export function WeaponTable({
               )
             })}
           </tbody>
-          ))}
+          )
+          })}
         </table>
       </div>
       {here.length > 0 && (

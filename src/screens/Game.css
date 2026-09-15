@@ -329,8 +329,49 @@
   color: var(--accent);
 }
 
+/* Casualties, on the model group that carries the weapons. */
+.loadout__casualties {
+  float: right;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.loadout__casualties button {
+  width: 44px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
 .loadout__modes {
   font-size: 0.9em;
+}
+
+/* "Have I shot with this yet?" — ticked off per weapon, cleared with the turn.
+   The used row is dimmed *and* marked, never colour alone. */
+.weapon__used {
+  margin-left: 0.5rem;
+  min-height: 32px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.weapon__used--on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.weapon-group--used {
+  opacity: 0.55;
 }
 
 .weapon__pick {
