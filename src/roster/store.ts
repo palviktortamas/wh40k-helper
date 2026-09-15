@@ -11,6 +11,7 @@ import { coreChecks } from './coreChecks'
 import { bareSelection, cloneSelection, newSelectionId } from './defaults'
 import type { Roster, Selection, ValidationIssue } from './types'
 import { walkSelections } from './types'
+import type { Datasheet } from '@/data/model'
 import type { Catalogue, GameSystem } from '@/data/bsdata/schema'
 import { COST_TYPE } from '@/data/bsdata/schema'
 import { WARLORD_CATEGORY } from './vocabulary'
@@ -114,9 +115,14 @@ export type Validation = Analysis & {
   legal: boolean
 }
 
-export function validate(roster: Roster, graph: CatalogueGraph): Validation {
+export function validate(
+  roster: Roster,
+  graph: CatalogueGraph,
+  /** The installed datasheets, when the caller has them (the size check reads their price list). */
+  sheets: readonly Datasheet[] = [],
+): Validation {
   const analysis = analyseRoster(roster, graph)
-  const issues = [...analysis.issues, ...coreChecks(roster, analysis, graph)]
+  const issues = [...analysis.issues, ...coreChecks(roster, analysis, graph, sheets)]
   const errors = issues.filter((i) => i.severity === 'error')
   return {
     ...analysis,

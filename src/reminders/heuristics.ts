@@ -27,6 +27,15 @@ export const plainText = (text: string): string =>
     .trim()
 
 const MAX_TEXT = 140
+/**
+ * A summary that says *when* and *what* needs more room than one that says
+ * only when. Two short lines on a phone, and the whole rule is one tap away in
+ * the panel anyway.
+ */
+const MAX_SUMMARY = 240
+
+const cut = (text: string, max: number): string =>
+  text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text
 
 /** The first sentence, cut to a glanceable length. */
 export function shortText(text: string): string {
@@ -34,7 +43,7 @@ export function shortText(text: string): string {
   if (!plain) return ''
   const sentence = plain.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? plain
   const chosen = sentence.length < 24 && plain.length > sentence.length ? plain : sentence
-  return chosen.length > MAX_TEXT ? `${chosen.slice(0, MAX_TEXT - 1).trimEnd()}…` : chosen
+  return cut(chosen, MAX_TEXT)
 }
 
 /**
@@ -147,7 +156,24 @@ function momentClause(rawText: string, trigger: Trigger): string | undefined {
     .split(/(?<=[.;:])\s+|\s+(?=[-•]\s)/)
     .map((clause) => clause.replace(/^[-•]\s*/, '').trim())
     .filter((clause) => clause.length > 12)
-  return clauses.find((clause) => inferTrigger(clause, clause) === trigger)
+  const at = clauses.findIndex((clause) => inferTrigger(clause, clause) === trigger)
+  if (at === -1) return undefined
+
+  // The moment is often a heading — "When a unit is selected to advance:" —
+  // and what actually happens is the bullets under it. Quoting the heading
+  // alone leaves a reminder that says something happens now and not what, so
+  // the clauses it governs come with it: everything up to the next clause that
+  // names a moment of its own, and no further than a glance can take.
+  const taken = [clauses[at]!]
+  for (const clause of clauses.slice(at + 1)) {
+    // Only a clause that *states its own phase* is a new moment. A consequence
+    // names phases freely — "…have [ASSAULT] until the end of the turn" — and
+    // breaking on that left the reminder at its heading again.
+    if (STATED_PHASE.some(([pattern]) => pattern.test(clause))) break
+    if (taken.join(' ').length + clause.length > MAX_SUMMARY) break
+    taken.push(clause)
+  }
+  return taken.join(' ')
 }
 
 export function infer(name: string, rawText: string): Inferred {
@@ -156,9 +182,13 @@ export function infer(name: string, rawText: string): Inferred {
   let trigger = inferTrigger(text, rawText)
   if (trigger === 'custom' && once === 'battle') trigger = 'once_per_battle'
   if (trigger === 'custom' && once === 'turn') trigger = 'once_per_turn'
+  const moment = momentClause(rawText, trigger)
   return {
     trigger,
-    text: shortText(momentClause(rawText, trigger) ?? rawText) || plainText(name),
+    // The assembled clauses are the summary as it stands — cut to length, but
+    // never back to their first sentence, which is what leaves out the half
+    // that says what to do.
+    text: (moment ? cut(moment, MAX_SUMMARY) : shortText(rawText)) || plainText(name),
     ...(once ? { once } : {}),
     // Enabled when there is a moment to act on and the rule is about playing
     // rather than list-building. A passive that changes what happens at that

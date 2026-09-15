@@ -27,6 +27,10 @@ import {
 export type GameAction =
   | { type: 'nextPhase' }
   | { type: 'prevPhase' }
+  // A whole turn at a time: five taps to hand the turn over is four too many
+  // when nothing happened in between.
+  | { type: 'nextTurn' }
+  | { type: 'prevTurn' }
   | { type: 'adjustCp'; side: Side; delta: number }
   | { type: 'adjustVp'; side: Side; kind: 'primary' | 'secondary'; delta: number }
   | { type: 'removeModel'; unitId: string; groupId: string }
@@ -475,9 +479,11 @@ function applyAction(game: Game, action: GameAction): Game {
       if (!unit || !unit.statuses.some((s) => RESERVE_STATUSES.includes(s))) return game
       const g = remember(game)
       const from = unit.statuses.includes('deepStrike') ? 'Deep Strike' : 'Strategic Reserves'
+      // Arriving is itself a situation a rule can react to ("after this unit
+      // arrives from strategic reserves…"), and it lasts the turn.
       const next = updateUnit(g, action.unitId, (u) => ({
         ...u,
-        statuses: u.statuses.filter((s) => !RESERVE_STATUSES.includes(s)),
+        statuses: [...u.statuses.filter((s) => !RESERVE_STATUSES.includes(s)), 'arrived' as const],
       }))
       return withLog(next, `${unit.name} arrives from ${from}`)
     }
@@ -495,9 +501,31 @@ function applyAction(game: Game, action: GameAction): Game {
     }
     case 'nextPhase':
       return expireMarks(advance(remember(game)))
+    case 'nextTurn': {
+      // Every phase is still stepped through, so the Command phase CP, the
+      // turn-scoped statuses and the states that lapse all happen exactly as
+      // they would one tap at a time — but it is one undo step.
+      let g = remember(game)
+      do {
+        g = advance(g)
+      } while (g.phase !== 'command' && !isBattleOver(g))
+      return expireMarks(g)
+    }
     case 'prevPhase':
       if (game.phase === 'command' && game.round === 1 && game.turn === game.firstTurn) return game
       return retreat(remember(game))
+    case 'prevTurn': {
+      const atStart = (g: Game) =>
+        g.phase === 'command' && g.round === 1 && g.turn === g.firstTurn
+      if (atStart(game)) return game
+      let g = remember(game)
+      // Mid-turn, "back" means the start of this turn; already there, the start
+      // of the one before — the way a track skips back.
+      do {
+        g = retreat(g)
+      } while (g.phase !== 'command' && !atStart(g))
+      return g
+    }
     case 'adjustCp': {
       const g = remember(game)
       const score = { ...g[action.side], cp: Math.max(0, g[action.side].cp + action.delta) }

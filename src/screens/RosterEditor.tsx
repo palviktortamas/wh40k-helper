@@ -119,8 +119,8 @@ export function RosterEditor() {
   }, [])
 
   const validation: Validation | null = useMemo(
-    () => (roster && graph ? validate(roster, graph) : null),
-    [roster, graph],
+    () => (roster && graph ? validate(roster, graph, catalogue?.parsed.datasheets) : null),
+    [roster, graph, catalogue],
   )
 
   if (!roster || !catalogue || !graph || !validation) return <p>Loading…</p>

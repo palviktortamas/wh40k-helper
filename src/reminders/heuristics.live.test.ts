@@ -38,7 +38,9 @@ describe.skipIf(!available)('reminder heuristics on a real catalogue', () => {
       expect(withTrigger).toBeGreaterThan(0.2)
       expect(withTrigger).toBeLessThan(0.7)
       expect(all.some((r) => r.once === 'battle')).toBe(true)
-      expect(all.every((r) => r.text.length > 0 && r.text.length <= 140)).toBe(true)
+      // A summary now carries the clauses its moment governs, not only the
+      // moment — it has to say what to do — so the cap is the summary cap.
+      expect(all.every((r) => r.text.length > 0 && r.text.length <= 240)).toBe(true)
 
       // An ability that fires when a model dies is not a reminder: it happens
       // on its own, and it used to surface in whatever phase its text named.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { effectsForUnit } from './unitEffects'
+import { effectsForUnit, situationsForUnit } from './unitEffects'
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameUnit } from './types'
 
@@ -176,5 +176,56 @@ describe('a state belongs to the whole attached unit', () => {
       attached: [{ name: 'Mob', sheet: catalogue.datasheets[0]!, marks: [] }],
     })
     expect(mods.find((m) => m.stat === 'INVSV')?.met ?? false).toBe(false)
+  })
+})
+
+describe('situations the unit is in', () => {
+  const charging = {
+    ...catalogue,
+    datasheets: [
+      sheet('ds-mob', 'Mob', [
+        { id: 'a-charge', name: 'Momentum', text: 'If this unit made a charge move this turn, this unit has +1 **A**.' },
+      ]),
+      sheet('ds-boss', 'Boss'),
+    ],
+  } as unknown as ParsedCatalogue
+
+  it('is offered only where a rule reacts to it', () => {
+    expect(
+      situationsForUnit({
+        unit: mob,
+        sheet: charging.datasheets[0]!,
+        catalogue: charging,
+        detachmentNames: [],
+      }).map((s) => s.status),
+    ).toEqual(['charged'])
+    expect(
+      situationsForUnit({
+        unit: mob,
+        sheet: catalogue.datasheets[0]!,
+        catalogue,
+        detachmentNames: [],
+      }),
+    ).toEqual([])
+  })
+
+  it('makes the rule’s numbers real once it is switched on', () => {
+    const marched = { ...mob, statuses: ['charged'] } as unknown as GameUnit
+    const before = effectsForUnit({ unit: mob, sheet: charging.datasheets[0]!, catalogue: charging, detachmentNames: [] })
+    const after = effectsForUnit({ unit: marched, sheet: charging.datasheets[0]!, catalogue: charging, detachmentNames: [] })
+    expect(before.mods.find((m) => m.stat === 'A')?.met ?? false).toBe(false)
+    expect(after.mods.find((m) => m.stat === 'A')?.met).toBe(true)
+  })
+
+  it('reaches the character attached to the unit that charged', () => {
+    const boss = { ...unit('u2', 'ds-boss', 'Boss'), leaderOf: 'u1' }
+    const { mods } = effectsForUnit({
+      unit: boss,
+      sheet: charging.datasheets[1]!,
+      catalogue: charging,
+      detachmentNames: [],
+      attached: [{ name: 'Mob', sheet: charging.datasheets[0]!, statuses: ['charged'] }],
+    })
+    expect(mods.find((m) => m.stat === 'A')?.met).toBe(true)
   })
 })

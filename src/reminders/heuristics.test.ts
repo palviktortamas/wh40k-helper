@@ -4,10 +4,13 @@ import { infer, plainText, shortText } from './heuristics'
 // Invented rule text in the game's generic phase vocabulary — no real cards.
 
 describe('reminder heuristics', () => {
-  it('reads the phase from the text and keeps the first sentence', () => {
+  it('reads the phase from the text, and keeps what happens with it', () => {
     const r = infer('Battle Cry', 'In your Command phase, this unit can shout. If it does, add 1 to its Leadership until your next turn.')
     expect(r.trigger).toBe('command_phase')
-    expect(r.text).toBe('In your Command phase, this unit can shout.')
+    // Both halves: a reminder that says only when to act reminds you of nothing.
+    expect(r.text).toBe(
+      'In your Command phase, this unit can shout. If it does, add 1 to its Leadership until your next turn.',
+    )
     expect(r.enabled).toBe(true)
     expect(r.once).toBeUndefined()
   })
@@ -111,5 +114,32 @@ describe('reminder heuristics', () => {
       'When this unit is selected to make an advance move, that move does not prevent it from being eligible to declare a charge.',
     )
     expect(r.trigger).toBe('movement_phase')
+  })
+})
+
+describe('a reminder has to say what to do, not only when', () => {
+  it('carries the clauses the moment governs', () => {
+    // The real shape: the moment is a heading and what it does is the bullets
+    // under it. Quoting the heading alone leaves the reminder saying "something
+    // happens now" — which is worse than useless at the table.
+    const r = infer(
+      'Adrenaline',
+      '- Friendly **WARBIKERS** units have **BATTLELINE**.\n' +
+        '- When a friendly **SPEED FREEKS** unit is selected to make an **advance/fall-back move**:\n' +
+        "    - That unit's ranged attacks have **[ASSAULT]** until the end of the turn.\n" +
+        '    - That move does not prevent that unit from being **eligible to declare a charge**.',
+    )
+    expect(r.text).toContain('selected to make an advance/fall-back move')
+    expect(r.text).toContain('[ASSAULT]')
+    expect(r.text).not.toContain('BATTLELINE')
+  })
+
+  it('stops at the next moment rather than running the whole rule together', () => {
+    const r = infer(
+      'Two Moments',
+      'In your Command phase, this unit can shout. In your Shooting phase, this unit can spit.',
+    )
+    expect(r.text).toContain('shout')
+    expect(r.text).not.toContain('spit')
   })
 })

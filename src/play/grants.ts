@@ -16,6 +16,7 @@
  */
 
 import { plainText } from '@/reminders/heuristics'
+import { conditionMet } from './conditions'
 
 export type GrantKind = 'ranged' | 'melee' | 'any'
 
@@ -173,9 +174,7 @@ export const resolveGrants = (
   activeStates: readonly string[],
 ): WeaponGrant[] =>
   grants.map((grant) =>
-    grant.when && activeStates.some((state) => grant.when!.toLowerCase().includes(state.toLowerCase()))
-      ? { ...grant, met: true }
-      : grant,
+    grant.when && conditionMet(grant.when, activeStates) ? { ...grant, met: true } : grant,
   )
 
 /** The grants that land on one weapon profile. */

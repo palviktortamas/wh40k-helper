@@ -19,7 +19,8 @@ import { effectsFrom, type Effects } from './effects'
 import type { GrantingRule, WeaponGrant } from './grants'
 import { rulesAboutMark, type Mark } from './marks'
 import type { StatMod } from './mods'
-import type { GameUnit } from './types'
+import { activePhrases, situationsIn, type Situation } from './situations'
+import type { GameUnit, UnitStatus } from './types'
 
 /** The rules a detachment the army took grants to a unit it names. */
 export function detachmentRulesFor(
@@ -54,6 +55,7 @@ export function attachedFamily(
       sheet: sheets.get(other.entryId),
       enhancements: other.enhancements ?? [],
       marks: other.marks ?? [],
+      statuses: other.statuses,
     }))
 }
 
@@ -66,6 +68,8 @@ export type Member = {
   enhancements?: readonly { id?: string; name: string }[]
   /** States it is in. */
   marks?: readonly string[]
+  /** Situations it is in — it charged, it advanced (see situations.ts). */
+  statuses?: readonly UnitStatus[]
 }
 
 type Context = {
@@ -112,6 +116,38 @@ function rulesFor(member: Member, context: Context): GrantingRule[] {
   ]
 }
 
+/**
+ * The situations this unit's own rules react to — and only those. A toggle
+ * that changes nothing for the unit in front of you is noise; a unit whose
+ * detachment conditions half its rules on having charged needs that toggle
+ * where the thumb is. Read from every rule that reaches the unit, its family's
+ * included, because they are one unit.
+ */
+export function situationsForUnit(input: {
+  unit: GameUnit
+  sheet: Datasheet | undefined
+  catalogue: ParsedCatalogue | undefined
+  detachmentNames: readonly string[]
+  marks?: readonly Mark[]
+  attached?: readonly Member[]
+}): Situation[] {
+  const context: Context = {
+    catalogue: input.catalogue,
+    detachmentNames: input.detachmentNames,
+    marks: input.marks ?? [],
+  }
+  const members: Member[] = [
+    {
+      name: input.unit.name,
+      sheet: input.sheet,
+      enhancements: input.unit.enhancements ?? [],
+      marks: input.unit.marks ?? [],
+    },
+    ...(input.attached ?? []),
+  ]
+  return situationsIn(members.flatMap((member) => rulesFor(member, context)).map((rule) => rule.text))
+}
+
 const grantKey = (g: WeaponGrant) => `${g.keyword}|${g.kind}|${g.when ?? ''}`
 const modKey = (m: StatMod) => `${m.stat}|${m.op}|${m.value}|${m.target}|${m.when ?? ''}`
 
@@ -147,9 +183,16 @@ export function effectsForUnit({
   // well as from the unit's own list, so a game already in progress (where the
   // state may sit on one member only) reads right as well.
   const held = [...new Set([...(unit.marks ?? []), ...attached.flatMap((m) => m.marks ?? [])])]
+  // …and so does a situation: the mob charged, so the Leader in it charged.
+  // The phrases are what a rule's condition is actually written in, which is
+  // how switching "Charged" on makes "if this unit made a charge move" live.
+  const situations = [
+    ...new Set([...(unit.statuses ?? []), ...attached.flatMap((m) => m.statuses ?? [])]),
+  ]
+  const active = [...held, ...activePhrases(situations)]
   const own = effectsFrom(
     rulesFor({ name: unit.name, sheet, enhancements: unit.enhancements ?? [], marks: held }, context),
-    held,
+    active,
   )
 
   const grants = [...own.grants]
@@ -160,7 +203,7 @@ export function effectsForUnit({
   for (const member of attached) {
     // What the attached model's own rules do for it alone is on its own sheet;
     // here only what they do for the unit it is part of.
-    const theirs = effectsFrom(rulesFor({ ...member, marks: held }, context), held)
+    const theirs = effectsFrom(rulesFor({ ...member, marks: held }, context), active)
     for (const grant of theirs.grants) {
       if (grant.subject !== 'unit' || seenGrants.has(grantKey(grant))) continue
       seenGrants.add(grantKey(grant))

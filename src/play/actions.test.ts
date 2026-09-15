@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { apply, isBattleOver } from './actions'
-import { defaultCasualtyGroup, emptyMission, totalVp, type Game, type GameUnit } from './types'
+import { LAST_ROUND, defaultCasualtyGroup, emptyMission, totalVp, type Game, type GameUnit } from './types'
 
 // Everything here is invented — the repo must contain no real game data.
 
@@ -274,7 +274,8 @@ describe('game actions', () => {
     let g = apply(game(), { type: 'toggleStatus', unitId: 'a', status: 'deepStrike' })
     expect(apply(g, { type: 'arrive', unitId: 'b' })).toBe(g) // not in reserves: no-op
     g = apply(g, { type: 'arrive', unitId: 'a' })
-    expect(g.units[0]!.statuses).toEqual([])
+    // Arriving is itself a situation rules react to, and it lasts the turn.
+    expect(g.units[0]!.statuses).toEqual(['arrived'])
     expect(g.log.at(-1)!.text).toMatch(/arrives from Deep Strike/)
     g = apply(g, { type: 'toggleStatus', unitId: 'a', status: 'reserves' })
     g = apply(g, { type: 'arrive', unitId: 'a' })
@@ -391,5 +392,45 @@ describe('a state lands on the whole unit', () => {
   it('reaches the unit from the character too', () => {
     const g = apply(joined(), { type: 'applyMark', unitIds: ['c'], mark: 'worked up', label: 'worked up', source: 'Rule' })
     expect(g.units.find((u) => u.id === 'a')!.marks).toEqual(['worked up'])
+  })
+})
+
+describe('jumping a whole turn', () => {
+  it('goes to the start of the next turn in one step, and one undo', () => {
+    let g = game()
+    g = apply(g, { type: 'nextPhase' })
+    expect(g.phase).toBe('movement')
+    const undos = g.undo.length
+    g = apply(g, { type: 'nextTurn' })
+    expect([g.round, g.turn, g.phase]).toEqual([1, 'opponent', 'command'])
+    expect(g.undo.length).toBe(undos + 1)
+    g = apply(g, { type: 'undo' })
+    expect([g.round, g.turn, g.phase]).toEqual([1, 'me', 'movement'])
+  })
+
+  it('gives both players their Command phase CP exactly once on the way', () => {
+    let g = game()
+    const before = g.me.cp
+    g = apply(g, { type: 'nextTurn' })
+    expect(g.me.cp).toBe(before + 1)
+    expect(g.opponent.cp).toBe(before + 1)
+  })
+
+  it('goes back to the start of this turn first, then to the one before', () => {
+    let g = steps(game(), 7) // into the opponent's turn
+    expect([g.turn, g.phase]).toEqual(['opponent', 'shooting'])
+    g = apply(g, { type: 'prevTurn' })
+    expect([g.round, g.turn, g.phase]).toEqual([1, 'opponent', 'command'])
+    g = apply(g, { type: 'prevTurn' })
+    expect([g.round, g.turn, g.phase]).toEqual([1, 'me', 'command'])
+    // …and no further: the battle starts there.
+    expect(apply(g, { type: 'prevTurn' })).toBe(g)
+  })
+
+  it('stops at the end of the battle rather than running past it', () => {
+    let g = game()
+    for (let i = 0; i < 12; i++) g = apply(g, { type: 'nextTurn' })
+    expect(isBattleOver(g)).toBe(true)
+    expect(g.round).toBeLessThanOrEqual(LAST_ROUND + 1)
   })
 })

@@ -22,6 +22,10 @@ export type UnitStatus =
   | 'battleShocked'
   | 'advanced'
   | 'fellBack'
+  /** Made a charge move this turn — what a dozen rules ask about. */
+  | 'charged'
+  /** Arrived from reserves this turn. */
+  | 'arrived'
   | 'reserves'
   | 'deepStrike'
   | 'embarked'
@@ -30,13 +34,15 @@ export const STATUS_LABELS: Record<UnitStatus, string> = {
   battleShocked: 'Battle-shocked',
   advanced: 'Advanced',
   fellBack: 'Fell back',
+  charged: 'Charged',
+  arrived: 'Arrived',
   reserves: 'Reserves',
   deepStrike: 'Deep Strike',
   embarked: 'Embarked',
 }
 
 /** Statuses that clear at the end of the turn they were gained in. */
-export const TURN_STATUSES: readonly UnitStatus[] = ['advanced', 'fellBack']
+export const TURN_STATUSES: readonly UnitStatus[] = ['advanced', 'fellBack', 'charged', 'arrived']
 
 /**
  * One model type inside a unit — "Boy", "Boy w/ Rokkit launcha", "Nob" — with

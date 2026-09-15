@@ -112,3 +112,41 @@ describe('models with nothing to fight with', () => {
     expect(unarmed(warnings(unit))).toEqual([])
   })
 })
+
+describe('a unit that is not one of the sizes it is priced at', () => {
+  // The datasheet's own price list is the statement of what sizes exist: a
+  // squad priced at 3 models and at 6 comes in threes and sixes, and the five
+  // the owner ended up with is not a unit — it is a six that is one short,
+  // costs the same, and nothing said so.
+  const priced = (models: { models: number; points: number }[]) =>
+    [{ id: 'e-squad', name: 'Squad', pricing: [{ from: 1, costs: models }] }] as never
+
+  const sized = (n: number): Selection => {
+    const unit = instantiate(graph.resolve('e-squad')!)
+    const trooper = unit.selections.find((s) => s.name === 'Trooper')!
+    trooper.count = n
+    return unit
+  }
+
+  const sizeWarnings = (unit: Selection, sheets: unknown) => {
+    const roster = rosterOf(unit)
+    return coreChecks(roster, evaluateRoster(roster, graph), graph, sheets as never)
+      .filter((i) => /models/.test(i.message) && i.severity === 'warning')
+      .map((i) => i.message)
+  }
+
+  it('says which sizes the datasheet has', () => {
+    expect(sizeWarnings(sized(5), priced([{ models: 3, points: 80 }, { models: 6, points: 160 }]))).toEqual([
+      'Squad has 5 models; the datasheet comes in 3 or 6.',
+    ])
+  })
+
+  it('says nothing at a size the datasheet lists', () => {
+    expect(sizeWarnings(sized(6), priced([{ models: 3, points: 80 }, { models: 6, points: 160 }]))).toEqual([])
+    expect(sizeWarnings(sized(3), priced([{ models: 3, points: 80 }, { models: 6, points: 160 }]))).toEqual([])
+  })
+
+  it('says nothing when the device has no price list to compare against', () => {
+    expect(sizeWarnings(sized(5), [{ id: 'e-squad', name: 'Squad' }])).toEqual([])
+  })
+})

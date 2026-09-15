@@ -200,6 +200,24 @@
   opacity: 0.65;
 }
 
+/* The whole rule, on demand. */
+.reminders__full {
+  margin: 0.1rem 0 0.25rem 1.75rem;
+}
+.reminders__more {
+  min-height: 32px;
+  padding: 0 0.2rem;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.8125rem;
+}
+.reminders__ruleText {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
 /* Applying a state a rule grants, from the rule itself. */
 .reminders__grant {
   display: flex;

@@ -3,7 +3,7 @@ import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
 import { groupModes, loadoutByModel, weaponCounts } from '@/play/weapons'
-import { attachedFamily, detachmentRulesFor, effectsForUnit } from '@/play/unitEffects'
+import { attachedFamily, detachmentRulesFor, effectsForUnit, situationsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { StatStrip } from './StatStrip'
 import { WeaponTable } from './WeaponTable'
@@ -226,13 +226,24 @@ export function GameUnitSheet({
   const loadout = loadoutByModel(unit, sheet)
   // A unit and the characters attached to it are one unit: an enhancement that
   // gives "this unit" a 4+ save gives it to all of them.
+  const family = attachedFamily(unit, game.units, sheets)
   const { grants, mods } = effectsForUnit({
     unit,
     sheet,
     catalogue,
     detachmentNames: game.detachmentNames,
     marks,
-    attached: attachedFamily(unit, game.units, sheets),
+    attached: family,
+  })
+  // The things that happened to this unit this turn which its own rules react
+  // to — and only those, so the row is short enough to be read at the table.
+  const situations = situationsForUnit({
+    unit,
+    sheet,
+    catalogue,
+    detachmentNames: game.detachmentNames,
+    marks,
+    attached: family,
   })
   const single = unit.models.length === 1 && unit.models[0]!.total === 1 ? unit.models[0] : undefined
 
@@ -328,6 +339,27 @@ export function GameUnitSheet({
               </div>
             )),
           )}
+        </section>
+      )}
+
+      {situations.length > 0 && (
+        <section className="marks" aria-label="What happened this turn">
+          <div className="marks__row">
+            <span className="muted marks__lead">This turn</span>
+            {situations.map((situation) => {
+              const on = unit.statuses.includes(situation.status)
+              return (
+                <button
+                  key={situation.status}
+                  className={`chip chip--toggle ${on ? 'chip--on' : ''}`}
+                  aria-pressed={on}
+                  onClick={() => dispatch({ type: 'toggleStatus', unitId: unit.id, status: situation.status })}
+                >
+                  {situation.label}
+                </button>
+              )
+            })}
+          </div>
         </section>
       )}
 

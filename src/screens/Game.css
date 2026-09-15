@@ -54,6 +54,8 @@
 .tracker__nav {
   grid-column: 1 / -1;
   display: grid;
+  /* Phase steps on the top row, where the thumb goes; the whole-turn jumps
+     under them, smaller, because they are the rarer move. */
   grid-template-columns: 1fr 2fr;
   gap: 0.5rem;
 }
@@ -61,6 +63,15 @@
 .tracker__btn {
   min-height: 56px;
   font-size: 1.125rem;
+}
+
+.tracker__btn--turn {
+  min-height: 44px;
+  font-size: 0.9375rem;
+}
+
+.tracker__btn--turn:first-of-type {
+  grid-column: 1;
 }
 
 .score {
@@ -551,6 +562,10 @@
 }
 .marks__save {
   margin: 0.5rem 0 0.25rem;
+}
+.marks__lead {
+  align-self: center;
+  font-size: 0.85rem;
 }
 .marks__lasts {
   display: flex;

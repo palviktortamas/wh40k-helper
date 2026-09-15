@@ -42,7 +42,7 @@ async function rosterStates(record: CatalogueRecord): Promise<RosterState[]> {
   return (await listRosters())
     .filter((r) => r.catalogueId === record.id)
     .map((r) => {
-      const v = validate(normaliseRoster(r, graph), graph)
+      const v = validate(normaliseRoster(r, graph), graph, record.parsed.datasheets)
       return { id: r.id, name: r.name, points: v.points, errors: v.errors.length }
     })
 }

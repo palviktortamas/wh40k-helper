@@ -23,6 +23,7 @@
  */
 
 import { clausesOf, conditionOf, subjectIn, subjectOf, unbold, type GrantingRule } from './grants'
+import { conditionMet } from './conditions'
 
 /** Where a modifier lands. */
 export type ModTarget = 'unit' | 'ranged' | 'melee' | 'any'
@@ -253,11 +254,7 @@ export const isLive = (mod: StatMod): boolean => !mod.when || mod.met === true
 
 /** Marks the modifiers whose condition is a state the unit is already in. */
 export const resolveMods = (mods: readonly StatMod[], activeStates: readonly string[]): StatMod[] =>
-  mods.map((mod) =>
-    mod.when && activeStates.some((state) => mod.when!.toLowerCase().includes(state.toLowerCase()))
-      ? { ...mod, met: true }
-      : mod,
-  )
+  mods.map((mod) => (mod.when && conditionMet(mod.when, activeStates) ? { ...mod, met: true } : mod))
 
 /** The modifiers that land on one characteristic of one thing. */
 export const modsFor = (mods: readonly StatMod[], target: ModTarget, stat: string): StatMod[] =>

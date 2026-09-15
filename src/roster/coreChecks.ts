@@ -9,6 +9,7 @@
  * mistake yields one message.
  */
 
+import type { Datasheet } from '@/data/model'
 import type { EvaluationResult } from './evaluate'
 import type { CatalogueGraph } from './resolve'
 import type { Roster, ValidationIssue } from './types'
@@ -44,12 +45,31 @@ function unarmedModels(
   return [...found].map(([name, count]) => ({ name, count }))
 }
 
+/**
+ * The sizes a datasheet actually comes in, from the price list the sources
+ * publish: "3 models … 80 pts, 6 models … 160 pts" *is* the statement that the
+ * unit comes in threes and sixes. The constraint graph cannot say it — BSData
+ * writes that squad as a 3-to-6 group, so four and five pass every check, cost
+ * the six-model price, and field one model short with nothing said.
+ *
+ * Absent on a device that has not downloaded the points mirror, in which case
+ * there is nothing to compare against and nothing is claimed.
+ */
+const sizesOf = (sheet: Datasheet | undefined): number[] =>
+  (sheet?.pricing?.[0]?.costs ?? []).map((cost) => cost.models).filter((n) => n > 0)
+
+const listSizes = (sizes: readonly number[]): string =>
+  sizes.length === 1 ? `${sizes[0]}` : `${sizes.slice(0, -1).join(', ')} or ${sizes[sizes.length - 1]}`
+
 export function coreChecks(
   roster: Roster,
   evaluation: EvaluationResult,
   graph: CatalogueGraph,
+  /** The installed datasheets, when the caller has them: only the size check needs them. */
+  sheets: readonly Datasheet[] = [],
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = []
+  const sheetOf = new Map(sheets.map((sheet) => [sheet.id, sheet]))
 
   if (evaluation.points > roster.pointsLimit && !evaluation.pointsLimitChecked) {
     issues.push({
@@ -127,6 +147,22 @@ export function coreChecks(
           .map(({ name, count }) => `${count}× ${name}`)
           .join(', ')} ${empty.length === 1 && empty[0]!.count === 1 ? 'has' : 'have'} no weapons or wargear chosen.`,
         rule: 'Housekeeping',
+      })
+    }
+
+    // A unit one model short of a size the datasheet offers.
+    for (const unit of roster.selections) {
+      const sizes = sizesOf(sheetOf.get(unit.entryId))
+      if (sizes.length === 0) continue
+      const models = unit.selections
+        .filter((s) => s.type === 'model')
+        .reduce((sum, s) => sum + s.count, 0)
+      if (models === 0 || sizes.includes(models)) continue
+      issues.push({
+        severity: 'warning',
+        selectionId: unit.id,
+        message: `${unit.name} has ${models} models; the datasheet comes in ${listSizes(sizes)}.`,
+        rule: 'Core Rules — Unit composition',
       })
     }
 

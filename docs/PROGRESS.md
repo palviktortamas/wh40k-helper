@@ -1390,6 +1390,75 @@ unchanged), and `INV 5+*` in the temporary colour on the Big Mek and the Painboy
 
 ---
 
+## Done 2026-09-15 (later) - four from the table
+
+Owner, after building and playing: warn when a unit is not a whole unit (five Deffkoptas instead of
+six, and nothing said); the Adrenaline Junkies reminder leaves out the important half; give me a
+next/previous **turn** button; and give me toggles — charged, advanced, fell back, embarked,
+arrived — that actually change the unit's numbers, hiding the ones no rule on that unit reacts to.
+
+### A unit that is not one of the sizes it comes in
+
+BSData writes a squad of three-or-six as a 3-to-6 group, so four and five pass every constraint —
+and cost the six-model price while fielding one model short. The statement of what sizes exist is
+the **price list**: "3 models … 80 pts, 6 models … 160 pts" *is* the composition. `coreChecks` now
+warns when a unit's model count is not one of them ("Deffkoptas has 5 models; the datasheet comes
+in 3 or 6"), and says nothing on a device that has not downloaded the points mirror. `validate()`
+takes the datasheets for it; every screen that validates passes them.
+
+A single-model datasheet has no model selections at all, which is why the check skips a count of
+zero rather than warning about every character in the army.
+
+### A reminder has to say what to do, not only when
+
+"Adrenaline Junkies" is a moment as a **heading** with its content in the bullets under it, and the
+summary quoted the heading: *when* something happens and not *what*. The summary now carries the
+clauses its moment governs, stopping only at a clause that states a phase of its own — a
+consequence names phases freely ("…have [ASSAULT] until the end of the turn"), and breaking on that
+put it right back at the heading. The cap for a summary is 240 characters where a one-liner is 140;
+two short lines on a phone.
+
+And every reminder whose rule says more than its summary now has **▸ the whole rule** under it. At
+the table that is sometimes the only thing that settles an argument, and it was three taps away in
+Settings.
+
+### A whole turn at a time
+
+`nextTurn` / `prevTurn` step every phase internally — the Command phase CP, the turn-scoped
+statuses and the states that lapse all happen exactly as they would one tap at a time — but as one
+undo step. "Back" goes to the start of the current turn first and to the previous turn from there,
+the way a track skips back. Two smaller buttons under the phase pair, which stays where the thumb
+is.
+
+### Situations: the toggles that change the numbers (`src/play/situations.ts`)
+
+The app tracked *Advanced* and *Fell back* and did nothing with them: a rule reading "if this unit
+made a charge move this turn, [LETHAL HITS]" kept its `*` and its grey chip whatever the player
+ticked. Now:
+
+- Two statuses were missing and are core-rules situations: **Charged** and **Arrived** (the
+  `arrive` action sets the latter). Both clear at the end of the turn with the others.
+- Each situation carries the **phrases the rules are written in** ("made a charge move",
+  "advance/fall-back", "arrives from"). Switching one on adds those phrases to the states the
+  effects resolve against, so the conditional grant goes live, the `*` disappears and the legend
+  says "— now". Verified at the table view: toggling Charged turns the mob's `[LETHAL HITS]*` into
+  `[LETHAL HITS]`.
+- `situationsForUnit` offers **only the situations that unit's own rules react to**, read from
+  every rule that reaches it — its datasheet, the detachments the army took, its enhancements, its
+  states, and its attached family's. On the fixtures: Necrons 31 of 68 datasheets offer one (most
+  of them none), Orks 73 of 74 — because the Ork army rule itself is about advancing, which is a
+  property of the codex and not a bug. What the live test holds is that the row *discriminates*: a
+  unit whose rules mention none is offered none, and no unit is ever offered the whole list.
+- A situation belongs to the whole attached unit, like a state: the mob charged, so the Leader in
+  it charged.
+
+**And conditions are now read with a negation guard** (`play/conditions.ts`). Half a codex is
+written "if this unit is **not** battle-shocked"; a plain substring test turned every one of those
+live at exactly the wrong moment. A negation counts only when it sits right in front of the mention
+— widen the window and an unrelated "not" earlier in the clause swallows the mention after it.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

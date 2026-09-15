@@ -193,7 +193,7 @@ function RosterCard({
   // Validation is cheap enough to run per card, and the badge is the whole point.
   // Older rosters are normalised in memory only; the editor saves the upgrade.
   const validation = catalogue
-    ? validate(normaliseRoster(roster, graphFor(catalogue)), graphFor(catalogue))
+    ? validate(normaliseRoster(roster, graphFor(catalogue)), graphFor(catalogue), catalogue.parsed.datasheets)
     : undefined
   const detachment = validation?.detachments.map((d) => d.name).join(' + ')
 

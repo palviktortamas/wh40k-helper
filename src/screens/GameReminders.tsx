@@ -5,6 +5,8 @@ import { PHASE_LABELS, type Game } from '@/play/types'
 import { doneKey, isDone, remindersForGame, showsNow } from '@/reminders/derive'
 import { discoverMarks, grantedMarks, type Grant } from '@/play/marks'
 import { DURATIONS } from '@/play/duration'
+import { plainText } from '@/reminders/heuristics'
+import { Marked } from './Marked'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import type { Reminder, ReminderOverride } from '@/reminders/types'
 import './Reminders.css'
@@ -113,6 +115,11 @@ export function GameReminders({
                         {r.text && r.text !== r.sourceName && <span className="reminders__text">{r.text}</span>}
                       </span>
                     </label>
+                    {/* The summary says when and what; the rule itself says it
+                        exactly, and at the table that is sometimes the only
+                        thing that settles an argument. One tap, never a
+                        navigation. */}
+                    <FullRule text={abilityText.get(r.id) ?? ''} summary={r.text} />
                     {grantsOf(r).map((grant) => (
                       <MarkGrant
                         key={grant.mark.key}
@@ -136,6 +143,26 @@ export function GameReminders({
   )
 }
 
+
+/** The whole rule, behind a chevron, for when the one-liner is not enough. */
+function FullRule({ text, summary }: { text: string; summary: string }) {
+  const [open, setOpen] = useState(false)
+  const plain = plainText(text)
+  // Nothing to expand when the summary already is the rule.
+  if (!plain || plain.length <= summary.length + 4) return null
+  return (
+    <div className="reminders__full">
+      <button className="reminders__more" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open ? '▾ less' : '▸ the whole rule'}
+      </button>
+      {open && (
+        <p className="reminders__ruleText">
+          <Marked text={text} />
+        </p>
+      )}
+    </div>
+  )
+}
 
 /**
  * The control that actually applies a state a rule grants. Which units a rule

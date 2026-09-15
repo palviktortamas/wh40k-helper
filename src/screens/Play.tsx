@@ -53,7 +53,7 @@ export function Play() {
     if (!roster || !catalogue) return undefined
     const graph = graphFor(catalogue)
     const normalised = normaliseRoster(roster, graph)
-    return { roster: normalised, catalogue, validation: validate(normalised, graph) }
+    return { roster: normalised, catalogue, validation: validate(normalised, graph, catalogue.parsed.datasheets) }
   }, [rosterId, rosters, catalogues])
 
   const start = async () => {

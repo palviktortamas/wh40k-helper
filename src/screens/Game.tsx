@@ -41,7 +41,16 @@ import './Rosters.css'
 import './Game.css'
 import './Units.css'
 
-const STATUSES: UnitStatus[] = ['battleShocked', 'advanced', 'fellBack', 'reserves', 'deepStrike', 'embarked']
+const STATUSES: UnitStatus[] = [
+  'battleShocked',
+  'advanced',
+  'fellBack',
+  'charged',
+  'arrived',
+  'reserves',
+  'deepStrike',
+  'embarked',
+]
 
 /**
  * The table screen (spec §6.2–6.3): round and phase tracker, CP/VP for both
@@ -239,6 +248,24 @@ export function Game() {
               Next ›
             </button>
           )}
+          {/* A whole turn at a time, for the turns where nothing of yours
+              happens: five taps to hand the turn over is four too many. */}
+          <button
+            className="button button--quiet tracker__btn tracker__btn--turn"
+            onClick={() => dispatch({ type: 'prevTurn' })}
+            disabled={game.round === 1 && game.turn === game.firstTurn && game.phase === 'command'}
+            aria-label="Back to the start of the turn"
+          >
+            ‹‹ Turn
+          </button>
+          <button
+            className="button button--quiet tracker__btn tracker__btn--turn"
+            onClick={() => dispatch({ type: 'nextTurn' })}
+            disabled={over}
+            aria-label="Skip to the next turn"
+          >
+            Turn ››
+          </button>
         </div>
       </div>
 
