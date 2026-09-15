@@ -32,3 +32,23 @@ describe('conditionMet', () => {
     ).toBe(true)
   })
 })
+
+describe('conditions the app can answer itself', () => {
+  it('counts the models rather than asking the player to', () => {
+    // "While this unit contains 10 or more models" is not a toggle: the app
+    // knows exactly how many are left, and it changes as they die.
+    expect(conditionMet('while this unit contains 10 or more models', [], { models: 20 })).toBe(true)
+    expect(conditionMet('while this unit contains 10 or more models', [], { models: 9 })).toBe(false)
+    // Without the count it stays a condition rather than becoming a guess.
+    expect(conditionMet('while this unit contains 10 or more models', [])).toBe(false)
+  })
+
+  it('knows whether the model is leading a unit', () => {
+    expect(conditionMet('while this model is leading a unit', [], { leading: true })).toBe(true)
+    expect(conditionMet('while this model is leading a unit', [], { leading: false })).toBe(false)
+  })
+
+  it('is not fooled by the negative of either', () => {
+    expect(conditionMet('while this model is not leading a unit', [], { leading: true })).toBe(false)
+  })
+})

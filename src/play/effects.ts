@@ -10,10 +10,16 @@
 
 import { resolveGrants, weaponGrants, type GrantingRule, type WeaponGrant } from './grants'
 import { resolveMods, statMods, type StatMod } from './mods'
+import type { Facts } from './conditions'
 
 export type Effects = { grants: WeaponGrant[]; mods: StatMod[] }
 
-export const effectsFrom = (rules: readonly GrantingRule[], states: readonly string[] = []): Effects => ({
-  grants: resolveGrants(weaponGrants(rules), states),
-  mods: resolveMods(statMods(rules), states),
+export const effectsFrom = (
+  rules: readonly GrantingRule[],
+  states: readonly string[] = [],
+  /** What the app can answer without being told — the model count, and whether it leads. */
+  facts: Facts = {},
+): Effects => ({
+  grants: resolveGrants(weaponGrants(rules), states, facts),
+  mods: resolveMods(statMods(rules), states, facts),
 })

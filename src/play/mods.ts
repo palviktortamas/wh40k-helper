@@ -25,7 +25,7 @@
  */
 
 import { clausesOf, conditionOf, subjectIn, subjectOf, unbold, type GrantingRule } from './grants'
-import { conditionMet } from './conditions'
+import { conditionMet, type Facts } from './conditions'
 
 /** Where a modifier lands. */
 export type ModTarget = 'unit' | 'ranged' | 'melee' | 'any'
@@ -295,8 +295,12 @@ export function statMods(rules: readonly GrantingRule[]): StatMod[] {
 export const isLive = (mod: StatMod): boolean => !mod.when || mod.met === true
 
 /** Marks the modifiers whose condition is a state the unit is already in. */
-export const resolveMods = (mods: readonly StatMod[], activeStates: readonly string[]): StatMod[] =>
-  mods.map((mod) => (mod.when && conditionMet(mod.when, activeStates) ? { ...mod, met: true } : mod))
+export const resolveMods = (
+  mods: readonly StatMod[],
+  activeStates: readonly string[],
+  facts: Facts = {},
+): StatMod[] =>
+  mods.map((mod) => (mod.when && conditionMet(mod.when, activeStates, facts) ? { ...mod, met: true } : mod))
 
 /**
  * A modifier to the hit roll, as the skill cell reads it.

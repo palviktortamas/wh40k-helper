@@ -312,3 +312,25 @@ describe('an optional ability', () => {
     expect(hit[0]!.when).toBeUndefined()
   })
 })
+
+describe('conditions the unit itself answers', () => {
+  const counted = {
+    ...catalogue,
+    datasheets: [
+      sheet('ds-mob', 'Mob', [
+        { id: 'a-mob', name: 'Weight of Numbers', text: 'While this unit contains 10 or more models, this unit has +1 **OC**.' },
+      ]),
+      sheet('ds-boss', 'Boss'),
+    ],
+  } as unknown as ParsedCatalogue
+
+  const withModels = (alive: number) =>
+    ({ ...mob, models: [{ id: 'g', name: 'Boy', total: 20, alive, wounds: 1, currentWounds: 1, weapons: [] }] }) as unknown as GameUnit
+
+  it('counts the models rather than waiting for a toggle', () => {
+    const big = effectsForUnit({ unit: withModels(20), sheet: counted.datasheets[0]!, catalogue: counted, detachmentNames: [] })
+    expect(big.mods.find((m) => m.stat === 'OC')?.met).toBe(true)
+    const small = effectsForUnit({ unit: withModels(9), sheet: counted.datasheets[0]!, catalogue: counted, detachmentNames: [] })
+    expect(small.mods.find((m) => m.stat === 'OC')?.met).toBeUndefined()
+  })
+})

@@ -61,3 +61,17 @@ describe('what a switched-on situation means to a condition', () => {
     expect(activePhrases([])).toEqual([])
   })
 })
+
+describe('the rules’ own word for arriving', () => {
+  it('reads an ingress move as arriving', () => {
+    // "In your Shooting phase, if this unit made an ingress move this turn,
+    // +1 to hit rolls" is the shape; a toggle that does not know the word
+    // "ingress" can never satisfy it.
+    expect(
+      situationsIn(['if this unit made an **ingress move** this turn, …'])
+        .filter((s) => !s.always)
+        .map((s) => s.status),
+    ).toEqual(['arrived'])
+    expect(activePhrases(['arrived'])).toContain('ingress move')
+  })
+})

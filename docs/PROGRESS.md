@@ -1582,6 +1582,40 @@ put into effect it reads **4+** with "+1 to hit"; taken off again it is back to 
 
 ---
 
+### Ingress is what the rules call arriving (2026-09-15, last +2)
+
+Owner: "Deff from Above is still not adding the +to hit."
+
+The modifier was read correctly and could never come true. The rule is "In your Shooting phase, if
+this unit made an **ingress move** this turn, this unit's ranged attacks have +1 to hit rolls" —
+and the Arrived situation's vocabulary knew "arrives from strategic reserves" and not the word the
+core rules actually use for it (20.04, an *ingress move*). So the Deffkoptas were offered no toggle
+that could satisfy the condition. The situation now knows both, and is labelled **Arrived /
+ingress** so the connection is visible rather than inferred.
+
+**Then the census, instead of waiting to be told the next one.** Every condition on every mod and
+grant of both fixture factions, filtered to those no toggle can satisfy: Necrons 9, Orks 17. Most
+are correct — the marks answer "while this unit is riled up", `inEffect` answers "if you do", an
+aura's "within 6\"" is a judgement only the player can make. Two were the app refusing to answer a
+question it already knows the answer to, and those are now facts rather than toggles
+(`conditions.ts`):
+
+- **"while this unit contains 10 or more models"** — the app knows exactly how many are alive, and
+  it changes as they die. A toggle here would ask the player to keep a switch in step with the
+  model count, which is asking them to be the bug.
+- **"while this model is leading a unit"** — it knows that too.
+
+Both respect the negation guard, and both stay conditional when the fact is unknown rather than
+guessing.
+
+**Still unanswered, deliberately** (the next session's candidates): "while a model's remaining
+wounds are equal to or less than X" (15 rules on Orks — the damaged profile, which the app tracks
+separately), auras, and "in your Shooting phase" as a *partial* condition — the tracker knows the
+phase, but half-satisfying a two-part condition would light up a rule whose other half does not
+hold, which is worse than leaving it marked.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

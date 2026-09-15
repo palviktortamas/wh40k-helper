@@ -54,8 +54,18 @@ export const SITUATIONS: readonly Situation[] = [
   { status: 'embarked', label: 'Embarked', phrases: ['embarked within', 'is embarked', 'while embarked'] },
   {
     status: 'arrived',
-    label: 'Arrived',
-    phrases: ['arrives from', 'arrived from', 'arrives as reinforcements', 'set up as reinforcements'],
+    // The rules' own word for arriving is an *ingress move*, and a rule that
+    // keys on it ("if this unit made an ingress move this turn, +1 to hit")
+    // could not be satisfied by a toggle called anything else.
+    label: 'Arrived / ingress',
+    phrases: [
+      'ingress move',
+      'makes an ingress',
+      'arrives from',
+      'arrived from',
+      'arrives as reinforcements',
+      'set up as reinforcements',
+    ],
   },
   {
     status: 'battleShocked',

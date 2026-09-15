@@ -20,6 +20,7 @@ import { isBackReference, type GrantingRule, type WeaponGrant } from './grants'
 import { rulesAboutMark, type Mark } from './marks'
 import type { StatMod } from './mods'
 import { activePhrases, situationsIn, type Situation } from './situations'
+import type { Facts } from './conditions'
 import type { ActiveRule, GameUnit, UnitStatus } from './types'
 
 /** The rules a detachment the army took grants to a unit it names. */
@@ -87,13 +88,13 @@ type Context = {
  * this ability. If you do, …") has that choice *made* by being put into effect,
  * so its back-reference condition is satisfied and nothing else can satisfy it.
  */
-function effectsOfActive(member: Member, active: readonly string[]): Effects {
+function effectsOfActive(member: Member, active: readonly string[], facts: Facts): Effects {
   const rules = (member.inEffect ?? []).map((rule) => ({
     name: rule.name,
     text: rule.text,
     source: rule.source,
   }))
-  const { grants, mods } = effectsFrom(rules, active)
+  const { grants, mods } = effectsFrom(rules, active, facts)
   const settled = <T extends { when?: string; met?: boolean }>(effect: T): T => {
     if (!effect.when || !isBackReference(effect.when)) return effect
     const { when: _dropped, ...rest } = effect
@@ -238,6 +239,13 @@ export function effectsForUnit({
     ...new Set([...(unit.statuses ?? []), ...attached.flatMap((m) => m.statuses ?? [])]),
   ]
   const active = [...held, ...activePhrases(situations)]
+  // What the app can answer for itself: how many models are still alive, and
+  // whether this model is leading a unit. A condition it can settle must never
+  // be a toggle — the count changes as models die.
+  const facts: Facts = {
+    models: unit.models?.reduce((sum, group) => sum + group.alive, 0) ?? 0,
+    leading: Boolean(unit.leaderOf),
+  }
   const self: Member = {
     name: unit.name,
     sheet,
@@ -245,8 +253,8 @@ export function effectsForUnit({
     marks: held,
     inEffect: unit.inEffect ?? [],
   }
-  const printed = effectsFrom(rulesFor(self, context), active)
-  const activated = effectsOfActive(self, active)
+  const printed = effectsFrom(rulesFor(self, context), active, facts)
+  const activated = effectsOfActive(self, active, facts)
   const own = merge(printed, activated)
 
   const grants = [...own.grants]
@@ -258,8 +266,8 @@ export function effectsForUnit({
     // What the attached model's own rules do for it alone is on its own sheet;
     // here only what they do for the unit it is part of.
     const theirs = merge(
-      effectsFrom(rulesFor({ ...member, marks: held }, context), active),
-      effectsOfActive(member, active),
+      effectsFrom(rulesFor({ ...member, marks: held }, context), active, facts),
+      effectsOfActive(member, active, facts),
     )
     for (const grant of theirs.grants) {
       if (grant.subject !== 'unit' || seenGrants.has(grantKey(grant))) continue
