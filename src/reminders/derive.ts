@@ -137,3 +137,28 @@ export function isDone(reminder: Reminder, game: Game, unit?: GameUnit): boolean
   if (game.remindersDone?.[doneKey(reminder, game)]) return true
   return reminder.once === 'battle' && Boolean(unit?.usedOnce.includes(reminder.id))
 }
+
+/** One rule as it appears at the table, with every unit it belongs to. */
+export type RuleGroup = {
+  /** The reminder the group is named and read from. */
+  first: Reminder
+  /** Every occurrence, one per owner, in the order they were listed. */
+  members: Reminder[]
+}
+
+/**
+ * The same ability on three copies of a datasheet is one rule to read and
+ * three boxes to tick, not three paragraphs. Grouped by owner kind and rule
+ * id, so an army rule and a unit rule that share an id stay apart; the order
+ * is that of first appearance.
+ */
+export function groupByRule(reminders: readonly Reminder[]): RuleGroup[] {
+  const groups = new Map<string, RuleGroup>()
+  for (const reminder of reminders) {
+    const key = `${reminder.owner}:${reminder.id}`
+    const group = groups.get(key)
+    if (group) group.members.push(reminder)
+    else groups.set(key, { first: reminder, members: [reminder] })
+  }
+  return [...groups.values()]
+}

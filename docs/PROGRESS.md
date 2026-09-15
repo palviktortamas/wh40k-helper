@@ -27,6 +27,7 @@ what was learned that the spec could not have predicted, and what comes next.
 | 12 | Unarmed models, and moving around the game screen | **built 2026-09-14** — warning + one-tap repair for models with no wargear, empty loadouts no longer collapsed, jump rail in play, army-list scroll restored when a unit sheet closes |
 | 13 | Phone ergonomics | **built 2026-09-14** — conditional modifiers no longer rewrite a number (or invent an invulnerable save), stat lines stay on one line, the roster summary condenses when stuck, the back control is always in reach |
 | 14 | Detachment budget, battle sizes, custom points | **built 2026-09-14** — one detachment is always legal whatever its DP, the budget binds from the second on; presets are 1000/2000/3000 with a typed custom limit |
+| 15 | Phone round: one screenful at a time | **built 2026-09-15** — the game screen is five tabs under a sticky phase strip, reminders grouped by rule, stratagem rows folded, roster cards down to one corner control, settled wargear stated in a line |
 
 ---
 
@@ -1616,12 +1617,78 @@ hold, which is worse than leaving it marked.
 
 ---
 
+## Done 2026-09-15 (last +3) - one screenful at a time
+
+Owner: "too cluttered, easy to get lost; in Play Mode the page is too long." Measured first, in
+headless Chrome at 390 px on the owner's own six-unit roster: the game screen was **5,569 px**
+tall — reminders 1,516, stratagems 1,408, the army 1,512, the score 323 — and the roster editor
+2,864, the unit editor for a 20-Boy mob 6,568. Everything below is screenshots-before,
+screenshots-after; the recipe is unchanged (persistent profile `profile-orks`, dev server on 5173).
+
+### The game screen is tabs (`Game.tsx`, `.gametabs`)
+
+The jump bar scrolled a very long page. Now there is no long page: **Turn / Cues / Mission /
+Strats / Army** are tabs, one on screen at a time, each with a count (cues due this phase,
+stratagems timed for it, units standing, Battle-shock tests waiting — amber). Above them a slim
+strip that is always there: `‹ Play`, "Round 2/5 · your turn / Shooting phase", and **Next ›** —
+so the turn moves on from whichever tab is open. The Turn tab keeps the full tracker (Prev, both
+Turn jumps), the score, Battle-shock, Undo, the log. Heights after: Turn 805, Cues ~1,050, Strats
+741, Army 1,562 (the army was already its own thing; the tabs simply stop it sharing the page).
+Switching a tab scrolls to the top; the tab survives opening a unit sheet, because it is state on
+the same component. The same layout at 1280 px, on purpose — one screen to learn.
+
+`JumpBar` stays for the roster editor, whose sections are worth scrolling between.
+
+### One rule, however many units carry it (`reminders/derive.ts` `groupByRule`)
+
+Three Boyz mobs with Ammo Runts were three copies of the paragraph, each with its own "the whole
+rule" and its own "Put it in effect" button. Grouped by owner kind and rule id (an army rule and a
+unit rule that share an id stay apart), a rule is read once and ticked per unit: a row per member
+with its box and its own **Put in effect** chip, so what is on Boyz #2 and not on Boyz #1 stays
+legible. A single-owner rule keeps the box on its heading with the owner as a small tag; the
+per-owner section headings are gone. Tested on invented reminders (`derive.test.ts`).
+
+### Stratagem rows fold (`GameStratagems.tsx`)
+
+Folded: CP · name · the target on one clipped line · **Use**. The timing line shows only when it
+is not implied (the All view, or a row not timed for this phase). Expanded: the **Use on** unit
+picker, When, Effect, Restrictions, legend. Use reads "Use on…" once a unit is picked and says
+which in its title. Four stratagems are four rows now.
+
+### Roster cards are units again (`RosterEditor.tsx`, `.units__dots`)
+
+Edit / Warlord / Remove / arrows / the Attach select were a second card under every card. The
+card is tap-to-edit, with one **⋯** in its top-right corner opening a panel: the attach control
+(with Detach), Make Warlord, Remove. "Leads X" / "Joined by" stay on the card as a quiet line;
+the order arrows appear only in the "My order" view, where they are the point. Export moved up
+beside the Limit so the toolbar (Add unit + view switch) is one row. 2,864 → 2,081 px.
+
+### Settled wargear is stated, not offered (`UnitEditor.tsx` `PlainGroup`)
+
+A Boy's Choppa · Slugga · Shoota were three "included" rows under every model group of every mob.
+A group whose every entry is taken, childless and without rules text of its own — the option
+tree's direct group when every entry is a fixed loadout, or a group editor of shape `all` — is one
+line: "Wargear — included: Choppa · Slugga · Shoota". Anything with something to read or step into
+keeps its rows. The mob's editor: 6,568 → 6,349; the rest of that height is the two-column data
+of a 20-model unit with six special-weapon rows, which is the unit.
+
+### Also
+
+- The unit card at the table had two buttons opening the same panel ("Remove models…" and
+  "More…"); one remains. The transport's Embark select moved into that panel.
+- Verified: `npm test` with both fixture factions (405 passing), typecheck, build, `check:data`.
+
+---
+
 ## Next
 
 ### Step 1 - a session on the owner's phone
 
-Still the top item. The multi-detachment picker and the per-detachment stratagem headings have
-only been seen at 390×844 in headless Chrome, never under a thumb; the detachment list is now
+Still the top item. The tabbed game screen (2026-09-15), the grouped reminders and the roster
+cards' corner control have only been seen at 390×844 in headless Chrome, never under a thumb —
+in particular whether the sticky strip's **Next** is what gets pressed at the table, and whether
+the Cues count on the tab is enough of a nudge once the panel is no longer in the scroll path.
+The multi-detachment picker and the per-detachment stratagem headings likewise; the detachment list is now
 twelve rows on Necrons, which is the first screen here that may want scrolling on a phone.
 
 **Done in headless Chrome (2026-09-13, evening), not yet on a phone.** A Playwright-core driver

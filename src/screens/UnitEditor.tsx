@@ -453,7 +453,9 @@ export function OptionTree({
             texts={texts}
           />
         ))}
-      {direct.length > 0 && (
+      {direct.length > 0 && isPlain(parent, direct, undefined, texts) && direct.every(isFixedLoadout) ? (
+        <PlainGroup name="Wargear" parent={parent} entries={direct} groupId={undefined} />
+      ) : direct.length > 0 && (
         <div className="group">
           <div className="group__head">
             <h3>{direct.some((c) => c.type === 'model') ? 'Models' : 'Options'}</h3>
@@ -528,6 +530,10 @@ function GroupEditor({
 
   if (candidates.length === 0 && nested.length === 0) return null
 
+  // Wargear the datasheet simply gives the model is a fact, not a form.
+  if (shape === 'all' && nested.length === 0 && isPlain(parent, candidates, group.id, texts))
+    return <PlainGroup name={group.name} parent={parent} entries={candidates} groupId={group.id} />
+
   return (
     <div className={`group ${groupFull ? 'group--full' : ''}`}>
       <div className="group__head">
@@ -586,6 +592,52 @@ function GroupEditor({
           texts={texts}
         />
       ))}
+    </div>
+  )
+}
+
+/**
+ * Nothing here to choose or step into: every entry is taken, childless and
+ * without rules text of its own. Such a group is stated in one line rather
+ * than offered as a row of "included" per weapon — a Boy's three weapons were
+ * three 44 px rows, under every model group of every mob.
+ */
+const isPlain = (
+  parent: Selection,
+  entries: readonly ResolvedEntry[],
+  groupId: string | undefined,
+  texts: Map<string, string> | undefined,
+): boolean =>
+  entries.length > 0 &&
+  entries.every(
+    (c) => c.entries.length + c.groups.length === 0 && !texts?.get(c.id) && countOf(parent, c, groupId) > 0,
+  )
+
+function PlainGroup({
+  name,
+  parent,
+  entries,
+  groupId,
+}: {
+  name: string
+  parent: Selection
+  entries: readonly ResolvedEntry[]
+  groupId: string | undefined
+}) {
+  return (
+    <div className="group group--plain">
+      <div className="group__head">
+        <h3>{name}</h3>
+        <span className="group__count">included</span>
+      </div>
+      <p className="group__plainList">
+        {entries
+          .map((c) => {
+            const n = countOf(parent, c, groupId)
+            return `${n > 1 ? `${n}× ` : ''}${c.name}`
+          })
+          .join(' · ')}
+      </p>
     </div>
   )
 }

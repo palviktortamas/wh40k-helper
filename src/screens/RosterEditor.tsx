@@ -333,6 +333,23 @@ export function RosterEditor() {
           value={roster.pointsLimit}
           onChange={(points) => update(withBattleSize({ ...roster, pointsLimit: points }, graph))}
         />
+        <button
+          className="button button--quiet"
+          onClick={async () => {
+            const text = exportRosterText(roster, graph, validation, catalogue.name)
+            try {
+              await navigator.clipboard.writeText(text)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 2000)
+            } catch {
+              // Clipboard is blocked in some mobile contexts; showing the text
+              // is more useful than an error the user cannot act on.
+              alert(text)
+            }
+          }}
+        >
+          {copied ? 'Copied' : 'Export text'}
+        </button>
       </div>
 
       {/* Twelve detachments is a long list to scroll past once the choice is
@@ -590,24 +607,7 @@ export function RosterEditor() {
         >
           + Add unit
         </button>
-        <button
-          className="button button--quiet"
-          onClick={async () => {
-            const text = exportRosterText(roster, graph, validation, catalogue.name)
-            try {
-              await navigator.clipboard.writeText(text)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 2000)
-            } catch {
-              // Clipboard is blocked in some mobile contexts; showing the text
-              // is more useful than an error the user cannot act on.
-              alert(text)
-            }
-          }}
-        >
-          {copied ? 'Copied' : 'Export text'}
-        </button>
-        <div className="segmented" role="group" aria-label="Arrange units">
+        <div className="segmented segmented--small" role="group" aria-label="Arrange units">
           <button className={view === 'role' ? 'segmented--on' : ''} aria-pressed={view === 'role'} onClick={() => changeView('role')}>
             Cards
           </button>
@@ -760,6 +760,10 @@ function UnitCard({
   const kindLabel = kind?.label ?? 'Leader'
   const enhancements = enhancementsTaken(unit, enhancementIds)
   const key = roleKey(role)
+  // Attach, Warlord and Remove are decisions made once per unit; the card is
+  // read a hundred times. They fold behind one control.
+  const [acting, setActing] = useState(false)
+  const canWarlord = validation.characterSelectionIds.includes(unit.id)
 
   if (compact) {
     // One line per unit: name, points, the chips that matter, the roll-up. Tap → editor.
@@ -811,123 +815,135 @@ function UnitCard({
           </span>
         )}
         {unit.attachedTo && !nested && (
-          <span className="muted">
-            {kind?.key === 'leader' ? 'Leads' : `Attached to`} {nameOf(unit.attachedTo)}
+          <span className="muted units__attachment">
+            {kind?.key === 'leader' ? 'Leads' : 'Attached to'} {nameOf(unit.attachedTo)}
             {kind && kind.key !== 'leader' ? ` (${kind.label})` : ''}
           </span>
         )}
         {ledBy.length > 0 && leaders.length === 0 && (
-          <span className="muted">Joined by {ledBy.map((l) => nameOf(l.id)).join(', ')}</span>
+          <span className="muted units__attachment">Joined by {ledBy.map((l) => nameOf(l.id)).join(', ')}</span>
         )}
       </button>
 
-      {canLead && (
-        <div className="units__attach">
-          <label className="units__attachLabel">
-            Attach as {kindLabel}
-            <select
-              value={unit.attachedTo ?? ''}
-              onChange={(e) => {
-                const targetId = e.target.value
-                const match = leading.find((l) => l.targetIds.includes(targetId))
-                const next: Selection = { ...unit }
-                if (targetId && match) {
-                  next.attachedTo = targetId
-                  next.associationId = match.association.id
-                } else {
-                  delete next.attachedTo
-                  delete next.associationId
-                }
-                update({ ...roster, selections: replaceSelection(roster.selections, unit.id, next) })
-              }}
-            >
-              <option value="">— not attached —</option>
-              {leading.flatMap((l) => {
-                // Which rule this option attaches under decides what "already
-                // taken" means: a unit may hold one Leader *and* one Support.
-                const optionKind = kindOfAssociation(l.association) ?? kind
-                const capacity = capacityOf(l.association)
-                return l.targetIds.map((id) => {
-                  const held = attachmentsOf(roster, graph, id)
-                  const sameKind = optionKind ? heldOfKind(held, optionKind, unit.id) : []
-                  const others = [...held.values()]
-                    .flatMap((slot) =>
-                      slot.units
-                        .filter((u) => u.id !== unit.id && !sameKind.includes(u))
-                        .map((u) => `${slot.kind.label}: ${nameOf(u.id)}`),
-                    )
-                  const full = sameKind.length >= capacity
-                  const note = full
-                    ? `${optionKind?.label ?? 'slot'} taken by ${sameKind.map((u) => nameOf(u.id)).join(', ')}`
-                    : others.length > 0
-                      ? `free · ${others.join(', ')}`
-                      : 'free'
-                  return (
-                    <option key={`${l.association.id}:${id}`} value={id} disabled={full}>
-                      {nameOf(id)} · {note}
-                    </option>
-                  )
-                })
-              })}
-            </select>
-          </label>
-          {unit.attachedTo && (
-            <button
-              className="button button--quiet"
-              onClick={() => {
-                const next: Selection = { ...unit }
-                delete next.attachedTo
-                delete next.associationId
-                update({ ...roster, selections: replaceSelection(roster.selections, unit.id, next) })
-              }}
-            >
-              Detach
-            </button>
-          )}
+      {/* Order arrows only where ordering is the point of the view. */}
+      {showArrows && (
+        <div className="units__row">
+          <button
+            className="button button--quiet units__arrow"
+            aria-label={`Move ${shownName} up`}
+            disabled={index === 0}
+            onClick={() => update({ ...roster, selections: moveSelection(roster.selections, unit.id, -1) })}
+          >
+            ↑
+          </button>
+          <button
+            className="button button--quiet units__arrow"
+            aria-label={`Move ${shownName} down`}
+            disabled={index === total - 1}
+            onClick={() => update({ ...roster, selections: moveSelection(roster.selections, unit.id, 1) })}
+          >
+            ↓
+          </button>
         </div>
       )}
 
-      <div className="units__actions">
-        <button className="button button--quiet" onClick={onEdit}>
-          Edit
-        </button>
-        {showArrows && (
-          <>
+      <button
+        className={`units__dots tap ${acting ? 'units__dots--on' : ''}`}
+        aria-expanded={acting}
+        aria-label={`${acting ? 'Hide' : 'Show'} actions for ${shownName}`}
+        onClick={() => setActing((a) => !a)}
+      >
+        {acting ? '✕' : '⋯'}
+      </button>
+
+      {acting && (
+        <div className="units__actionsPanel">
+          {canLead && (
+            <div className="units__attach">
+              <label className="units__attachLabel">
+                Attach as {kindLabel}
+                <select
+                  value={unit.attachedTo ?? ''}
+                  onChange={(e) => {
+                    const targetId = e.target.value
+                    const match = leading.find((l) => l.targetIds.includes(targetId))
+                    const next: Selection = { ...unit }
+                    if (targetId && match) {
+                      next.attachedTo = targetId
+                      next.associationId = match.association.id
+                    } else {
+                      delete next.attachedTo
+                      delete next.associationId
+                    }
+                    update({ ...roster, selections: replaceSelection(roster.selections, unit.id, next) })
+                  }}
+                >
+                  <option value="">— not attached —</option>
+                  {leading.flatMap((l) => {
+                    // Which rule this option attaches under decides what "already
+                    // taken" means: a unit may hold one Leader *and* one Support.
+                    const optionKind = kindOfAssociation(l.association) ?? kind
+                    const capacity = capacityOf(l.association)
+                    return l.targetIds.map((id) => {
+                      const held = attachmentsOf(roster, graph, id)
+                      const sameKind = optionKind ? heldOfKind(held, optionKind, unit.id) : []
+                      const others = [...held.values()]
+                        .flatMap((slot) =>
+                          slot.units
+                            .filter((u) => u.id !== unit.id && !sameKind.includes(u))
+                            .map((u) => `${slot.kind.label}: ${nameOf(u.id)}`),
+                        )
+                      const full = sameKind.length >= capacity
+                      const note = full
+                        ? `${optionKind?.label ?? 'slot'} taken by ${sameKind.map((u) => nameOf(u.id)).join(', ')}`
+                        : others.length > 0
+                          ? `free · ${others.join(', ')}`
+                          : 'free'
+                      return (
+                        <option key={`${l.association.id}:${id}`} value={id} disabled={full}>
+                          {nameOf(id)} · {note}
+                        </option>
+                      )
+                    })
+                  })}
+                </select>
+              </label>
+              {unit.attachedTo && (
+                <button
+                  className="button button--quiet"
+                  onClick={() => {
+                    const next: Selection = { ...unit }
+                    delete next.attachedTo
+                    delete next.associationId
+                    update({ ...roster, selections: replaceSelection(roster.selections, unit.id, next) })
+                  }}
+                >
+                  Detach
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="units__actions">
+            {canWarlord && (
+              <button
+                className="button button--quiet"
+                onClick={() => update(withWarlord(roster, graph, isWarlord ? undefined : unit.id))}
+              >
+                {isWarlord ? 'Unset Warlord' : 'Make Warlord'}
+              </button>
+            )}
             <button
-              className="button button--quiet"
-              aria-label={`Move ${shownName} up`}
-              disabled={index === 0}
-              onClick={() => update({ ...roster, selections: moveSelection(roster.selections, unit.id, -1) })}
+              className="button button--quiet button--danger"
+              onClick={() => {
+                if (confirm(`Remove ${shownName} from the list?`)) update(removeUnit(roster, unit.id))
+              }}
             >
-              ↑
+              Remove
             </button>
-            <button
-              className="button button--quiet"
-              aria-label={`Move ${shownName} down`}
-              disabled={index === total - 1}
-              onClick={() => update({ ...roster, selections: moveSelection(roster.selections, unit.id, 1) })}
-            >
-              ↓
-            </button>
-          </>
-        )}
-        {validation.characterSelectionIds.includes(unit.id) && (
-          <button
-            className="button button--quiet"
-            onClick={() => update(withWarlord(roster, graph, isWarlord ? undefined : unit.id))}
-          >
-            {isWarlord ? 'Unset Warlord' : 'Warlord'}
-          </button>
-        )}
-        <button
-          className="button button--quiet button--danger"
-          onClick={() => {
-            if (confirm(`Remove ${shownName} from the list?`)) update(removeUnit(roster, unit.id))
-          }}
-        >
-          Remove
-        </button>
-      </div>
+          </div>
+        </div>
+      )}
 
       {leaders.length > 0 && <ul className="units units--leaders">{leaders.map(renderLeader)}</ul>}
     </li>

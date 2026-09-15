@@ -979,3 +979,80 @@
 .rosters__points {
   width: 7rem;
 }
+
+/* --- roster card: what the unit is, and one control in the corner --------
+   A card is read a hundred times and acted on twice. Attach, Warlord and
+   Remove fold behind "⋯" at the card's top right; who the unit is joined to
+   stays on the card as a line of text. */
+
+.units__item {
+  position: relative;
+}
+
+.units__item .units__top {
+  padding-right: 2.75rem;
+}
+
+.units__dots {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.5rem;
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.units__dots--on {
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+/* Compact rows have no corner control; they open the editor, which has everything. */
+.units__item--compact .units__top {
+  padding-right: 0;
+}
+
+.units__attachment {
+  font-size: 0.8125rem;
+}
+
+.units__row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+}
+
+.units__arrow {
+  flex: none;
+  width: 44px;
+  min-height: 40px;
+  padding: 0;
+}
+
+.units__actionsPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 8px;
+  background: var(--surface-sunken);
+}
+
+.units__actionsPanel .units__attach {
+  padding: 0;
+}
+
+.units__actionsPanel .units__actions {
+  margin-top: 0;
+}

@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { PHASE_LABELS, type Game } from '@/play/types'
-import { doneKey, isDone, remindersForGame, showsNow } from '@/reminders/derive'
+import { doneKey, groupByRule, isDone, remindersForGame, showsNow } from '@/reminders/derive'
 import { discoverMarks, grantedMarks, type Grant } from '@/play/marks'
 import { DURATIONS } from '@/play/duration'
 import { plainText } from '@/reminders/heuristics'
@@ -59,12 +59,76 @@ export function GameReminders({
   const grantsOf = (reminder: Reminder) =>
     marks.length === 0 ? [] : grantedMarks(abilityText.get(reminder.id) ?? '', marks)
   const now = all.filter((r) => showsNow(r, game))
-  const groups = new Map<string, Reminder[]>()
-  for (const r of now) {
-    const key = r.owner === 'army' ? 'Army' : (r.ownerName ?? (r.owner === 'detachment' ? 'Detachment' : 'Unit'))
-    groups.set(key, [...(groups.get(key) ?? []), r])
-  }
+  // One rule, however many units carry it: three mobs with the same ability
+  // are one paragraph to read and three boxes to tick.
+  const groups = groupByRule(now)
   const title = `${game.turn === 'me' ? PHASE_LABELS[game.phase] : `Opponent's ${PHASE_LABELS[game.phase]}`} phase`
+  const ownerLabel = (r: Reminder) =>
+    r.owner === 'army' ? 'Army' : (r.ownerName ?? (r.owner === 'detachment' ? 'Detachment' : 'Unit'))
+
+  /** The tick for one occurrence of a rule — the box, and the unit it is for. */
+  const tick = (r: Reminder, showOwner: boolean) => {
+    const unit = r.unitId ? game.units.find((u) => u.id === r.unitId) : undefined
+    const done = isDone(r, game, unit)
+    const key = doneKey(r, game)
+    return (
+      <label key={`${r.unitId ?? r.owner}:${r.id}`} className={`reminders__tick ${done ? 'reminders__tick--done' : ''}`}>
+        <input
+          type="checkbox"
+          checked={done}
+          onChange={() =>
+            dispatch({
+              type: 'checkReminder',
+              key,
+              label: r.sourceName,
+              ...(r.unitId ? { unitId: r.unitId, abilityId: r.id } : {}),
+              ...(r.once ? { once: r.once } : {}),
+            })
+          }
+        />
+        {showOwner && <span className="reminders__tickName">{ownerLabel(r)}</span>}
+        {r.once === 'battle' && done && <span className="chip">used</span>}
+        {r.trigger === 'on_arrival_from_reserves' && unit && !unit.statuses.some((s) => s === 'reserves' || s === 'deepStrike') && (
+          <span className="chip muted">on the table</span>
+        )}
+      </label>
+    )
+  }
+
+  /** What can be done about one occurrence: put it in effect, grant the state it names. */
+  const actions = (r: Reminder) => {
+    const text = abilityText.get(r.id) ?? ''
+    return (
+      <Fragment key={`${r.unitId ?? r.owner}:${r.id}:actions`}>
+        {r.unitId && changesSomething(text) && (
+          <InEffect
+            unitId={r.unitId}
+            who={ownerLabel(r)}
+            rule={{
+              id: r.id,
+              name: r.sourceName,
+              source: r.owner === 'detachment' ? 'Detachment' : 'Ability',
+              text,
+            }}
+            on={game.units.find((u) => u.id === r.unitId)?.inEffect ?? []}
+            dispatch={dispatch}
+          />
+        )}
+        {grantsOf(r).map((grant) => (
+          <MarkGrant
+            key={grant.mark.key}
+            grant={grant}
+            game={game}
+            source={r.sourceName}
+            ruleText={text}
+            keywordsOf={keywordsOf}
+            self={r.unitId}
+            dispatch={dispatch}
+          />
+        ))}
+      </Fragment>
+    )
+  }
 
   return (
     <section id={anchorId} className="reminders" aria-label="Reminders for this phase">
@@ -81,81 +145,45 @@ export function GameReminders({
       ) : now.length === 0 ? (
         <p className="muted reminders__empty">Nothing to remember this phase.</p>
       ) : (
-        [...groups.entries()].map(([owner, list]) => (
-          <div key={owner} className="reminders__group">
-            <strong className="reminders__owner">{owner}</strong>
-            <ul>
-              {list.map((r) => {
-                const unit = r.unitId ? game.units.find((u) => u.id === r.unitId) : undefined
-                const done = isDone(r, game, unit)
-                const key = doneKey(r, game)
-                return (
-                  <li key={`${r.unitId ?? r.owner}:${r.id}`}>
-                    <label className={`reminders__item ${done ? 'reminders__item--done' : ''}`}>
-                      <input
-                        type="checkbox"
-                        checked={done}
-                        onChange={() =>
-                          dispatch({
-                            type: 'checkReminder',
-                            key,
-                            label: r.sourceName,
-                            ...(r.unitId ? { unitId: r.unitId, abilityId: r.id } : {}),
-                            ...(r.once ? { once: r.once } : {}),
-                          })
-                        }
-                      />
-                      <span className="reminders__body">
-                        <span className="reminders__name">
-                          {r.sourceName}
-                          {r.once === 'battle' && <span className="chip">{done ? 'used' : 'once per battle'}</span>}
-                          {r.once === 'turn' && <span className="chip">once per turn</span>}
-                          {r.trigger === 'on_arrival_from_reserves' && unit && !unit.statuses.some((s) => s === 'reserves' || s === 'deepStrike') && (
-                            <span className="chip muted">on the table</span>
-                          )}
-                        </span>
-                        {r.text && r.text !== r.sourceName && <span className="reminders__text">{r.text}</span>}
-                      </span>
-                    </label>
-                    {/* The summary says when and what; the rule itself says it
-                        exactly, and at the table that is sometimes the only
-                        thing that settles an argument. One tap, never a
-                        navigation. */}
-                    <FullRule text={abilityText.get(r.id) ?? ''} summary={r.text} />
-                    {/* A reminder whose rule changes a number can be put into
-                        effect on the unit it belongs to: "+1 to hit rolls" is
-                        worth having on the weapons table, not only in prose. */}
-                    {r.unitId && changesSomething(abilityText.get(r.id) ?? '') && (
-                      <InEffect
-                        unitId={r.unitId}
-                        rule={{
-                          id: r.id,
-                          name: r.sourceName,
-                          source: r.owner === 'detachment' ? 'Detachment' : 'Ability',
-                          text: abilityText.get(r.id) ?? '',
-                        }}
-                        on={game.units.find((u) => u.id === r.unitId)?.inEffect ?? []}
-                        dispatch={dispatch}
-                      />
-                    )}
-                    {grantsOf(r).map((grant) => (
-                      <MarkGrant
-                        key={grant.mark.key}
-                        grant={grant}
-                        game={game}
-                        source={r.sourceName}
-                        ruleText={abilityText.get(r.id) ?? ''}
-                        keywordsOf={keywordsOf}
-                        self={r.unitId}
-                        dispatch={dispatch}
-                      />
+        <ul className="reminders__list">
+          {groups.map(({ first, members }) => {
+            const several = members.length > 1
+            const allDone = members.every((r) => isDone(r, game, r.unitId ? game.units.find((u) => u.id === r.unitId) : undefined))
+            return (
+              <li key={`${first.owner}:${first.id}`} className={`reminders__rule ${allDone ? 'reminders__rule--done' : ''}`}>
+                <div className="reminders__ruleHead">
+                  {/* One owner: its box sits on the heading. Several: the boxes are listed under it. */}
+                  {!several && tick(first, false)}
+                  <span className="reminders__body">
+                    <span className="reminders__name">
+                      {!several && <span className="reminders__owner reminders__owner--inline">{ownerLabel(first)}</span>}
+                      {first.sourceName}
+                      {first.once === 'battle' && !allDone && <span className="chip">once per battle</span>}
+                      {first.once === 'turn' && <span className="chip">once per turn</span>}
+                    </span>
+                    {first.text && first.text !== first.sourceName && <span className="reminders__text">{first.text}</span>}
+                  </span>
+                </div>
+                {/* The summary says when and what; the rule itself says it
+                    exactly, and at the table that is sometimes the only thing
+                    that settles an argument. One tap, never a navigation. */}
+                <FullRule text={abilityText.get(first.id) ?? ''} summary={first.text} />
+                {several ? (
+                  <ul className="reminders__members">
+                    {members.map((r) => (
+                      <li key={`${r.unitId ?? r.owner}:${r.id}`} className="reminders__member">
+                        {tick(r, true)}
+                        <div className="reminders__actions">{actions(r)}</div>
+                      </li>
                     ))}
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        ))
+                  </ul>
+                ) : (
+                  <div className="reminders__actions reminders__actions--single">{actions(first)}</div>
+                )}
+              </li>
+            )
+          })}
+        </ul>
       )}
     </section>
   )
@@ -177,11 +205,14 @@ const changesSomething = (text: string): boolean =>
  */
 function InEffect({
   unitId,
+  who,
   rule,
   on,
   dispatch,
 }: {
   unitId: string
+  /** The unit it goes on, for the accessible name — the row already says who. */
+  who: string
   rule: { id: string; name: string; source: string; text: string }
   on: readonly { id: string }[]
   dispatch: (action: GameAction) => void
@@ -189,19 +220,19 @@ function InEffect({
   const active = on.some((r) => r.id === rule.id)
   const until = /\buntil [^.;,]{3,60}/i.exec(rule.text)?.[0]?.trim()
   return (
-    <div className="reminders__grant">
-      <button
-        className="button button--quiet"
-        onClick={() =>
-          active
-            ? dispatch({ type: 'clearRule', unitId, ruleId: rule.id, name: rule.name })
-            : dispatch({ type: 'applyRule', unitId, rule, ...(until ? { until } : {}) })
-        }
-      >
-        {active ? 'Take it off the numbers' : 'Put it in effect'}
-      </button>
-      {until && <span className="muted reminders__until">{until}</span>}
-    </div>
+    <button
+      className={`chip chip--toggle ${active ? 'chip--on' : ''}`}
+      aria-pressed={active}
+      title={until ? `Lasts ${until}` : undefined}
+      aria-label={`${active ? 'Take off' : 'Put in effect on'} ${who}`}
+      onClick={() =>
+        active
+          ? dispatch({ type: 'clearRule', unitId, ruleId: rule.id, name: rule.name })
+          : dispatch({ type: 'applyRule', unitId, rule, ...(until ? { until } : {}) })
+      }
+    >
+      {active ? 'In effect ✓' : 'Put in effect'}
+    </button>
   )
 }
 

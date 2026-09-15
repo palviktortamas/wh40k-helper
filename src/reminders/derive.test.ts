@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ParsedCatalogue } from '@/data/model'
 import type { Game } from '@/play/types'
-import { doneKey, isDone, remindersForCatalogue, remindersForGame, showsNow } from './derive'
+import { doneKey, groupByRule, isDone, remindersForCatalogue, remindersForGame, showsNow } from './derive'
 import type { Reminder, ReminderOverride } from './types'
 
 // Everything invented — the repo holds no real game data.
@@ -157,5 +157,37 @@ describe('reminders for a game', () => {
       'Grunts',
     ])
     expect(groups[4]!.reminders.map((r) => r.id)).toEqual(['ab-1', 'ab-2'])
+  })
+})
+
+describe('groupByRule', () => {
+  const reminder = (over: Partial<Reminder>): Reminder => ({
+    id: 'ab-1',
+    sourceName: 'Dig In',
+    owner: 'unit',
+    trigger: 'movement_phase',
+    text: 'Dig in.',
+    enabled: true,
+    ...over,
+  })
+
+  it('folds the same rule on several units into one entry with every unit as a member', () => {
+    const grouped = groupByRule([
+      reminder({ ownerName: 'Grunts #1', unitId: 'u1' }),
+      reminder({ ownerName: 'Grunts #2', unitId: 'u2' }),
+      reminder({ id: 'ab-9', sourceName: 'Other', ownerName: 'Grunts #1', unitId: 'u1' }),
+    ])
+    expect(grouped.map((g) => g.members.length)).toEqual([2, 1])
+    expect(grouped[0]!.members.map((m) => m.ownerName)).toEqual(['Grunts #1', 'Grunts #2'])
+    expect(grouped[0]!.first.sourceName).toBe('Dig In')
+  })
+
+  it('keeps an army rule and a unit rule with the same id apart, and keeps the order of first appearance', () => {
+    const grouped = groupByRule([
+      reminder({ id: 'x', owner: 'army' }),
+      reminder({ id: 'y', ownerName: 'A', unitId: 'u1' }),
+      reminder({ id: 'x', owner: 'unit', ownerName: 'A', unitId: 'u1' }),
+    ])
+    expect(grouped.map((g) => `${g.first.owner}:${g.first.id}`)).toEqual(['army:x', 'unit:y', 'unit:x'])
   })
 })

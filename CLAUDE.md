@@ -47,7 +47,13 @@ other, so the stat strip, the weapons table and the card follow, and it lapses a
 words name. The stratagem export bolds with `__`, addresses "your unit", and writes roll modifiers
 ("+1 to hit rolls"), which are their own kind of modifier and *also* shown on the BS/WS cell
 (`skillMods` — better is lower, clamped to 2+…6+). "If you do" stays a condition; putting the rule
-into effect is what settles it. The sync/proxy Worker is **deferred by the owner** ("not needed
+into effect is what settles it. **2026-09-15, later:** the game screen is
+**five tabs** (Turn / Cues / Mission / Strats / Army) under a sticky strip that always shows the
+round and phase with Next, reminders are **grouped by rule** with a tick per unit
+(`reminders/derive.ts` `groupByRule`), stratagem rows fold to one line, roster cards have one
+corner "⋯" for attach / Warlord / Remove, and wargear the datasheet settles is stated in one line
+in the unit editor — all measured before and after in headless Chrome at 390 px (heights in the
+journal). The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

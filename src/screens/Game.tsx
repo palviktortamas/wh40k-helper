@@ -34,12 +34,16 @@ import { discoverMarks, type Mark } from '@/play/marks'
 import { attachedFamily, effectsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { scrollParent } from './scrollToTop'
-import { JumpBar } from './JumpBar'
+import { remindersForGame, showsNow } from '@/reminders/derive'
+import { appliesNow, forDetachment } from '@/stratagems/select'
 import { GameStratagems } from './GameStratagems'
 import { StatStrip } from './StatStrip'
 import './Rosters.css'
 import './Game.css'
 import './Units.css'
+
+/** The parts of the game screen, one at a time. */
+type GameTab = 'turn' | 'cues' | 'mission' | 'strats' | 'army'
 
 const STATUSES: UnitStatus[] = [
   'battleShocked',
@@ -67,6 +71,7 @@ export function Game() {
   const [overrides, setOverrides] = useState<Map<string, ReminderOverride>>(new Map())
   const [remindersOn, setRemindersOn] = useState(true)
   const [stratagemSet, setStratagemSet] = useState<StratagemSet | null>(null)
+  const [tab, setTab] = useState<GameTab>('turn')
   const shell = useRef<HTMLElement>(null)
   /** Where the army list was when a unit was opened, so closing it comes back there. */
   const listScroll = useRef<number | null>(null)
@@ -190,131 +195,198 @@ export function Game() {
     </>
   )
 
-  const jumpTargets = [
-    { id: 'game-turn', label: 'Turn', name: 'the battle round and phase' },
-    ...(catalogue ? [{ id: 'game-reminders', label: 'Cues', name: 'the reminders for this phase' }] : []),
-    ...(game.mission && deck ? [{ id: 'game-mission', label: 'Miss', name: 'the mission' }] : []),
-    ...(stratagemSet ? [{ id: 'game-strats', label: 'Strat', name: 'the stratagems' }] : []),
-    { id: 'game-army', label: 'Army', name: 'the army list' },
+  // One screenful at a time. A game screen that is tracker, score, cues,
+  // mission, stratagems and then twenty units is five thousand pixels on a
+  // phone, and the thing you need is always the one you are not looking at.
+  // Each part is a tab; the round, the phase and Next ride the top edge so the
+  // turn can be moved on from any of them.
+  const cuesNow = catalogue
+    ? remindersForGame(game, catalogue.parsed, overrides).filter((r) => showsNow(r, game)).length
+    : 0
+  const stratsNow = stratagemSet
+    ? forDetachment(stratagemSet.stratagems, game.detachmentNames).filter((s) =>
+        appliesNow(s, game.phase, game.turn),
+      ).length
+    : 0
+  const shockTests =
+    game.turn === 'me' && game.phase === 'command'
+      ? game.units.filter(
+          (u) => !u.destroyed && !inReserves(u) && (belowHalfStrength(u) || u.statuses.includes('battleShocked')),
+        ).length
+      : 0
+  const standing = game.units.filter((u) => !u.destroyed).length
+  const tabs: { id: GameTab; label: string; count?: number; alert?: boolean }[] = [
+    { id: 'turn', label: 'Turn', ...(shockTests > 0 ? { count: shockTests, alert: true } : {}) },
+    ...(catalogue ? [{ id: 'cues' as GameTab, label: 'Cues', ...(remindersOn ? { count: cuesNow } : {}) }] : []),
+    ...(game.mission && deck ? [{ id: 'mission' as GameTab, label: 'Mission' }] : []),
+    ...(stratagemSet ? [{ id: 'strats' as GameTab, label: 'Strats', count: stratsNow }] : []),
+    { id: 'army', label: 'Army', count: standing },
   ]
+  const shown: GameTab = tabs.some((t) => t.id === tab) ? tab : 'turn'
+  const switchTab = (next: GameTab) => {
+    setTab(next)
+    const scroller = scrollParent(shell.current)
+    if (scroller) scroller.scrollTop = 0
+  }
 
   return (
     <section className="game" ref={shell}>
-      <JumpBar targets={jumpTargets}>
-        <Link className="sheet__back tap" to="/play">
-          ‹ Play
-        </Link>
-      </JumpBar>
-
-      <header className="game__head">
-        <div>
-          <h2>
-            {game.rosterName} <span className="muted">vs {game.opponentName}</span>
-          </h2>
-          <p className="muted game__meta">
-            {game.factionName}
-            {game.detachmentNames.length > 0 ? ` · ${game.detachmentNames.join(' + ')}` : ''}
-            {game.startedIllegal ? ' · started with validation errors' : ''}
-          </p>
-        </div>
-      </header>
-
-      <div id="game-turn" className={`tracker ${game.turn === 'me' ? 'tracker--me' : 'tracker--them'}`}>
-        <div className="tracker__round">
-          <span className="tracker__label">Battle round</span>
-          <strong>
-            {Math.min(game.round, LAST_ROUND)} / {LAST_ROUND}
-          </strong>
-        </div>
-        <div className="tracker__phase">
-          <span className="tracker__label">{game.turn === 'me' ? 'Your turn' : `${game.opponentName}'s turn`}</span>
-          <strong>{PHASE_LABELS[game.phase]} phase</strong>
-        </div>
-        <div className="tracker__nav">
+      <div className="gametabs">
+        <div className="gametabs__row">
+          <Link className="sheet__back tap" to="/play">
+            ‹ Play
+          </Link>
           <button
-            className="button button--quiet tracker__btn"
-            onClick={() => dispatch({ type: 'prevPhase' })}
-            disabled={game.round === 1 && game.turn === game.firstTurn && game.phase === 'command'}
-            aria-label="Previous phase"
+            className="gametabs__phase"
+            onClick={() => switchTab('turn')}
+            aria-label="Show the battle round and phase"
           >
-            ‹ Prev
+            <span className="gametabs__round">
+              Round {Math.min(game.round, LAST_ROUND)}/{LAST_ROUND} · {game.turn === 'me' ? 'your turn' : `${game.opponentName}'s turn`}
+            </span>
+            <strong>{PHASE_LABELS[game.phase]} phase</strong>
           </button>
           {over ? (
-            <button className="button tracker__btn" onClick={() => dispatch({ type: 'endGame' })}>
+            <button className="button gametabs__next" onClick={() => dispatch({ type: 'endGame' })}>
               End game
             </button>
           ) : (
-            <button className="button tracker__btn" onClick={() => dispatch({ type: 'nextPhase' })} aria-label="Next phase">
+            <button className="button gametabs__next" onClick={() => dispatch({ type: 'nextPhase' })} aria-label="Next phase">
               Next ›
             </button>
           )}
-          {/* A whole turn at a time, for the turns where nothing of yours
-              happens: five taps to hand the turn over is four too many. */}
-          <button
-            className="button button--quiet tracker__btn tracker__btn--turn"
-            onClick={() => dispatch({ type: 'prevTurn' })}
-            disabled={game.round === 1 && game.turn === game.firstTurn && game.phase === 'command'}
-            aria-label="Back to the start of the turn"
-          >
-            ‹‹ Turn
-          </button>
-          <button
-            className="button button--quiet tracker__btn tracker__btn--turn"
-            onClick={() => dispatch({ type: 'nextTurn' })}
-            disabled={over}
-            aria-label="Skip to the next turn"
-          >
-            Turn ››
-          </button>
+        </div>
+        <div className="gametabs__tabs" role="tablist" aria-label="Parts of the game screen">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              className="gametabs__tab"
+              aria-selected={shown === t.id}
+              onClick={() => switchTab(t.id)}
+            >
+              {t.label}
+              {t.count !== undefined && (
+                <span className={`gametabs__count ${t.alert ? 'gametabs__count--alert' : ''} ${t.count === 0 ? 'gametabs__count--zero' : ''}`}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="score">
-        <ScoreColumn label="You" side="me" game={game} dispatch={dispatch} />
-        <ScoreColumn label={game.opponentName} side="opponent" game={game} dispatch={dispatch} />
-      </div>
+      {shown === 'turn' && (
+        <>
+          <header className="game__head">
+            <div>
+              <h2>
+                {game.rosterName} <span className="muted">vs {game.opponentName}</span>
+              </h2>
+              <p className="muted game__meta">
+                {game.factionName}
+                {game.detachmentNames.length > 0 ? ` · ${game.detachmentNames.join(' + ')}` : ''}
+                {game.startedIllegal ? ' · started with validation errors' : ''}
+              </p>
+            </div>
+          </header>
 
-      <div className="rosters__controls game__tools">
-        <button
-          className="button button--quiet"
-          disabled={game.undo.length === 0}
-          onClick={() => dispatch({ type: 'undo' })}
-        >
-          ↶ Undo
-        </button>
-        <button className="button button--quiet" onClick={() => setShowLog((s) => !s)}>
-          {showLog ? 'Hide log' : `Log (${game.log.length})`}
-        </button>
-        {!over && (
-          <button
-            className="button button--quiet"
-            onClick={() => {
-              if (confirm('End the game now and record the result?')) dispatch({ type: 'endGame' })
-            }}
-          >
-            End game
-          </button>
-        )}
-      </div>
+          <div id="game-turn" className={`tracker ${game.turn === 'me' ? 'tracker--me' : 'tracker--them'}`}>
+            <div className="tracker__round">
+              <span className="tracker__label">Battle round</span>
+              <strong>
+                {Math.min(game.round, LAST_ROUND)} / {LAST_ROUND}
+              </strong>
+            </div>
+            <div className="tracker__phase">
+              <span className="tracker__label">{game.turn === 'me' ? 'Your turn' : `${game.opponentName}'s turn`}</span>
+              <strong>{PHASE_LABELS[game.phase]} phase</strong>
+            </div>
+            <div className="tracker__nav">
+              <button
+                className="button button--quiet tracker__btn"
+                onClick={() => dispatch({ type: 'prevPhase' })}
+                disabled={game.round === 1 && game.turn === game.firstTurn && game.phase === 'command'}
+                aria-label="Previous phase"
+              >
+                ‹ Prev
+              </button>
+              {over ? (
+                <button className="button tracker__btn" onClick={() => dispatch({ type: 'endGame' })}>
+                  End game
+                </button>
+              ) : (
+                <button className="button tracker__btn" onClick={() => dispatch({ type: 'nextPhase' })} aria-label="Next phase">
+                  Next ›
+                </button>
+              )}
+              {/* A whole turn at a time, for the turns where nothing of yours
+                  happens: five taps to hand the turn over is four too many. */}
+              <button
+                className="button button--quiet tracker__btn tracker__btn--turn"
+                onClick={() => dispatch({ type: 'prevTurn' })}
+                disabled={game.round === 1 && game.turn === game.firstTurn && game.phase === 'command'}
+                aria-label="Back to the start of the turn"
+              >
+                ‹‹ Turn
+              </button>
+              <button
+                className="button button--quiet tracker__btn tracker__btn--turn"
+                onClick={() => dispatch({ type: 'nextTurn' })}
+                disabled={over}
+                aria-label="Skip to the next turn"
+              >
+                Turn ››
+              </button>
+            </div>
+          </div>
 
-      {showLog && (
-        <ol className="log">
-          {[...game.log].reverse().map((entry, i) => (
-            <li key={i}>
-              <span className="muted">
-                R{entry.round} {PHASE_LABELS[entry.phase].slice(0, 3)}
-              </span>{' '}
-              {entry.text}
-            </li>
-          ))}
-        </ol>
+          {catalogue && <BattleShockStep game={game} sheets={sheets} dispatch={dispatch} />}
+
+          <div className="score">
+            <ScoreColumn label="You" side="me" game={game} dispatch={dispatch} />
+            <ScoreColumn label={game.opponentName} side="opponent" game={game} dispatch={dispatch} />
+          </div>
+
+          <div className="rosters__controls game__tools">
+            <button
+              className="button button--quiet"
+              disabled={game.undo.length === 0}
+              onClick={() => dispatch({ type: 'undo' })}
+            >
+              ↶ Undo
+            </button>
+            <button className="button button--quiet" onClick={() => setShowLog((s) => !s)}>
+              {showLog ? 'Hide log' : `Log (${game.log.length})`}
+            </button>
+            {!over && (
+              <button
+                className="button button--quiet"
+                onClick={() => {
+                  if (confirm('End the game now and record the result?')) dispatch({ type: 'endGame' })
+                }}
+              >
+                End game
+              </button>
+            )}
+          </div>
+
+          {showLog && (
+            <ol className="log">
+              {[...game.log].reverse().map((entry, i) => (
+                <li key={i}>
+                  <span className="muted">
+                    R{entry.round} {PHASE_LABELS[entry.phase].slice(0, 3)}
+                  </span>{' '}
+                  {entry.text}
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
       )}
 
-      {catalogue && (
-        <BattleShockStep game={game} sheets={sheets} dispatch={dispatch} />
-      )}
-
-      {catalogue && (
+      {shown === 'cues' && catalogue && (
         <GameReminders
           anchorId="game-reminders"
           game={game}
@@ -326,37 +398,43 @@ export function Game() {
         />
       )}
 
-      {game.mission && deck && (
+      {shown === 'mission' && game.mission && deck && (
         <>
           <h3 id="game-mission" className="play__heading">Mission</h3>
           <GameMission game={game} deck={deck} dispatch={dispatch} />
         </>
       )}
 
-      <GameStratagems game={game} set={stratagemSet} dispatch={dispatch} anchorId="game-strats" />
+      {shown === 'strats' && (
+        <GameStratagems game={game} set={stratagemSet} dispatch={dispatch} anchorId="game-strats" />
+      )}
 
-      <h3 id="game-army" className="play__heading">
-        Army{' '}
-        <span className="muted">
-          — {game.units.filter((u) => !u.destroyed).length} of {game.units.length} units standing
-        </span>
-      </h3>
-      <ul className="units">
-        {topLevel.map((unit) => (
-          <li
-            key={unit.id}
-            className={`units__item unit role-stripe role--${roleKey(sheets.get(unit.entryId)?.role)} ${unit.destroyed ? 'unit--dead' : ''}`}
-          >
-            {renderUnit(unit)}
-            {(passengersOf.get(unit.id) ?? []).map((passenger) => (
-              <div key={passenger.id} className={`unit__leader unit__passenger ${passenger.destroyed ? 'unit--dead' : ''}`}>
-                <p className="muted unit__aboard">Embarked</p>
-                {renderUnit(passenger)}
-              </div>
+      {shown === 'army' && (
+        <>
+          <h3 id="game-army" className="play__heading">
+            Army{' '}
+            <span className="muted">
+              — {standing} of {game.units.length} units standing
+            </span>
+          </h3>
+          <ul className="units">
+            {topLevel.map((unit) => (
+              <li
+                key={unit.id}
+                className={`units__item unit role-stripe role--${roleKey(sheets.get(unit.entryId)?.role)} ${unit.destroyed ? 'unit--dead' : ''}`}
+              >
+                {renderUnit(unit)}
+                {(passengersOf.get(unit.id) ?? []).map((passenger) => (
+                  <div key={passenger.id} className={`unit__leader unit__passenger ${passenger.destroyed ? 'unit--dead' : ''}`}>
+                    <p className="muted unit__aboard">Embarked</p>
+                    {renderUnit(passenger)}
+                  </div>
+                ))}
+              </li>
             ))}
-          </li>
-        ))}
-      </ul>
+          </ul>
+        </>
+      )}
     </section>
   )
 }
@@ -633,9 +711,6 @@ function UnitCard({
                   <span className="muted unit__quickWho">{fallen.name}</span>
                 </button>
               )}
-              <button className="button button--quiet" onClick={() => setExpanded((e) => !e)}>
-                {expanded ? 'Done' : 'Remove models…'}
-              </button>
             </>
           )}
           {inReserves(unit) && (
@@ -654,30 +729,29 @@ function UnitCard({
         </div>
       )}
 
-      {!unit.destroyed && unit.transportCapacity && (
-        <label className="units__attach">
-          Embark a unit{' '}
-          <span className="muted unit__capacity">{unit.transportCapacity.replace(/\*\*/g, '')}</span>
-          <select
-            value=""
-            onChange={(e) => {
-              if (e.target.value) dispatch({ type: 'embark', unitId: e.target.value, transportId: unit.id })
-            }}
-          >
-            <option value="">— choose a unit —</option>
-            {candidates
-              .filter((c) => c.embarkedIn !== unit.id)
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-          </select>
-        </label>
-      )}
-
       {expanded && (
         <div className="unit__more">
+              {!unit.destroyed && unit.transportCapacity && (
+            <label className="units__attach">
+              Embark a unit{' '}
+              <span className="muted unit__capacity">{unit.transportCapacity.replace(/\*\*/g, '')}</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) dispatch({ type: 'embark', unitId: e.target.value, transportId: unit.id })
+                }}
+              >
+                <option value="">— choose a unit —</option>
+                {candidates
+                  .filter((c) => c.embarkedIn !== unit.id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
           {/* Which model died matters: the weapons table follows the survivors. */}
           <ul className="models">
             {unit.models.map((g) => (

@@ -83,7 +83,13 @@ export function GameStratagems({
           <button
             className={`button ${used ? 'button--quiet' : ''} strat__use`}
             disabled={cannotAfford}
-            title={cannotAfford ? 'Not enough CP' : undefined}
+            title={
+              cannotAfford
+                ? 'Not enough CP'
+                : on[s.id]
+                  ? `Use on ${game.units.find((u) => u.id === on[s.id])?.name ?? 'the chosen unit'}`
+                  : undefined
+            }
             onClick={() => {
               dispatch({ type: 'useStratagem', key, id: s.id, name: s.name, cp: s.cp })
               // Used *on* a unit, its effect belongs to that unit until it
@@ -99,47 +105,49 @@ export function GameStratagems({
               }
             }}
           >
-            {used ? 'Used ✓' : 'Use'}
+            {used ? 'Used ✓' : on[s.id] ? 'Use on…' : 'Use'}
           </button>
         </div>
-        {/* Which unit it is used on. Only the ones that change a number need
-            it, but which those are is the rule's business, not a list here. */}
-        <label className="strat__on">
-          <span className="muted">on</span>
-          <select
-            value={on[s.id] ?? ''}
-            onChange={(e) => setOn((current) => ({ ...current, [s.id]: e.target.value }))}
-          >
-            <option value="">— no unit —</option>
-            {game.units
-              .filter((u) => !u.destroyed)
-              .map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <p className="strat__when">
-          <span className="muted">
-            {s.turn}
-            {' · '}
-            {s.phase}
-          </span>
-        </p>
-        {/* Who it can be used on decides whether it is worth reading at all,
-            so it is on the row rather than behind the expander. */}
-        {s.target && (
-          <p className="abilities__text strat__line strat__target">
-            <span className="muted">Target: </span>
-            <Marked text={s.target} />
-          </p>
-        )}
-        <p className="abilities__text strat__line">
-          <Marked text={s.when} />
+        {/* Folded: the target says whether it is worth reading at all, on one
+            line. Everything else — when exactly, the effect, which unit it is
+            used on — is one tap away, so the list of the phase's stratagems
+            fits a screen. */}
+        <p className={`strat__when ${expanded ? '' : 'strat__when--folded'}`}>
+          {(showAll || !relevant) && (
+            <span className="muted">
+              {s.turn}
+              {' · '}
+              {s.phase}
+              {s.target ? ' · ' : ''}
+            </span>
+          )}
+          {s.target && (
+            <span className="strat__target">
+              <Marked text={s.target} />
+            </span>
+          )}
         </p>
         {expanded && (
           <div className="strat__body">
+            <label className="strat__on">
+              <span className="muted">Use on</span>
+              <select
+                value={on[s.id] ?? ''}
+                onChange={(e) => setOn((current) => ({ ...current, [s.id]: e.target.value }))}
+              >
+                <option value="">— no unit —</option>
+                {game.units
+                  .filter((u) => !u.destroyed)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <p className="abilities__text">
+              <b>When:</b> <Marked text={s.when} />
+            </p>
             <p className="abilities__text">
               <b>Effect:</b> <Marked text={s.effect} />
             </p>

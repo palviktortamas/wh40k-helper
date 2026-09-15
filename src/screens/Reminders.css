@@ -254,3 +254,113 @@
   flex: 1 1 100%;
   font-size: 0.78rem;
 }
+
+/* --- one rule, however many units carry it ------------------------------- */
+
+.reminders__list {
+  list-style: none;
+  margin: 0.375rem 0 0;
+  padding: 0;
+}
+
+.reminders__rule {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.reminders__ruleHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+}
+
+.reminders__rule--done .reminders__name,
+.reminders__rule--done .reminders__text {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+/* The owner reads as a small tag before the rule's name, not a heading of its own. */
+.reminders__owner--inline {
+  display: inline;
+  margin-right: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.reminders__rule .reminders__text {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+/* One row per unit when several share the rule: its box, then what can be done for it. */
+.reminders__members {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+
+.reminders__member {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+  min-height: 44px;
+  padding: 0.125rem 0;
+  border-top: 1px dashed var(--border);
+}
+
+.reminders__member .reminders__tick {
+  min-height: 44px;
+  font-size: 0.9375rem;
+}
+
+.reminders__member .reminders__actions {
+  margin: 0;
+}
+
+.reminders__tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 36px;
+}
+
+.reminders__tick input {
+  width: 1.375rem;
+  height: 1.375rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.reminders__tick--done .reminders__tickName {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.reminders__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.reminders__actions:empty {
+  display: none;
+}
+
+.reminders__actions .reminders__grant {
+  margin: 0.25rem 0 0;
+}
+
+.reminders__rule .reminders__full {
+  margin: 0 0 0.125rem 2rem;
+}
+
+.reminders__actions--single {
+  margin: 0.375rem 0 0 2rem;
+}
+
+.reminders__actions--single:empty {
+  display: none;
+}
