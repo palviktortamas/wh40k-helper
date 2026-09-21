@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 import { parseCatalogue as parseCatalogueRaw } from './bsdata/parse'
 import { parseMfm } from './mfm/parse'
 import { mergeMfm } from './link/merge'
-import type { GameSystem, Catalogue } from './bsdata/schema'
+import type { GameSystem, Catalogue, Modifier } from './bsdata/schema'
 import {
   configuredFactions,
   fixturesAvailable,
@@ -135,6 +135,70 @@ describe.skipIf(!available)('live source files', () => {
           .map((name) => `${sheet.name}: ${name}`)
       })
       expect(missing).toEqual([])
+    })
+
+    it('keeps the value a datasheet appends to a shared rule it links', () => {
+      // A codex names a shared rule once and each datasheet that links it
+      // appends its own number to the link — how far, how many, on what roll.
+      // Without it the owner reads a rule with the answer cut off, so every
+      // such link must come out as an ability whose name carries the value.
+      const parsed = parseCatalogue(loadGameSystem(), loadCatalogue())
+      type Link = { targetId?: string; type?: string; modifiers?: Modifier[] }
+      type Node = {
+        id?: string
+        infoLinks?: Link[]
+        selectionEntries?: Node[]
+        selectionEntryGroups?: Node[]
+      }
+      const byId = new Map<string, Node>()
+      const walk = (node: unknown): void => {
+        if (Array.isArray(node)) return void node.forEach(walk)
+        if (!node || typeof node !== 'object') return
+        const entry = node as Node
+        if (entry.id) byId.set(entry.id, entry)
+        for (const value of Object.values(node as Record<string, unknown>))
+          if (value && typeof value === 'object') walk(value)
+      }
+      walk(loadCatalogue())
+
+      /** The unconditional name-appends on an entry's own rule links. */
+      const appended = (entry: Node | undefined): string[] =>
+        (entry?.infoLinks ?? [])
+          .filter((l) => l.type === 'rule')
+          .flatMap((l) => l.modifiers ?? [])
+          .filter(
+            (m) =>
+              m.field === 'name' &&
+              m.type === 'append' &&
+              !m.conditions?.length &&
+              !m.conditionGroups?.length &&
+              !m.repeats?.length,
+          )
+          .map((m) => String(m.value).trim())
+          .filter(Boolean)
+
+      const checked: string[] = []
+      const dropped = parsed.datasheets.flatMap((sheet) => {
+        const values = appended(byId.get(sheet.id))
+        checked.push(...values)
+        return values
+          .filter((value) => !sheet.abilities.some((a) => a.name.endsWith(value)))
+          .map((value) => `${sheet.name}: …${value}`)
+      })
+      expect(dropped).toEqual([])
+      // The guard is worthless if the catalogue stopped using the construct.
+      expect(checked.length).toBeGreaterThan(5)
+    })
+
+    it('lists a transport capacity as an ability, not only as a field', () => {
+      // "How many fit?" is asked at the table, where the unit sheet shows the
+      // ability list and nothing else.
+      const parsed = parseCatalogue(loadGameSystem(), loadCatalogue())
+      const transports = parsed.datasheets.filter((d) => d.transportCapacity)
+      expect(transports.length).toBeGreaterThan(0)
+      for (const sheet of transports) {
+        expect(sheet.abilities.map((a) => a.text)).toContain(sheet.transportCapacity)
+      }
     })
 
     it('parses fast enough to stay inside a single worker message', () => {

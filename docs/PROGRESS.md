@@ -1680,6 +1680,61 @@ of a 20-model unit with six special-weapon rows, which is the unit.
 
 ---
 
+## Done 2026-09-21 - the number the rule is about
+
+Owner, from the couch: "when abilities are [ability] X, the X is not shown for the units. For
+example a trukk doesnt show how many units it can transport and how many can shoot."
+
+### A linked rule is named once and numbered per unit (`parse.ts` `linkedName`)
+
+A shared rule lives once in the catalogue under a bare name. Every datasheet that links it appends
+its own value through a `name` modifier **on the link**, not on the rule:
+
+```json
+{ "name": "…", "targetId": "…", "type": "rule",
+  "modifiers": [{ "field": "name", "type": "append", "value": "D3" }] }
+```
+
+The parser read `rule.name` and threw the link's modifiers away, so the owner got the rule with the
+answer cut off — the distance, the count, the roll, the one part of it that differs per unit. 110
+such links across the two fixture factions. `linkedName(base, modifiers)` now applies the
+**unconditional** `name` modifiers (`append`, `set`) of a rule link, both on a datasheet and on a
+detachment's rules. Conditional renames are left alone: those depend on what a roster settles,
+which is the evaluator's business, not a datasheet's.
+
+Two traps the data sets:
+
+- `value` is sometimes a JSON **number** (`12`), sometimes a string (`"D3"`, `"5+"`, `"6\""`).
+- there is **no separator** in the data. 8 of the 110 links ask for `join: " "` (a
+  non-breaking space); the other 102 give no join at all and plainly do not mean the name and its
+  value run together into one unpronounceable word, so the default is an ordinary space.
+
+### A transport's capacity is an ability
+
+It was parsed (`Datasheet.transportCapacity`) but shown in only two places: a `· transport …`
+fragment in the datasheet browser's subtitle, and inside the **Embark a unit** control at the
+table — which is behind "More…" and only exists while the transport is alive. The unit sheet, the
+one thing read at the table, listed every ability except that one. The capacity is printed on a
+real datasheet like any other rule, so it is now pushed into `abilities` under the source's own
+heading (`typeName`, "Transport" — not a name any code spells out), while `transportCapacity`
+stays a field for the embark control. The subtitle fragment is gone: the capacity is a sentence,
+not a subtitle.
+
+### Verification
+
+- `PARSER_VERSION` 6 → **7**; installed catalogues re-parse from stored raw text at start.
+- New `src/data/bsdata/parse.test.ts`: synthetic catalogues, six cases — append a string, append a
+  number, honour a `join`, ignore a modifier to another field, skip a conditional rename, and the
+  transport ability (present, and absent when there is no capacity).
+- Two new live tests in `src/data/live.test.ts`, run per fixture faction: **every** unconditional
+  name-append on a datasheet's rule links must survive into an ability name (with a floor on how
+  many were checked, so the guard cannot quietly pass on a catalogue that dropped the construct),
+  and every datasheet with a capacity must list it as an ability.
+- `npm test` with both fixture factions: 415 passing. Typecheck, build, `check:data` clean.
+
+---
+
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

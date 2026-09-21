@@ -16,6 +16,7 @@ import type {
   SelectionEntryGroup,
   EntryLink,
   CategoryEntry,
+  Modifier,
   Rule,
 } from './schema'
 import { COST_TYPE } from './schema'
@@ -47,8 +48,11 @@ import type {
  *    of their type, so abilities and weapons a codex files under a type of its
  *    own invention (psychic abilities, aura tables, a star god's attacks) are
  *    no longer dropped; an ability keeps that type name as its heading.
+ * 7: a rule linked with a `name` modifier keeps the value the link appends —
+ *    the number that is the whole point of the rule on that unit — and a
+ *    transport's capacity is listed as an ability like the datasheet prints it.
  */
-export const PARSER_VERSION = 6
+export const PARSER_VERSION = 7
 
 const FACTION_PREFIX = 'faction:'
 /** The roster setup entry's role — army configuration, not a unit. */
@@ -68,6 +72,35 @@ const characteristic = (profile: Profile, name: string): string | undefined => {
   const hit = profile.characteristics?.find((c) => c.name.toLowerCase() === name.toLowerCase())
   const text = hit?.$text?.trim()
   return text ? text : undefined
+}
+
+/**
+ * The name a link gives the rule it points at.
+ *
+ * A shared rule is named once in the source and every datasheet that links it
+ * appends its own value through a `name` modifier on the link: the D3, the 12,
+ * the 5+, the 9". That value is the only part of the rule that differs per
+ * unit — how far, how many, on what roll — so reading `rule.name` on its own
+ * hands the owner a rule with the answer cut off.
+ *
+ * Only unconditional modifiers are applied. A conditional rename depends on
+ * what a roster settles, which is the evaluator's business, not a datasheet's.
+ * The sources spell out a `join` only when they want a non-breaking space; the
+ * rest mean an ordinary one — run together, the name and its value read as one
+ * unpronounceable word.
+ */
+function linkedName(base: string, modifiers: Modifier[] | undefined): string {
+  let name = base
+  for (const mod of modifiers ?? []) {
+    if (mod.field !== 'name') continue
+    if (mod.conditions?.length || mod.conditionGroups?.length || mod.repeats?.length) continue
+    if (typeof mod.value === 'boolean') continue
+    const value = String(mod.value).trim()
+    if (!value) continue
+    if (mod.type === 'append') name = `${name}${mod.join ?? ' '}${value}`
+    else if (mod.type === 'set') name = value
+  }
+  return name.trim()
 }
 
 /** Weapon keyword cells read "Sustained Hits 1, Lethal Hits" or "-". */
@@ -281,11 +314,31 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
       },
     ]
   })
+  // The capacity is printed on a real datasheet like any other rule, and "how
+  // many fit?" is asked at the table, where the unit sheet lists abilities. So
+  // it is listed as one, under the source's own heading, as well as kept on a
+  // field of its own for the embark control.
+  const ownTransport = ownProfiles.find((p) => classifyProfile(p)?.kind === 'transport')
+  if (ownTransport) {
+    abilities.push({
+      id: ownTransport.id,
+      name: ownTransport.typeName?.trim() || 'Transport',
+      kind: 'datasheet',
+      text: abilityText(ownTransport),
+    })
+  }
+
   // Rules linked by infoLink are faction/core rules shared across datasheets.
   for (const link of entry.infoLinks ?? []) {
     if (link.type !== 'rule') continue
     const rule = index.rules.get(link.targetId)
-    if (rule) abilities.push({ id: rule.id, name: rule.name, kind: 'faction', text: rule.description ?? '' })
+    if (rule)
+      abilities.push({
+        id: rule.id,
+        name: linkedName(rule.name, link.modifiers),
+        kind: 'faction',
+        text: rule.description ?? '',
+      })
   }
 
   const transport = ofKind('transport')[0]
@@ -364,9 +417,19 @@ function collectDetachments(cat: Catalogue, index: Index): Detachment[] {
           ...(entry.rules ?? []).map((r) => ({ id: r.id, name: r.name, kind: 'detachment' as const, text: r.description ?? '' })),
           ...(entry.infoLinks ?? [])
             .filter((l) => l.type === 'rule')
-            .map((l) => index.rules.get(l.targetId))
-            .filter((r): r is NonNullable<typeof r> => Boolean(r))
-            .map((r) => ({ id: r.id, name: r.name, kind: 'detachment' as const, text: r.description ?? '' })),
+            .flatMap((l) => {
+              const rule = index.rules.get(l.targetId)
+              return rule
+                ? [
+                    {
+                      id: rule.id,
+                      name: linkedName(rule.name, l.modifiers),
+                      kind: 'detachment' as const,
+                      text: rule.description ?? '',
+                    },
+                  ]
+                : []
+            }),
         ],
         sources: ['bsdata'],
       })

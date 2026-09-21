@@ -63,7 +63,7 @@ export function DatasheetDetail() {
       <p className="sheet__meta">
         {sheet.role}
         {sheet.variant ? ` · ${sheet.variant}` : ''}
-        {sheet.transportCapacity ? ` · transport ${sheet.transportCapacity}` : ''}
+        {/* The capacity is a sentence, not a subtitle — it reads in the ability list. */}
       </p>
 
       <Pricing sheet={sheet} />
