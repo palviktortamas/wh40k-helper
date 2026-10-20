@@ -53,7 +53,10 @@ round and phase with Next, reminders are **grouped by rule** with a tick per uni
 (`reminders/derive.ts` `groupByRule`), stratagem rows fold to one line, roster cards have one
 corner "⋯" for attach / Warlord / Remove, and wargear the datasheet settles is stated in one line
 in the unit editor — all measured before and after in headless Chrome at 390 px (heights in the
-journal). The sync/proxy Worker is **deferred by the owner** ("not needed
+journal). **2026-10-20:** after a month unused the browser evicted all
+data (lists and faction) — the app had never asked for persistent storage. It now does at every
+start (`data/persist.ts`), and Settings → Backup saves/restores everything the owner made as one
+file (`data/backup.ts`); see the journal. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

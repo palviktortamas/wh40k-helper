@@ -15,7 +15,12 @@ import {
 import type { Roster } from '@/roster/types'
 import { PointsLimitField } from './PointsLimitField'
 import { adoptRoster, exportRosterJson, parseRosterEnvelope, shareText } from '@/roster/transfer'
+import { lastBackupAt } from '@/data/backup'
+import { storageState } from '@/data/persist'
 import './Rosters.css'
+
+/** How old a backup may get before the Rosters screen mentions it, when the browser may clear storage. */
+const BACKUP_NUDGE_DAYS = 14
 
 export function Rosters() {
   const navigate = useNavigate()
@@ -28,6 +33,7 @@ export function Rosters() {
   const [importing, setImporting] = useState(false)
   const [pasted, setPasted] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
+  const [backupDue, setBackupDue] = useState(false)
 
   const refresh = useCallback(async () => {
     setRosters(await listRosters())
@@ -39,6 +45,15 @@ export function Rosters() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // Only worth saying when the browser has not promised to keep the data.
+  useEffect(() => {
+    void Promise.all([storageState(), lastBackupAt()]).then(([storage, last]) =>
+      setBackupDue(
+        storage.persisted !== true && (last === null || Date.now() - last > BACKUP_NUDGE_DAYS * 86_400_000),
+      ),
+    )
+  }, [])
 
   const create = async () => {
     const catalogue = catalogues.find((c) => c.id === catalogueId)
@@ -74,6 +89,10 @@ export function Rosters() {
         <p>
           No faction data installed yet. Open <Link to="/data">Data</Link> and install a faction
           first.
+        </p>
+        <p className="muted">
+          Lists gone after the app sat unused? Restore a backup file under{' '}
+          <Link to="/settings">Settings</Link>.
         </p>
       </section>
     )
@@ -164,7 +183,9 @@ export function Rosters() {
       )}
 
       {rosters.length === 0 ? (
-        <p className="muted">No rosters yet.</p>
+        <p className="muted">
+          No rosters yet. Had some before? Restore a backup under <Link to="/settings">Settings</Link>.
+        </p>
       ) : (
         <ul className="rosters__list">
           {rosters.map((roster) => (
@@ -176,6 +197,13 @@ export function Rosters() {
             />
           ))}
         </ul>
+      )}
+
+      {backupDue && rosters.length > 0 && (
+        <p className="issues__item issues__item--warning">
+          This browser may clear its data when the app goes unused.{' '}
+          <Link to="/settings">Save a backup</Link> of your lists.
+        </p>
       )}
     </section>
   )

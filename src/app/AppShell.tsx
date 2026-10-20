@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { reparseStaleCatalogues } from '@/data/worker/client'
 import { ensureMissionDeck } from '@/missions/store'
 import { ensureStratagems } from '@/stratagems/store'
+import { requestPersistentStorage } from '@/data/persist'
 import { useServiceWorkerUpdate } from './useServiceWorkerUpdate'
 import './AppShell.css'
 
@@ -23,7 +24,9 @@ export function AppShell({ context }: Props) {
 
   // A parser fix reaches installed factions from their stored raw text — offline, once per start.
   // The mission deck and the stratagems the build shipped are imported the first time the app runs.
+  // Persistent storage keeps the browser from clearing lists after a month unused.
   useEffect(() => {
+    void requestPersistentStorage()
     void reparseStaleCatalogues()
     void ensureMissionDeck()
     void ensureStratagems()

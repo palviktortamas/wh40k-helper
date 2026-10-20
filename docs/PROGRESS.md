@@ -454,6 +454,25 @@ force constraint). The owner agreed and §9 now states the current build.
 
 ## Learned the hard way
 
+### The browser cleared everything after a month unused (2026-10-20)
+
+The owner reopened the app after a month: every roster **and** the installed faction were gone.
+No code path deletes either (rosters are only deleted by the user; a data update never touches
+them), and both vanished together — the browser evicted the whole origin. The app had never
+called `navigator.storage.persist()`, so its IndexedDB was "best effort" storage, which Chrome
+clears under pressure and Safari clears after weeks without a visit. The spec's full backup
+(§3) had also never been built, so there was nothing to restore from. Not recoverable.
+
+Fixed by: `src/data/persist.ts` (asked once at every start in `AppShell`; Settings shows the
+state and offers "Keep data on this device" when declined), and `src/data/backup.ts` — one JSON
+file with rosters, games, settings, overrides, reminder overrides and an *edited* mission deck
+(`kind: 'backup'`, same envelope as a roster). Restore never overwrites a newer record on the
+device and never changes a setting already set here. The Rosters screen points at it when the
+list is empty, and nudges when storage is not persistent and the last backup is over 14 days old.
+Walked through in headless Chrome on the build: save → `deleteDatabase` → restore → the roster
+is back. Headless Chrome reports storage as not persistent (it declines `persist()`); check the
+real state on the phone in Settings → Backup.
+
 ### Confirming a deploy: key the wait to the commit, not to "the latest run"
 
 `gh run list --limit 1` right after a push can return the **previous** run — the new one is not

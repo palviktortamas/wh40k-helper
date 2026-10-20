@@ -9,6 +9,8 @@ import {
   syncAll,
   type SyncSummary,
 } from '@/sync/client'
+import { backupFileName, exportBackup, lastBackupAt, restoreBackup } from '@/data/backup'
+import { requestPersistentStorage, storageState, type StorageState } from '@/data/persist'
 import './Settings.css'
 
 const THEMES: { value: Theme; label: string }[] = [
@@ -44,6 +46,8 @@ export function Settings() {
         </div>
       </fieldset>
 
+      <BackupSettings />
+
       <SyncSettings />
 
       <fieldset className="settings__group">
@@ -77,6 +81,128 @@ export function Settings() {
         This app is unofficial and unaffiliated.
       </p>
     </section>
+  )
+}
+
+/** Hands a file to the share sheet on a phone (Files, Drive, mail…), downloads it elsewhere. */
+async function saveFile(name: string, text: string): Promise<void> {
+  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  const file = new File([text], name, { type: 'application/json' })
+  if (touch && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: name })
+      return
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') throw new Error('Not saved.')
+      // Unsupported payload; fall through to a download.
+    }
+  }
+  const url = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
+const megabytes = (bytes: number) => `${(bytes / 1_000_000).toFixed(1)} MB`
+
+/**
+ * Persistent storage and the full backup (spec §3). A browser may clear a
+ * site's data when it goes unused; the backup file is the copy outside it.
+ */
+function BackupSettings() {
+  const [storage, setStorage] = useState<StorageState | null>(null)
+  const [last, setLast] = useState<number | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    void storageState().then(setStorage)
+    void lastBackupAt().then(setLast)
+  }, [])
+
+  const run = async (work: () => Promise<string>) => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      setMessage(await work())
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const save = () =>
+    run(async () => {
+      const backup = await exportBackup()
+      await saveFile(backupFileName(backup.at), backup.text)
+      setLast(backup.at)
+      return `Backup saved: ${backup.rosters} roster${backup.rosters === 1 ? '' : 's'}.`
+    })
+
+  const restore = (file: File) =>
+    run(async () => {
+      const counts = await restoreBackup(await file.text())
+      return `Restored: ${counts.added} new, ${counts.updated} updated, ${counts.kept} already up to date (rosters and games). Install their factions under Data if they are missing.`
+    })
+
+  const ask = () =>
+    run(async () => {
+      const granted = await requestPersistentStorage()
+      setStorage(await storageState())
+      return granted
+        ? 'This browser will keep the data.'
+        : 'The browser declined. Installing the app to the home screen usually changes that — and keep a backup.'
+    })
+
+  return (
+    <fieldset className="settings__group">
+      <legend>Backup</legend>
+      <p className="settings__hint">
+        {storage?.persisted === true
+          ? 'Storage is persistent: the browser will not clear it on its own.'
+          : storage?.persisted === false
+            ? 'Storage is not persistent: the browser may clear lists and downloaded data when the app goes unused for a while.'
+            : 'This browser does not say whether it will keep the data.'}
+        {storage?.usage !== undefined && ` ${megabytes(storage.usage)} in use.`}
+      </p>
+      <p className="settings__hint">
+        A backup is one file with every roster, game, setting and edited mission card. Faction data
+        is not inside — it downloads again from Data.{' '}
+        {last ? `Last backup ${new Date(last).toLocaleString()}.` : 'No backup made on this device yet.'}
+      </p>
+      <div className="settings__actions">
+        <button className="button" disabled={busy} onClick={() => void save()}>
+          Save backup
+        </button>
+        <label className={`button button--quiet${busy ? ' button--disabled' : ''}`}>
+          Restore backup
+          <input
+            type="file"
+            accept="application/json,.json"
+            hidden
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (file) void restore(file)
+            }}
+          />
+        </label>
+        {storage?.persisted === false && (
+          <button className="button button--quiet" disabled={busy} onClick={() => void ask()}>
+            Keep data on this device
+          </button>
+        )}
+      </div>
+      {message && (
+        <p className="settings__hint" role="status">
+          {message}
+        </p>
+      )}
+    </fieldset>
   )
 }
 
