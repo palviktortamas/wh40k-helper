@@ -11,7 +11,7 @@ import { weaponCounts } from '@/play/weapons'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { canResize, isAtMaxSize, modelCount, withUnitSize } from '@/roster/size'
 import { canSplit, mergeSelection, splitSelection } from '@/roster/split'
-import { compulsoryCount, groupShape, isFixedLoadout } from '@/roster/compulsory'
+import { compulsoryCount, entryMax, groupShape, isFixedLoadout, tradeDonor } from '@/roster/compulsory'
 import { roleKey } from '@/roster/roles'
 import { describeLoadout, enhancementsTaken } from './RosterEditor'
 import { StatStrip } from './StatStrip'
@@ -526,7 +526,20 @@ function GroupEditor({
   const singleChoice = groupMin === 1 && limit === 1
   // What the group *is*, which decides what it looks like: a fixed list is
   // stated, a one-of-N is a choice, everything else is counted.
-  const shape = groupShape({ min: groupMin, limit, candidates: candidates.length })
+  const shape = groupShape({ min: groupMin, limit, candidates: candidates.map(entryMax) })
+  // "Exactly two of these": full and at its floor at once, so raising one
+  // option has to lower another — the group trades instead of refusing.
+  const exact = shape === 'many' && groupMin > 1 && limit === groupMin
+  const donorFor = (raising: Selection | undefined): string | undefined =>
+    tradeDonor(
+      parent.selections
+        .filter((s) => s.groupId === group.id)
+        .map((s) => {
+          const option = candidates.find((c) => isSameOption(s, c, group.id))
+          return { id: s.id, count: s.count, keep: option ? compulsoryCount(option) : 0 }
+        }),
+      raising?.id ?? '',
+    )
 
   if (candidates.length === 0 && nested.length === 0) return null
 
@@ -573,6 +586,7 @@ function GroupEditor({
             groupFull={groupFull}
             atGroupMin={atGroupMin}
             singleChoice={singleChoice}
+            donorFor={exact && groupFull ? donorFor : undefined}
             shape={shape}
             instance={instance}
             instanceLabel={instance ? `${index + 1} of ${instances.length}` : undefined}
@@ -659,6 +673,7 @@ function OptionRow({
   groupFull,
   atGroupMin = false,
   singleChoice = false,
+  donorFor,
   shape = 'many',
   instance,
   instanceLabel,
@@ -676,6 +691,8 @@ function OptionRow({
   atGroupMin?: boolean
   /** Exactly one of this group is taken: picking another swaps to it. */
   singleChoice?: boolean
+  /** The group is full at its exact count: raising this option lowers the one this names. */
+  donorFor?: ((raising: Selection | undefined) => string | undefined) | undefined
 }) {
   const [hint, setHint] = useState<string | null>(null)
   const [reading, setReading] = useState(false)
@@ -694,6 +711,7 @@ function OptionRow({
   // In a one-of-N group the "+" swaps rather than adds, so a full group is no
   // reason to grey it out.
   const swaps = singleChoice && count === 0
+  const donor = donorFor?.(existing)
   // Wargear the data calls compulsory is not a choice: a slugga every Boy
   // carries must not be steppable down to none, and when the data allows
   // exactly one number there is nothing to step at all.
@@ -703,7 +721,7 @@ function OptionRow({
   // the model has".
   const fixed = count > 0 && (shape === 'all' || isFixedLoadout(entry))
   const pickOne = shape === 'one'
-  const plusDisabled = (groupFull && !swaps) || atCap
+  const plusDisabled = (groupFull && !swaps && !donor) || atCap
   const minusDisabled = count === 0 || (atGroupMin && count > 0) || count <= mustKeep
 
   const setCount = (next: number) => {
@@ -718,6 +736,21 @@ function OptionRow({
         : bareSelection(entry, value)
       child.groupId = groupId
       updated = { ...parent, selections: [...kept, child] }
+    } else if (value > count && donor) {
+      // Trade one: the donor gives up what this option takes, and goes when it reaches none.
+      const selections = parent.selections
+        .map((s) => (s.id === donor ? { ...s, count: s.count - 1 } : s))
+        .filter((s) => s.count > 0)
+      const raised = selections.find((s) => s === existing)
+      if (raised) {
+        updated = { ...parent, selections: selections.map((s) => (s === raised ? { ...s, count: value } : s)) }
+      } else {
+        const child = entry.entries.length + entry.groups.length > 0
+          ? instantiate(entry, value)
+          : bareSelection(entry, value)
+        if (groupId) child.groupId = groupId
+        updated = { ...parent, selections: [...selections, child] }
+      }
     } else if (value === 0) {
       updated = { ...parent, selections: parent.selections.filter((s) => s !== existing) }
     } else if (existing) {
@@ -742,7 +775,7 @@ function OptionRow({
 
     // A swap does not grow the unit, so the "would this break a cap?" guard
     // that refuses increments must not refuse it.
-    if (value > count && tryChange && !swaps) {
+    if (value > count && tryChange && !swaps && !donor) {
       const refusal = tryChange(nextRoot)
       if (refusal) {
         // A special-weapon model *replaces* an ordinary one rather than

@@ -20,6 +20,9 @@ const limit = (entry: ResolvedEntry, type: 'min' | 'max'): number | undefined =>
   return found?.value
 }
 
+/** The most of this entry its parent may hold, when the data caps it. */
+export const entryMax = (entry: ResolvedEntry): number | undefined => limit(entry, 'max')
+
 /** How many of this entry its parent must keep — 0 when the data asks for none. */
 export const compulsoryCount = (entry: ResolvedEntry): number =>
   entry.type === 'model' ? 0 : (limit(entry, 'min') ?? 0)
@@ -67,10 +70,32 @@ export function groupShape({
   min: number
   /** The group's cap as the evaluator reads it, if any. */
   limit: number | undefined
-  /** How many options the group actually offers here. */
-  candidates: number
+  /**
+   * The options the group offers here, each as the most of it that may be
+   * taken (undefined when the option has no cap of its own). How many options
+   * there are is not enough: "two of: rokkit pistol (up to two), smash hammer"
+   * is two options for two slots, and still a choice.
+   */
+  candidates: readonly (number | undefined)[]
 }): GroupShape {
   if (min <= 0 || limit !== min) return 'many'
-  if (candidates <= min) return 'all'
-  return min === 1 ? 'one' : 'many'
+  const room = candidates.reduce<number>((sum, cap) => sum + Math.min(cap ?? limit, limit), 0)
+  if (room <= min) return 'all'
+  return min === 1 && candidates.length > 1 ? 'one' : 'many'
+}
+
+/**
+ * Which option gives one up when another is raised in a group that is full at
+ * its exact count. Without it such a group cannot change at all: it is too
+ * full to raise anything and at its floor, so nothing may be lowered. The
+ * option with the most to spare gives first; nothing goes below what its own
+ * data keeps.
+ */
+export function tradeDonor(
+  taken: readonly { id: string; count: number; keep?: number }[],
+  raising: string,
+): string | undefined {
+  return taken
+    .filter((s) => s.id !== raising && s.count > (s.keep ?? 0))
+    .sort((a, b) => b.count - (b.keep ?? 0) - (a.count - (a.keep ?? 0)))[0]?.id
 }

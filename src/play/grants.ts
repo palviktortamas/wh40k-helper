@@ -53,6 +53,8 @@ export type GrantingRule = { name: string; text: string; source: string }
 const HAVE = /\b(?:(melee|ranged)\s+)?(?:attacks?|weapons?)\b[^.;]{0,70}?\s(?:have|gain)\b([^.;]*)/gi
 /** Every bracketed ability in the tail of such a phrase. */
 const ABILITY = /\[([^\]]+)\]/g
+/** Where the first bracketed ability of a clause starts, bold marks and all. */
+const ABILITY_START = /(?:\*\*)?\[/
 
 /**
  * A condition reads as a subordinate clause before the grant: "While a unit is
@@ -146,30 +148,39 @@ export function weaponGrants(rules: readonly GrantingRule[]): WeaponGrant[] {
     // so the condition lives one clause above the grant.
     let heading: string | undefined
     let headingSubject: GrantSubject | undefined
-    for (const clause of clausesOf(rule.text)) {
+    // "This unit's ranged attacks have: - [X]. - If …, [Y]." — the grant is the
+    // heading, and the abilities are the bullets under it, each with its own
+    // condition. Set while such a heading is open.
+    let listed: { kind: GrantKind; subject: GrantSubject; when: string | undefined } | undefined
+    const push = (keyword: string, kind: GrantKind, subject: GrantSubject, when: string | undefined) => {
+      const key = `${rule.name}|${keyword}|${kind}`
+      if (!keyword || seen.has(key)) return
+      seen.add(key)
+      out.push({ keyword, kind, subject, rule: rule.name, source: rule.source, ...(when ? { when } : {}) })
+    }
+    for (const raw of clausesOf(rule.text)) {
+      const clause = raw.replace(/^[-–—•]\s*/, '')
       if (clause.endsWith(':')) {
         heading = conditionOf(clause.slice(0, -1))
         headingSubject = subjectIn(clause)
+        listed = undefined
       }
+      let granted = false
       for (const match of clause.matchAll(HAVE)) {
+        granted = true
         const kind = (match[1]?.toLowerCase() as GrantKind | undefined) ?? 'any'
         const when = conditionOf(clause.slice(0, match.index)) ?? heading
-        for (const ability of (match[2] ?? '').matchAll(ABILITY)) {
-          const keyword = ability[1]!.trim()
-          if (!keyword) continue
-          const key = `${rule.name}|${keyword}|${kind}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          out.push({
-            keyword,
-            kind,
-            subject: subjectOf(clause.slice(0, match.index), clause, headingSubject),
-            rule: rule.name,
-            source: rule.source,
-            ...(when ? { when } : {}),
-          })
-        }
+        const subject = subjectOf(clause.slice(0, match.index), clause, headingSubject)
+        const tail = (match[2] ?? '').trim()
+        if (clause.endsWith(':') && tail === ':') listed = { kind, subject, when }
+        for (const ability of tail.matchAll(ABILITY)) push(ability[1]!.trim(), kind, subject, when)
       }
+      if (granted || !listed) continue
+      // A bullet under the heading: its abilities, on its own condition or the heading's.
+      const first = clause.search(ABILITY_START)
+      if (first === -1) continue
+      const when = conditionOf(clause.slice(0, first)) ?? listed.when
+      for (const ability of clause.slice(first).matchAll(ABILITY)) push(ability[1]!.trim(), listed.kind, listed.subject, when)
     }
   }
   return out

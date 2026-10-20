@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { compulsoryCount, groupShape, isFixedLoadout } from './compulsory'
+import { compulsoryCount, groupShape, isFixedLoadout, tradeDonor } from './compulsory'
 import type { ResolvedEntry } from './resolve'
 
 const entry = (
@@ -72,30 +72,59 @@ describe('isFixedLoadout', () => {
   })
 })
 
+/** Options that may each be taken once, as most wargear is written. */
+const ones = (n: number) => Array.from({ length: n }, () => 1)
+
 describe('groupShape', () => {
   it('is a choice when the group must hold exactly one of several', () => {
-    expect(groupShape({ min: 1, limit: 1, candidates: 4 })).toBe('one')
+    expect(groupShape({ min: 1, limit: 1, candidates: ones(4) })).toBe('one')
   })
 
   it('is fixed when the group must hold everything it offers', () => {
-    expect(groupShape({ min: 1, limit: 1, candidates: 1 })).toBe('all')
-    expect(groupShape({ min: 2, limit: 2, candidates: 2 })).toBe('all')
+    expect(groupShape({ min: 1, limit: 1, candidates: ones(1) })).toBe('all')
+    expect(groupShape({ min: 2, limit: 2, candidates: ones(2) })).toBe('all')
   })
 
   it('leaves a range to the steppers', () => {
-    expect(groupShape({ min: 1, limit: 2, candidates: 3 })).toBe('many')
-    expect(groupShape({ min: 0, limit: 1, candidates: 3 })).toBe('many')
-    expect(groupShape({ min: 9, limit: 18, candidates: 1 })).toBe('many')
-    expect(groupShape({ min: 0, limit: undefined, candidates: 5 })).toBe('many')
+    expect(groupShape({ min: 1, limit: 2, candidates: ones(3) })).toBe('many')
+    expect(groupShape({ min: 0, limit: 1, candidates: ones(3) })).toBe('many')
+    expect(groupShape({ min: 9, limit: 18, candidates: ones(1) })).toBe('many')
+    expect(groupShape({ min: 0, limit: undefined, candidates: ones(5) })).toBe('many')
   })
 
   it('leaves "two of these four" to the steppers, with the floor the group keeps', () => {
-    expect(groupShape({ min: 2, limit: 2, candidates: 4 })).toBe('many')
+    expect(groupShape({ min: 2, limit: 2, candidates: ones(4) })).toBe('many')
   })
 
   it('reads the cap the evaluator gives, so a cap a rule raises is not frozen', () => {
     // "One rokkit per ten models" is min 1 / max 1 in the raw data and 2 once
     // the mob is twenty strong; that is a count, not a fixed choice.
-    expect(groupShape({ min: 1, limit: 2, candidates: 3 })).toBe('many')
+    expect(groupShape({ min: 1, limit: 2, candidates: ones(3) })).toBe('many')
+  })
+
+  it('counts what each option may be taken, not how many options there are', () => {
+    // "Two of: rokkit pistol (up to two), smash hammer (one)" — two pistols or
+    // a pistol and the hammer. Two options for two slots, and still a choice.
+    expect(groupShape({ min: 2, limit: 2, candidates: [2, 1] })).toBe('many')
+    // An option with no cap of its own can fill the group by itself.
+    expect(groupShape({ min: 1, limit: 1, candidates: [undefined] })).toBe('all')
+    expect(groupShape({ min: 2, limit: 2, candidates: [undefined, 1] })).toBe('many')
+  })
+})
+
+describe('tradeDonor', () => {
+  const sel = (id: string, count: number, keep = 0) => ({ id, count, keep })
+
+  it('takes from the option with the most to spare', () => {
+    expect(tradeDonor([sel('pistol', 2, 1), sel('other', 1)], 'hammer')).toBe('pistol')
+  })
+
+  it('never takes below what an option must keep', () => {
+    expect(tradeDonor([sel('pistol', 1, 1), sel('hammer', 1)], 'pistol')).toBe('hammer')
+    expect(tradeDonor([sel('pistol', 1, 1)], 'hammer')).toBeUndefined()
+  })
+
+  it('does not take from the option being raised', () => {
+    expect(tradeDonor([sel('pistol', 2)], 'pistol')).toBeUndefined()
   })
 })

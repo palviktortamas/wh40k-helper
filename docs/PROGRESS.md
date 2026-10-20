@@ -1754,6 +1754,33 @@ not a subtitle.
 ---
 
 
+## Done 2026-10-20 - two reports from the owner on the new Ork data
+
+**A Nob that could not change its loadout.** The Tankbustas' Boss Nob has a Wargear group of
+exactly two from Rokkit Pistol (up to two) and Smash Hammer (one). `groupShape` counted options,
+not what each may be taken: two options for two slots read as `'all'`, so the editor stated
+"pistol · hammer included" and offered nothing. It now sums each option's own cap (capped by the
+group's): `'all'` only when that sum is no more than the minimum. That alone left a deadlock —
+at 2/2 with a floor of 2 nothing may be raised (full) or lowered (floor) — so an exact-count
+group now **trades**: "+" on one option takes one from the option with the most to spare
+(`tradeDonor`, never below what an option must keep). Walked through in headless Chrome:
+2 pistols → + hammer → pistol + hammer → + pistol → 2 pistols, no issues raised.
+
+**More Dakka not on the weapons.** The Big Mek's ability is written as a heading and bullets —
+"This unit's ranged attacks have: - [IGNORES COVER]. - If this unit is riled up, [SUSTAINED
+HITS 1]." — and `weaponGrants` only read keywords in the same clause as "attacks have". A clause
+ending "attacks have:" now opens a list; each bullet's bracketed abilities are granted with the
+bullet's own condition, else the heading's. `grants.live.test.ts` finds every ability written
+that way in every fixture faction and requires one grant per bracketed keyword (it fails on the
+old reader, on exactly this ability). Seen at the table: a Big Mek leading Tankbustas puts
+[IGNORES COVER] on every ranged weapon and [SUSTAINED HITS 1]* "if this unit is riled up".
+
+Noticed, not done: BSData also writes these as profile modifiers with an `affects` path
+(`self.entries.group.recursive.profiles.Ranged Weapons`, ~70 on Orks, mostly detachment weapon
+keywords and stat bumps). The app ignores `affects` entirely and reads the rule text instead,
+which covers the leader abilities; evaluating `affects` would be the data-driven alternative.
+In this Ork data a Big Mek can lead only Tankbustas.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

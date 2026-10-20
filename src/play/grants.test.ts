@@ -40,6 +40,20 @@ describe('weapon grants', () => {
     ])
   })
 
+  it('reads abilities listed as bullets under an "attacks have:" heading, each with its own condition', () => {
+    const grants = weaponGrants([
+      {
+        name: 'Lead Gun',
+        text: "This unit's ranged attacks have:\n- **[IGNORES COVER]**.\n- If this unit is **worked up**, **[SUSTAINED HITS 1]**.",
+        source: 'Leader',
+      },
+    ])
+    expect(grants.map((g) => [g.keyword, g.kind, g.subject, g.when])).toEqual([
+      ['IGNORES COVER', 'ranged', 'unit', undefined],
+      ['SUSTAINED HITS 1', 'ranged', 'unit', 'If this unit is worked up'],
+    ])
+  })
+
   it('takes every ability of a multi-ability grant, and a grant with no half named lands on both', () => {
     const grants = weaponGrants([
       { name: 'Rule', text: "That unit's attacks have **[LANCE]** and **[TWIN-LINKED]** until the end of the turn.", source: 'Stratagem' },
