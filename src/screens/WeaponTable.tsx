@@ -1,6 +1,6 @@
 import { groupModes, type WeaponRow } from '@/play/weapons'
 import { grantsFor, type WeaponGrant } from '@/play/grants'
-import { applyMod, modsFor, skillMods, type StatMod } from '@/play/mods'
+import { appliesToWeapon, applyMod, modsFor, skillMods, type StatMod } from '@/play/mods'
 import { ModList, modLabel } from './StatStrip'
 import './Datasheets.css'
 
@@ -74,9 +74,15 @@ export function WeaponTable({
     else if (live(grant) && !live(here[at]!)) here[at] = grant
   }
   const conditional = here.filter((g) => !live(g))
-  const modsHere = mods.filter((mod) => mod.target === kind || mod.target === 'any')
   // A weapon with several firing modes is one weapon, carried once.
   const groups = groupModes(rows)
+  // Listed under the table only when some weapon in it is one the rule is for.
+  const modsHere = mods.filter(
+    (mod) =>
+      (mod.target === kind || mod.target === 'any') &&
+      !(mod.stat === 'R' && kind === 'melee') &&
+      groups.some((g) => appliesToWeapon(mod, { name: g.name, keywords: g.modes[0]!.profile.keywords })),
+  )
   return (
     <>
       <h3>{title}</h3>
@@ -104,6 +110,8 @@ export function WeaponTable({
             {weapon.modes.map(({ label, profile }, index) => {
               const count = weapon.count
               const absent = showCount && count === 0
+              // A bonus for "[PSYCHIC] attacks" or one named weapon is for that weapon only.
+              const ref = { name: weapon.name, keywords: profile.keywords }
               return (
                 <tr key={profile.id} className={absent ? 'weapon--absent' : ''}>
                   {showCount && index === 0 && (
@@ -154,8 +162,8 @@ export function WeaponTable({
                       </span>
                     )}
                   </th>
-                  <Cell value={profile.range} mods={absent ? [] : modsFor(modsHere, kind, 'R')} />
-                  <Cell value={profile.a} mods={absent ? [] : modsFor(modsHere, kind, 'A')} />
+                  <Cell value={profile.range} mods={absent ? [] : modsFor(modsHere, kind, 'R', ref)} />
+                  <Cell value={profile.a} mods={absent ? [] : modsFor(modsHere, kind, 'A', ref)} />
                   {/* The skill cell carries the hit-roll modifiers too: the
                       number a player reads here is the one they roll against,
                       and doing that arithmetic by hand mid-phase is the whole
@@ -165,12 +173,12 @@ export function WeaponTable({
                     mods={
                       absent
                         ? []
-                        : [...modsFor(modsHere, kind, skillLabel), ...skillMods(modsHere, kind)]
+                        : [...modsFor(modsHere, kind, skillLabel, ref), ...skillMods(modsHere, kind, ref)]
                     }
                   />
-                  <Cell value={profile.s} mods={absent ? [] : modsFor(modsHere, kind, 'S')} />
-                  <Cell value={profile.ap} mods={absent ? [] : modsFor(modsHere, kind, 'AP')} />
-                  <Cell value={profile.d} mods={absent ? [] : modsFor(modsHere, kind, 'D')} />
+                  <Cell value={profile.s} mods={absent ? [] : modsFor(modsHere, kind, 'S', ref)} />
+                  <Cell value={profile.ap} mods={absent ? [] : modsFor(modsHere, kind, 'AP', ref)} />
+                  <Cell value={profile.d} mods={absent ? [] : modsFor(modsHere, kind, 'D', ref)} />
                 </tr>
               )
             })}
