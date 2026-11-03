@@ -41,6 +41,12 @@ export type WeaponGrant = {
   when?: string
   /** That clause is a state the unit is in right now, so the ability is live. */
   met?: boolean
+  /**
+   * The condition is about the *target* of the attack ("attacks that target a
+   * MONSTER unit"), which changes with every attack and which no state the
+   * player ticks can settle. So it is shown as conditional and never as live.
+   */
+  against?: boolean
 }
 
 export type GrantingRule = { name: string; text: string; source: string }
@@ -134,6 +140,52 @@ export function conditionOf(prefix: string): string | undefined {
   return unbold(candidate)
 }
 
+/** A bullet's own marker, which is not part of what it says. */
+export const stripBullet = (clause: string): string => clause.replace(/^[-–—•]\s*/, '')
+
+/**
+ * "attacks that target a MONSTER/VEHICLE unit", "…that targets the closest
+ * eligible target" — the thing the attack is aimed at, as a condition. Asked of
+ * the text in front of the effect. A bare "a unit" is every attack there is, so
+ * it is no condition at all; attacks aimed at *this* unit are somebody else's
+ * effect and are ruled out by the callers before they ask.
+ */
+const TARGETS = /\btargets?\s+((?:an?|the|one|each|any|that)\b[^,;]*)/i
+const ANY_UNIT = /^(?:an?\s+)?(?:enemy\s+)?units?$/i
+export function targetCondition(before: string): string | undefined {
+  const found = TARGETS.exec(unbold(before))
+  if (!found) return undefined
+  const noun = found[1]!.trim().replace(/\s+(?:have|has|gain)\s*:?$/i, '').replace(/[:\s]+$/, '')
+  if (!noun || ANY_UNIT.test(noun)) return undefined
+  return `attacks that target ${noun}`
+}
+
+/** A target condition the condition already says is not said twice. */
+export const withTarget = (when: string | undefined, target: string | undefined): string | undefined => {
+  if (!target) return when
+  const noun = target.slice('attacks that target '.length)
+  return when?.includes(noun) ? when : joinWhen(when, target)
+}
+
+/** Two conditions that must both hold, said once each. */
+export const joinWhen = (...parts: (string | undefined)[]): string | undefined => {
+  const kept = parts.filter((part): part is string => Boolean(part))
+  const unique = kept.filter((part, at) => !kept.some((other, i) => i < at && other.includes(part)))
+  return unique.length > 0 ? unique.join('; ') : undefined
+}
+
+/**
+ * The condition a clause opens with, for a following sentence that says
+ * "Instead, …" and so holds on the same terms: "Each time the bearer's unit
+ * Advances, do not make an Advance roll for it. Instead, add 6" to its Move."
+ */
+export function leadingCondition(clause: string): string | undefined {
+  const comma = clause.indexOf(',')
+  if (comma === -1) return undefined
+  const first = clause.slice(0, comma).trim()
+  return CONDITION.test(first) ? unbold(first) : undefined
+}
+
 /**
  * Every weapon ability the given rules grant. Callers pass only the rules that
  * already speak about the unit in hand — the detachment rules that name it,
@@ -151,15 +203,31 @@ export function weaponGrants(rules: readonly GrantingRule[]): WeaponGrant[] {
     // "This unit's ranged attacks have: - [X]. - If …, [Y]." — the grant is the
     // heading, and the abilities are the bullets under it, each with its own
     // condition. Set while such a heading is open.
-    let listed: { kind: GrantKind; subject: GrantSubject; when: string | undefined } | undefined
-    const push = (keyword: string, kind: GrantKind, subject: GrantSubject, when: string | undefined) => {
+    let listed:
+      | { kind: GrantKind; subject: GrantSubject; when: string | undefined; target: string | undefined }
+      | undefined
+    const push = (
+      keyword: string,
+      kind: GrantKind,
+      subject: GrantSubject,
+      when: string | undefined,
+      against = false,
+    ) => {
       const key = `${rule.name}|${keyword}|${kind}`
       if (!keyword || seen.has(key)) return
       seen.add(key)
-      out.push({ keyword, kind, subject, rule: rule.name, source: rule.source, ...(when ? { when } : {}) })
+      out.push({
+        keyword,
+        kind,
+        subject,
+        rule: rule.name,
+        source: rule.source,
+        ...(when ? { when } : {}),
+        ...(against ? { against } : {}),
+      })
     }
     for (const raw of clausesOf(rule.text)) {
-      const clause = raw.replace(/^[-–—•]\s*/, '')
+      const clause = stripBullet(raw)
       if (clause.endsWith(':')) {
         heading = conditionOf(clause.slice(0, -1))
         headingSubject = subjectIn(clause)
@@ -169,18 +237,22 @@ export function weaponGrants(rules: readonly GrantingRule[]): WeaponGrant[] {
       for (const match of clause.matchAll(HAVE)) {
         granted = true
         const kind = (match[1]?.toLowerCase() as GrantKind | undefined) ?? 'any'
-        const when = conditionOf(clause.slice(0, match.index)) ?? heading
+        // The target of the attack is a condition too, but not one a state settles.
+        const target = targetCondition(match[0].slice(0, match[0].length - (match[2]?.length ?? 0)))
+        const own = conditionOf(clause.slice(0, match.index)) ?? heading
+        const when = withTarget(own, target)
         const subject = subjectOf(clause.slice(0, match.index), clause, headingSubject)
         const tail = (match[2] ?? '').trim()
-        if (clause.endsWith(':') && tail === ':') listed = { kind, subject, when }
-        for (const ability of tail.matchAll(ABILITY)) push(ability[1]!.trim(), kind, subject, when)
+        if (clause.endsWith(':') && tail === ':') listed = { kind, subject, when: own, target }
+        for (const ability of tail.matchAll(ABILITY)) push(ability[1]!.trim(), kind, subject, when, Boolean(target))
       }
       if (granted || !listed) continue
       // A bullet under the heading: its abilities, on its own condition or the heading's.
       const first = clause.search(ABILITY_START)
       if (first === -1) continue
-      const when = conditionOf(clause.slice(0, first)) ?? listed.when
-      for (const ability of clause.slice(first).matchAll(ABILITY)) push(ability[1]!.trim(), listed.kind, listed.subject, when)
+      const when = withTarget(conditionOf(clause.slice(0, first)) ?? listed.when, listed.target)
+      for (const ability of clause.slice(first).matchAll(ABILITY))
+        push(ability[1]!.trim(), listed.kind, listed.subject, when, Boolean(listed.target))
     }
   }
   return out
@@ -197,7 +269,9 @@ export const resolveGrants = (
   facts: Facts = {},
 ): WeaponGrant[] =>
   grants.map((grant) =>
-    grant.when && conditionMet(grant.when, activeStates, facts) ? { ...grant, met: true } : grant,
+    grant.when && !grant.against && conditionMet(grant.when, activeStates, facts)
+      ? { ...grant, met: true }
+      : grant,
   )
 
 /** The grants that land on one weapon profile. */

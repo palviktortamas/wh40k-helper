@@ -18,13 +18,16 @@ import { weaponGrants } from './grants'
 const HEADING = /attacks have:\s*(?:\n|\s-\s)/i
 
 describe.skipIf(!fixturesAvailable())('bulleted weapon grants on the real data', () => {
+  // Not every codex writes one: the check that the grammar still exists in the
+  // data at all is made over the fixtures as a whole, not per faction.
+  let written = 0
   for (const faction of fixturesAvailable() ? configuredFactions() : []) {
     it(`${faction.name}: every "attacks have:" list grants what its bullets name`, () => {
       const parsed = parseCatalogue(loadGameSystem(), loadCatalogueOf(faction), loadLibrariesOf(faction))
       const rules = parsed.datasheets.flatMap((sheet) =>
         sheet.abilities.filter((a) => HEADING.test(a.text)).map((a) => ({ name: a.name, text: a.text, source: sheet.name })),
       )
-      expect(rules.length).toBeGreaterThan(0)
+      written += rules.length
       for (const rule of rules) {
         const bracketed = rule.text.slice(rule.text.search(HEADING)).match(/\[[^\]]+\]/g) ?? []
         const grants = weaponGrants([rule])
@@ -32,4 +35,7 @@ describe.skipIf(!fixturesAvailable())('bulleted weapon grants on the real data',
       }
     })
   }
+  it('is still written that way somewhere in the data', () => {
+    expect(written).toBeGreaterThan(0)
+  })
 })

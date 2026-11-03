@@ -18,8 +18,19 @@ const COLUMNS = [
  */
 export function modLabel(mod: StatMod): string {
   if (mod.stat === 'HIT' || mod.stat === 'WOUND')
-    return `${mod.value} to ${mod.stat.toLowerCase()}`
-  return `${mod.stat === 'INVSV' ? 'Inv' : mod.stat} ${mod.value}`
+    return `${mod.value} to ${mod.stat.toLowerCase()}${weaponLabel(mod)}`
+  return `${mod.stat === 'INVSV' ? 'Inv' : mod.stat} ${mod.value}${weaponLabel(mod)}`
+}
+
+/** "for [PSYCHIC] weapons", "for Scavenged Shivs": who a filtered change is for. */
+function weaponLabel(mod: StatMod): string {
+  const { keyword, except, name } = mod.weapon ?? {}
+  const parts = [
+    name,
+    keyword ? `[${keyword}]` : undefined,
+    except ? `not [${except}]` : undefined,
+  ].filter(Boolean)
+  return parts.length > 0 ? ` (${parts.join(' ')})` : ''
 }
 
 /** What a change that has not happened yet would do, for a tooltip. */

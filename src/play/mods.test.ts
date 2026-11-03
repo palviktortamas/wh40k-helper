@@ -128,9 +128,10 @@ describe('picking the modifiers that apply', () => {
     expect(modsFor(mods, 'unit', 'T').map((m) => m.rule)).toEqual(['A'])
     expect(modsFor(mods, 'melee', 'A').map((m) => m.rule)).toEqual(['B'])
     expect(modsFor(mods, 'ranged', 'A')).toEqual([])
-    // A modifier that names neither half lands on both.
+    // A modifier that names neither half lands on the ranged weapons: a melee
+    // weapon has no range to add to.
     expect(modsFor(mods, 'ranged', 'R').map((m) => m.rule)).toEqual(['D'])
-    expect(modsFor(mods, 'melee', 'R').map((m) => m.rule)).toEqual(['D'])
+    expect(modsFor(mods, 'melee', 'R')).toEqual([])
   })
 })
 

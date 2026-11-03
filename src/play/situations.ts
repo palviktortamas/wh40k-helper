@@ -44,7 +44,7 @@ export const SITUATIONS: readonly Situation[] = [
   {
     status: 'advanced',
     label: 'Advanced',
-    phrases: ['advance move', 'advance/fall-back', 'advanced this turn', 'made an advance'],
+    phrases: ['advance move', 'advance/fall-back', 'advanced this turn', 'made an advance', 'unit advances'],
   },
   {
     status: 'fellBack',
