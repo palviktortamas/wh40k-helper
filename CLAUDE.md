@@ -56,7 +56,9 @@ in the unit editor — all measured before and after in headless Chrome at 390 p
 journal). **2026-10-20:** after a month unused the browser evicted all
 data (lists and faction) — the app had never asked for persistent storage. It now does at every
 start (`data/persist.ts`), and Settings → Backup saves/restores everything the owner made as one
-file (`data/backup.ts`); see the journal. The sync/proxy Worker is **deferred by the owner** ("not needed
+file (`data/backup.ts`); see the journal. **2026-11-03:** an ability the data hides unless the army
+holds a detachment (extra psychic powers, a Deep Strike) carries `Ability.onlyWith`, and every
+army-aware screen filters through `roster/armyAbilities.ts`. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

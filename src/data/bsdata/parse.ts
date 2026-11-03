@@ -51,8 +51,10 @@ import type {
  * 7: a rule linked with a `name` modifier keeps the value the link appends —
  *    the number that is the whole point of the rule on that unit — and a
  *    transport's capacity is listed as an ability like the datasheet prints it.
+ * 8: an ability the data hides unless the army holds a detachment records
+ *    which (`onlyWith`), so an army without it no longer gets the rule.
  */
-export const PARSER_VERSION = 7
+export const PARSER_VERSION = 8
 
 const FACTION_PREFIX = 'faction:'
 /** The roster setup entry's role — army configuration, not a unit. */
@@ -101,6 +103,31 @@ function linkedName(base: string, modifiers: Modifier[] | undefined): string {
     else if (mod.type === 'set') name = value
   }
   return name.trim()
+}
+
+/**
+ * The entries a link is shown only alongside: a `set hidden` modifier whose
+ * every condition is "the army holds fewer than 1 of X". That is how the data
+ * gives a unit an extra rule with one detachment (a psychic power, a Deep
+ * Strike), and listing it regardless hands every army a rule only that
+ * detachment grants. Any other condition is left alone — the rule is listed.
+ */
+function onlyWith(modifiers: Modifier[] | undefined, index: Index): string[] | undefined {
+  for (const mod of modifiers ?? []) {
+    if (mod.field !== 'hidden' || mod.type !== 'set' || String(mod.value) !== 'true') continue
+    if (mod.conditionGroups?.length || mod.repeats?.length || !mod.conditions?.length) continue
+    const absent = mod.conditions.every(
+      (c) =>
+        c.type === 'lessThan' &&
+        c.value === 1 &&
+        c.field === 'selections' &&
+        (c.scope === 'force' || c.scope === 'roster') &&
+        c.childId !== undefined,
+    )
+    if (!absent) continue
+    return mod.conditions.map((c) => index.entries.get(c.childId!)?.name ?? c.childName ?? c.childId!)
+  }
+  return undefined
 }
 
 /** Weapon keyword cells read "Sustained Hits 1, Lethal Hits" or "-". */
@@ -168,6 +195,8 @@ function collectProfiles(
    * abilities that are not its own. Weapons still need them.
    */
   followGroupLinks = true,
+  /** Filled with the detachments a profile reached through a link needs — see `onlyWith`. */
+  needs?: Map<string, string[]>,
 ): Profile[] {
   if (depth > 8) return []
   const out: Profile[] = []
@@ -179,7 +208,11 @@ function collectProfiles(
     for (const link of node.infoLinks ?? []) {
       if (link.type !== 'profile') continue
       const target = index.profiles.get(link.targetId)
-      if (target && !seen.has(target.id)) (seen.add(target.id), out.push(target))
+      if (!target || seen.has(target.id)) continue
+      seen.add(target.id)
+      out.push(target)
+      const required = onlyWith(link.modifiers, index)
+      if (required && needs) needs.set(target.id, required)
     }
     for (const child of node.selectionEntries ?? []) visitEntry(child)
     for (const group of node.selectionEntryGroups ?? []) visitGroup(group)
@@ -201,7 +234,7 @@ function collectProfiles(
         ? index.entries.get(link.targetId)
         : index.groups.get(link.targetId)
     if (!target) return
-    out.push(...collectProfiles(target, index, seen, depth + 1, followGroupLinks))
+    out.push(...collectProfiles(target, index, seen, depth + 1, followGroupLinks, needs))
     for (const child of link.selectionEntries ?? []) visitEntry(child)
     for (const nested of link.entryLinks ?? []) visitLink(nested)
   }
@@ -280,7 +313,8 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
   const ofKind = (kind: 'stats' | 'weapon' | 'transport' | 'ability') =>
     profiles.filter((p) => kindOf.get(p.id)?.kind === kind)
   // Abilities come from the entry, its models and its infoLinks only — see collectProfiles.
-  const ownProfiles = collectProfiles(entry, index, new Set(), 0, false)
+  const needs = new Map<string, string[]>()
+  const ownProfiles = collectProfiles(entry, index, new Set(), 0, false, needs)
   // …and so do the weapons the unit has real access to. The shared group links
   // reach the Crusade relic trees, which every datasheet in the game links, so
   // a weapon found only through those is flagged rather than offered.
@@ -311,6 +345,7 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
         // "Psychic Abilities", "Triarch Abilities": the codex's own heading,
         // without which a row called "1-2" means nothing on its own.
         ...(kind.group ? { group: kind.group } : {}),
+        ...(needs.has(p.id) ? { onlyWith: needs.get(p.id)! } : {}),
       },
     ]
   })
@@ -332,12 +367,14 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
   for (const link of entry.infoLinks ?? []) {
     if (link.type !== 'rule') continue
     const rule = index.rules.get(link.targetId)
+    const required = onlyWith(link.modifiers, index)
     if (rule)
       abilities.push({
         id: rule.id,
         name: linkedName(rule.name, link.modifiers),
         kind: 'faction',
         text: rule.description ?? '',
+        ...(required ? { onlyWith: required } : {}),
       })
   }
 

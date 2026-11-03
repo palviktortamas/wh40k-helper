@@ -15,6 +15,7 @@
 
 import { plainText } from '@/reminders/heuristics'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
+import { abilitiesInArmy } from '@/roster/armyAbilities'
 import type { Ability, ParsedCatalogue } from '@/data/model'
 
 /** A state the installed data names. */
@@ -208,7 +209,8 @@ export function rulesAboutMark(
     return mentions > grantedMarks(ability.text, [mark]).length
   }
 
-  const own = (catalogue.datasheets.find((d) => d.id === datasheetId)?.abilities ?? []).filter(speaksAbout)
+  const abilities = catalogue.datasheets.find((d) => d.id === datasheetId)?.abilities ?? []
+  const own = (detachmentNames ? abilitiesInArmy(abilities, detachmentNames) : abilities).filter(speaksAbout)
   const taken = detachmentNames
     ? catalogue.detachments.filter((d) => detachmentNames.includes(d.name))
     : catalogue.detachments

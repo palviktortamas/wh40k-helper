@@ -196,3 +196,65 @@ describe('transport capacity', () => {
     expect(sheet.transportCapacity).toBeUndefined()
   })
 })
+
+describe('an ability the data only shows with a detachment', () => {
+  // A link can be hidden "while the army holds fewer than 1 of <detachment>":
+  // the detachment grants the unit an extra rule. Listing it unconditionally
+  // hands every army a rule only one detachment gives.
+  const hiddenWithout = (childId: string, childName: string) => [
+    {
+      type: 'set' as const,
+      field: 'hidden',
+      value: true,
+      conditions: [
+        { type: 'lessThan' as const, field: 'selections', value: 1, scope: 'force', childId, childName, shared: true },
+      ],
+    },
+  ]
+  const power: Profile = {
+    id: 'p-power',
+    name: 'Granted Power',
+    typeId: 't-abilities',
+    typeName: 'Abilities',
+    characteristics: [{ name: 'Description', typeId: 'c-desc', $text: 'Something happens.' }],
+  }
+  const detachment: SelectionEntry = { id: 'e-det', name: 'The Detachment', type: 'upgrade' }
+
+  it('names the detachment on a linked profile', () => {
+    const cat = build(
+      wagon({
+        infoLinks: [
+          { id: 'il-p', name: 'Granted Power', targetId: 'p-power', type: 'profile', modifiers: hiddenWithout('e-det', 'Old Name') },
+        ],
+      }),
+      [],
+    )
+    cat.sharedProfiles = [power]
+    cat.sharedSelectionEntries = [...(cat.sharedSelectionEntries ?? []), detachment]
+    const ability = sheetOf(cat).abilities.find((a) => a.name === 'Granted Power')
+    expect(ability?.onlyWith).toEqual(['The Detachment'])
+  })
+
+  it('names the detachment on a linked rule, falling back to the name the link records', () => {
+    const sheet = sheetOf(
+      build(
+        wagon({
+          infoLinks: [
+            { id: 'il-r', name: 'Granted Rule', targetId: 'r-1', type: 'rule', modifiers: hiddenWithout('e-gone', 'Recorded Name') },
+          ],
+        }),
+        [rule('r-1', 'Granted Rule')],
+      ),
+    )
+    expect(sheet.abilities.find((a) => a.name === 'Granted Rule')?.onlyWith).toEqual(['Recorded Name'])
+  })
+
+  it('leaves an ability with no such condition for every army', () => {
+    const sheet = sheetOf(
+      build(wagon({ infoLinks: [{ id: 'il-1', name: 'Plain Rule', targetId: 'r-1', type: 'rule' }] }), [
+        rule('r-1', 'Plain Rule'),
+      ]),
+    )
+    expect(sheet.abilities.find((a) => a.name === 'Plain Rule')?.onlyWith).toBeUndefined()
+  })
+})

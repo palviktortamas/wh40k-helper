@@ -13,6 +13,7 @@ import { canResize, isAtMaxSize, modelCount, withUnitSize } from '@/roster/size'
 import { canSplit, mergeSelection, splitSelection } from '@/roster/split'
 import { compulsoryCount, entryMax, groupShape, isFixedLoadout, tradeDonor } from '@/roster/compulsory'
 import { roleKey } from '@/roster/roles'
+import { abilitiesInArmy } from '@/roster/armyAbilities'
 import { describeLoadout, enhancementsTaken } from './RosterEditor'
 import { StatStrip } from './StatStrip'
 import { effectsForUnit } from '@/play/unitEffects'
@@ -281,6 +282,8 @@ function BuiltSheet({
   const { rows, unmatched } = weaponCounts({ models: modelGroups(selection, sheet) }, sheet)
   const { grants, mods } = effectsForBuiltUnit(sheet, selection, family, detachments, catalogue)
   const keywords = [...sheet.keywords, ...sheet.factionKeywords]
+  const detachmentNames = detachments.map((d) => d.name)
+  const abilities = abilitiesInArmy(sheet.abilities, detachmentNames)
   // Every detachment the army took can speak about this unit, so each is asked.
   const detachmentRules = detachments.flatMap((d) =>
     (d.rules ?? [])
@@ -296,7 +299,7 @@ function BuiltSheet({
   // bodyguard is a judgement the rules text makes in prose, so everything the
   // character has is listed and tagged with its name rather than guessed at.
   const fromAttached = attached.flatMap((joined) => [
-    ...(joined.sheet?.abilities ?? [])
+    ...abilitiesInArmy(joined.sheet?.abilities ?? [], detachmentNames)
       .filter((a) => a.kind !== 'core' && a.kind !== 'faction')
       .map((ability) => ({ key: `${joined.id}:${ability.id}`, name: ability.name, text: ability.text, from: joined, tag: joined.kindLabel })),
     ...joined.enhancements.map((name) => ({
@@ -344,7 +347,7 @@ function BuiltSheet({
         </>
       )}
 
-      {(sheet.abilities.length > 0 ||
+      {(abilities.length > 0 ||
         detachmentRules.length > 0 ||
         taken.length > 0 ||
         fromAttached.length > 0) && <h3>Abilities</h3>}
@@ -388,7 +391,7 @@ function BuiltSheet({
             )}
           </li>
         ))}
-        {sheet.abilities.map((ability) => (
+        {abilities.map((ability) => (
           <li key={ability.id} className="abilities__item">
             <div className="abilities__head">
               {ability.name}

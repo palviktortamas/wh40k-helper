@@ -65,6 +65,11 @@ export type Ability = {
    * and mean nothing without it.
    */
   group?: string
+  /**
+   * The detachments (by name) of which the army must hold one for this unit to
+   * have the ability — the data hides it otherwise. Absent: every army has it.
+   */
+  onlyWith?: string[]
 }
 
 /**

@@ -130,6 +130,9 @@ export function DatasheetDetail() {
                 <dt>
                   {ability.name}
                   {ability.group && <span className="rule-chip rule-chip--group">{ability.group}</span>}
+                  {ability.onlyWith && (
+                    <span className="rule-chip rule-chip--detachment">Only with {ability.onlyWith.join(' or ')}</span>
+                  )}
                 </dt>
                 <dd>{ability.text || '—'}</dd>
               </div>

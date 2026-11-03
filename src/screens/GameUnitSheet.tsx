@@ -5,6 +5,7 @@ import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } fro
 import { groupModes, loadoutByModel, weaponCounts } from '@/play/weapons'
 import { attachedFamily, detachmentRulesFor, effectsForUnit, situationsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
+import { abilitiesInArmy } from '@/roster/armyAbilities'
 import { StatStrip } from './StatStrip'
 import { WeaponTable } from './WeaponTable'
 import { Marked } from './Marked'
@@ -35,8 +36,9 @@ function Abilities({
   // them itself, and every detachment the army took may name this one.
   const granted = detachmentRulesFor(keywords, detachmentNames, catalogue)
   const enhancementText = new Map((catalogue?.enhancements ?? []).map((e) => [e.id, e.text]))
+  const abilities = abilitiesInArmy(sheet.abilities, detachmentNames)
 
-  if (sheet.abilities.length === 0 && granted.length === 0 && (unit.enhancements?.length ?? 0) === 0) return null
+  if (abilities.length === 0 && granted.length === 0 && (unit.enhancements?.length ?? 0) === 0) return null
   return (
     <ul className="abilities">
       {granted.map(({ rule, detachmentName }) => (
@@ -69,7 +71,7 @@ function Abilities({
           </li>
         )
       })}
-      {sheet.abilities.map((ability) => {
+      {abilities.map((ability) => {
         const once = ONCE_PER_BATTLE.test(`${ability.name} ${ability.text}`)
         const used = unit.usedOnce.includes(ability.id)
         return (

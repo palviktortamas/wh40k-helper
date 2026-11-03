@@ -15,6 +15,7 @@
 
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
+import { abilitiesInArmy } from '@/roster/armyAbilities'
 import { effectsFrom, type Effects } from './effects'
 import { isBackReference, type GrantingRule, type WeaponGrant } from './grants'
 import { rulesAboutMark, type Mark } from './marks'
@@ -118,7 +119,7 @@ function rulesFor(member: Member, context: Context): GrantingRule[] {
       text: rule.text,
       source: detachmentName,
     })),
-    ...(sheet?.abilities ?? []).map((a) => ({
+    ...abilitiesInArmy(sheet?.abilities ?? [], detachmentNames).map((a) => ({
       name: a.name,
       text: a.text,
       source: a.kind === 'faction' ? 'Faction rule' : 'Datasheet',

@@ -1781,6 +1781,38 @@ keywords and stat bumps). The app ignores `affects` entirely and reads the rule 
 which covers the leader abilities; evaluating `affects` would be the data-driven alternative.
 In this Ork data a Big Mek can lead only Tankbustas.
 
+## Done 2026-11-03 - a detachment's psychic powers on every army
+
+**Owner report:** "Without taking the detachment which gives more psychic powers, the psychic
+units still get those as traits." The data links the extra powers onto each psyker with a
+`set hidden = true` modifier whose condition is "the force holds fewer than 1 of <detachment>"
+(scope `force`, field `selections`, `lessThan 1`). `collectProfiles` followed the link and dropped
+the modifier. The same shape gives a Necron datasheet its Deep Strike with one detachment only.
+
+- `parse.ts` `onlyWith`: a hidden modifier whose *every* condition has that shape becomes
+  `Ability.onlyWith: string[]` (detachment names, resolved from the entry id, falling back to the
+  link's `childName`). This covers profile links (on any nested entry) and the datasheet's rule
+  links. Any other hide condition is left alone, so the rule is still listed. The other shapes in
+  the census: `instanceOf force Boarding Actions` (hidden *in* Boarding Actions, so a normal game
+  is right to list it), `associations` counts (attached-unit rules) and condition groups on
+  Leader. **`PARSER_VERSION` → 8.**
+- `roster/armyAbilities.ts` `abilitiesInArmy(abilities, detachmentNames)` is the one filter, used
+  by reminders (`derive.ts`), unit effects, `rulesAboutMark`, the game unit sheet, the unit editor
+  (its own and an attached character's abilities) and the add-unit picker preview. The datasheet
+  browser has no army, so it lists them all with an "Only with <detachment>" chip. The
+  catalogue-wide readers (`remindersForCatalogue`, the mark vocabulary, the reminder text index)
+  still see everything, which they should.
+- On the fixtures: three Ork psykers × two powers with Wurrband, and one Necron Deep Strike.
+  `armyAbilities.live.test.ts` requires every such ability to name a detachment the catalogue
+  offers, and to be missing from an army without that detachment.
+
+Not walked through in the browser. The filter is the same function at every site, and the tests
+cover it.
+
+Noticed, not caused here: `grants.live.test.ts` fails for **Necrons** on today's upstream data
+(no ability written as "attacks have:" any more). It fails the same way on unchanged `main`.
+The assertion that every faction has one is a per-faction assumption the fresher data broke.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

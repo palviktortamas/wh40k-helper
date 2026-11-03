@@ -25,6 +25,7 @@ import {
 import { exportRosterText } from '@/roster/export'
 import { unitNames } from '@/roster/naming'
 import { detachmentEnhancements, detachmentStratagems } from '@/roster/detachmentInfo'
+import { abilitiesInArmy } from '@/roster/armyAbilities'
 import { getStratagemSet } from '@/stratagems/store'
 import type { StratagemSet } from '@/stratagems/types'
 import { attachmentKind, attachmentsOf, capacityOf, heldOfKind, kindOfAssociation } from '@/roster/attachment'
@@ -1040,6 +1041,7 @@ function UnitPicker({
   /** A group id from `groupByRole`, or 'all'. */
   const [role, setRole] = useState<string>('all')
   const [open, setOpen] = useState<string | null>(null)
+  const detachmentNames = validation.detachments.map((d) => d.name)
 
   const entries = useMemo(
     () =>
@@ -1143,9 +1145,9 @@ function UnitPicker({
                     </div>
                     {expanded && sheet && (
                       <div className="picker__preview">
-                        {sheet.abilities.length > 0 && (
+                        {abilitiesInArmy(sheet.abilities, detachmentNames).length > 0 && (
                           <ul className="abilities">
-                            {sheet.abilities.map((a) => (
+                            {abilitiesInArmy(sheet.abilities, detachmentNames).map((a) => (
                               <li key={a.id} className="abilities__item">
                                 <div className="abilities__head">{a.name}</div>
                                 <p className="abilities__text">
