@@ -101,8 +101,14 @@ describe.skipIf(!available)('live source files', () => {
         profiles?: Node[]
         selectionEntries?: Node[]
         selectionEntryGroups?: Node[]
+        costs?: { typeId: string; value: number }[]
       }
-      const printed = (entry: Node): string[] => [
+      // An Enhancement the unit offers inside its own tree is an upgrade, not
+      // one of its abilities (its text is kept under the enhancements).
+      const isEnhancement = (entry: Node) =>
+        (entry.costs ?? []).some((c) => c.typeId === 'f759-1bc4-cb3a-f0d2' && c.value > 0)
+      const printed = (entry: Node): string[] =>
+        isEnhancement(entry) ? [] : [
         ...(entry.profiles ?? [])
           .filter((profile) => {
             const names = (profile.characteristics ?? []).map((c) => c.name.toLowerCase())

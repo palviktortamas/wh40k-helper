@@ -70,6 +70,12 @@ export type Ability = {
    * have the ability — the data hides it otherwise. Absent: every army has it.
    */
   onlyWith?: string[]
+  /**
+   * The characters (by datasheet name) of which one must be attached to the unit
+   * for it to have the ability — the data hides it otherwise. An empty list means
+   * any attached character. Absent: attachment makes no difference.
+   */
+  onlyWithAttached?: string[]
 }
 
 /**

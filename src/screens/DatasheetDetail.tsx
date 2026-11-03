@@ -133,6 +133,13 @@ export function DatasheetDetail() {
                   {ability.onlyWith && (
                     <span className="rule-chip rule-chip--detachment">Only with {ability.onlyWith.join(' or ')}</span>
                   )}
+                  {ability.onlyWithAttached && (
+                    <span className="rule-chip rule-chip--detachment">
+                      {ability.onlyWithAttached.length > 0
+                        ? `Only with ${ability.onlyWithAttached.join(' or ')} attached`
+                        : 'Only with a character attached'}
+                    </span>
+                  )}
                 </dt>
                 <dd>{ability.text || '—'}</dd>
               </div>

@@ -53,8 +53,13 @@ import type {
  *    transport's capacity is listed as an ability like the datasheet prints it.
  * 8: an ability the data hides unless the army holds a detachment records
  *    which (`onlyWith`), so an army without it no longer gets the rule.
+ * 9: an ability hidden unless a character is attached records which
+ *    (`onlyWithAttached`); enhancements nested in a unit are no longer its own
+ *    abilities; rule links on nested model entries are collected; identical
+ *    weapon profiles on one unit are one weapon; a relic weapon's enhancement
+ *    text is its profile.
  */
-export const PARSER_VERSION = 8
+export const PARSER_VERSION = 9
 
 const FACTION_PREFIX = 'faction:'
 /** The roster setup entry's role — army configuration, not a unit. */
@@ -130,6 +135,45 @@ function onlyWith(modifiers: Modifier[] | undefined, index: Index): string[] | u
   return undefined
 }
 
+/**
+ * The characters a link is shown only while attached: a `set hidden` modifier
+ * whose every condition is "fewer than 1 association" on the unit itself (or
+ * its root entry) — a Feel No Pain the unit has only with its Technomancer, a
+ * Stealth only with an attached character. The condition's `childId` names the
+ * character's datasheet; `any` (or none) means any attached character, which is
+ * recorded as an empty list. Anything fancier is left alone — the rule is listed.
+ */
+function onlyWithAttached(modifiers: Modifier[] | undefined, index: Index): string[] | undefined {
+  for (const mod of modifiers ?? []) {
+    if (mod.field !== 'hidden' || mod.type !== 'set' || String(mod.value) !== 'true') continue
+    if (mod.conditionGroups?.length || mod.repeats?.length || !mod.conditions?.length) continue
+    const absent = mod.conditions.every(
+      (c) =>
+        c.type === 'lessThan' &&
+        c.value === 1 &&
+        c.field === 'associations' &&
+        (c.scope === 'self' || c.scope === 'root-entry'),
+    )
+    if (!absent) continue
+    const named = mod.conditions.map((c) =>
+      !c.childId || c.childId === 'any' ? undefined : (index.entries.get(c.childId)?.name ?? c.childName ?? c.childId),
+    )
+    return named.some((n) => n === undefined) ? [] : (named as string[])
+  }
+  return undefined
+}
+
+/** What a link makes an ability depend on: detachments held, characters attached. */
+type Needs = { onlyWith?: string[]; onlyWithAttached?: string[] }
+
+function needsOf(modifiers: Modifier[] | undefined, index: Index): Needs | undefined {
+  const onlyWithNames = onlyWith(modifiers, index)
+  const attached = onlyWithAttached(modifiers, index)
+  return onlyWithNames || attached
+    ? { ...(onlyWithNames ? { onlyWith: onlyWithNames } : {}), ...(attached ? { onlyWithAttached: attached } : {}) }
+    : undefined
+}
+
 /** Weapon keyword cells read "Sustained Hits 1, Lethal Hits" or "-". */
 const splitKeywords = (raw: string | undefined): string[] =>
   !raw || raw === '-'
@@ -196,7 +240,7 @@ function collectProfiles(
    */
   followGroupLinks = true,
   /** Filled with the detachments a profile reached through a link needs — see `onlyWith`. */
-  needs?: Map<string, string[]>,
+  needs?: Map<string, Needs>,
 ): Profile[] {
   if (depth > 8) return []
   const out: Profile[] = []
@@ -211,7 +255,7 @@ function collectProfiles(
       if (!target || seen.has(target.id)) continue
       seen.add(target.id)
       out.push(target)
-      const required = onlyWith(link.modifiers, index)
+      const required = needsOf(link.modifiers, index)
       if (required && needs) needs.set(target.id, required)
     }
     for (const child of node.selectionEntries ?? []) visitEntry(child)
@@ -245,6 +289,46 @@ function collectProfiles(
   return out
 }
 
+const hasEnhancementCost = (entry: SelectionEntry): boolean =>
+  (entry.costs?.find((c) => c.typeId === COST_TYPE.enhancements)?.value ?? 0) > 0
+
+/**
+ * Every entry nested in a datasheet by its own tree (entries, groups and links
+ * to entries — not links to shared groups, see `collectProfiles`), told apart
+ * by whether an Enhancement-cost entry sits above it. Such an entry is an
+ * upgrade the army may pay for, not something the unit is.
+ */
+function nestedEntries(entry: SelectionEntry, index: Index): { node: SelectionEntry; enhancement: boolean }[] {
+  const out: { node: SelectionEntry; enhancement: boolean }[] = []
+  const seen = new Set<string>([entry.id])
+  const visitEntry = (node: SelectionEntry, under: boolean, depth: number) => {
+    if (seen.has(node.id) || depth > 8) return
+    seen.add(node.id)
+    const enhancement = under || hasEnhancementCost(node)
+    out.push({ node, enhancement })
+    for (const child of node.selectionEntries ?? []) visitEntry(child, enhancement, depth + 1)
+    for (const group of node.selectionEntryGroups ?? []) visitGroup(group, enhancement, depth + 1)
+    for (const link of node.entryLinks ?? []) visitLink(link, enhancement, depth + 1)
+  }
+  const visitGroup = (group: SelectionEntryGroup, under: boolean, depth: number) => {
+    if (seen.has(group.id) || depth > 8) return
+    seen.add(group.id)
+    for (const child of group.selectionEntries ?? []) visitEntry(child, under, depth + 1)
+    for (const nested of group.selectionEntryGroups ?? []) visitGroup(nested, under, depth + 1)
+    for (const link of group.entryLinks ?? []) visitLink(link, under, depth + 1)
+  }
+  const visitLink = (link: EntryLink, under: boolean, depth: number) => {
+    if (link.type !== 'selectionEntry') return
+    const target = index.entries.get(link.targetId)
+    if (target) visitEntry(target, under, depth)
+    for (const child of link.selectionEntries ?? []) visitEntry(child, under, depth)
+  }
+  for (const child of entry.selectionEntries ?? []) visitEntry(child, false, 1)
+  for (const group of entry.selectionEntryGroups ?? []) visitGroup(group, false, 1)
+  for (const link of entry.entryLinks ?? []) visitLink(link, false, 1)
+  return out
+}
+
 const toStats = (p: Profile): UnitStats => ({
   name: p.name,
   ...(characteristic(p, 'M') !== undefined ? { m: characteristic(p, 'M')! } : {}),
@@ -271,6 +355,29 @@ const toWeapon = (p: Profile, kind: 'ranged' | 'melee', shared = false): WeaponP
   keywords: splitKeywords(characteristic(p, 'Keywords')),
   ...(shared ? { shared: true } : {}),
 })
+
+/**
+ * A unit that several model types carry the same gun (a mob's boss and its
+ * boys, twin weapons on a walker) has one profile per carrier in the source, all
+ * with their own ids. Counted by name, each such row would show the full count
+ * again. Profiles that agree on every characteristic are one weapon; when only
+ * the keywords differ the richer one stands for them (the datasheet lists the
+ * weapon once, with the keywords it has).
+ */
+function dedupeWeapon(kept: WeaponProfile[], w: WeaponProfile): WeaponProfile[] {
+  const same = kept.findIndex(
+    (k) =>
+      k.name === w.name && k.kind === w.kind && k.range === w.range && k.a === w.a &&
+      k.skill === w.skill && k.s === w.s && k.ap === w.ap && k.d === w.d,
+  )
+  if (same < 0) return [...kept, w]
+  const prev = kept[same]!
+  const richer = w.keywords.length > prev.keywords.length ? w : prev
+  // Reached through the unit's own tree if either copy was.
+  const { shared: _a, ...rest } = richer
+  const merged: WeaponProfile = prev.shared && w.shared ? richer : rest
+  return kept.map((k, i) => (i === same ? merged : k))
+}
 
 /** Model entries are the nested `type: 'model'` entries of a unit. */
 function collectModels(entry: SelectionEntry): ModelEntry[] {
@@ -313,7 +420,7 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
   const ofKind = (kind: 'stats' | 'weapon' | 'transport' | 'ability') =>
     profiles.filter((p) => kindOf.get(p.id)?.kind === kind)
   // Abilities come from the entry, its models and its infoLinks only — see collectProfiles.
-  const needs = new Map<string, string[]>()
+  const needs = new Map<string, Needs>()
   const ownProfiles = collectProfiles(entry, index, new Set(), 0, false, needs)
   // …and so do the weapons the unit has real access to. The shared group links
   // reach the Crusade relic trees, which every datasheet in the game links, so
@@ -333,9 +440,17 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
     .map((n) => n.slice(FACTION_PREFIX.length).trim())
   const keywords = categoryNames.filter((n) => n && !n.toLowerCase().startsWith(FACTION_PREFIX))
 
+  // An Enhancement the unit's own tree offers (Necron units list theirs inside
+  // the datasheet) is an upgrade, so the rules text on it is not the unit's.
+  const nested = nestedEntries(entry, index)
+  const enhancementProfiles = new Set(
+    nested
+      .filter((n) => n.enhancement)
+      .flatMap((n) => collectProfiles(n.node, index, new Set(), 0, false).map((p) => p.id)),
+  )
   const abilities: Ability[] = ownProfiles.flatMap((p) => {
     const kind = classifyProfile(p)
-    if (kind?.kind !== 'ability') return []
+    if (kind?.kind !== 'ability' || enhancementProfiles.has(p.id)) return []
     return [
       {
         id: p.id,
@@ -345,7 +460,7 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
         // "Psychic Abilities", "Triarch Abilities": the codex's own heading,
         // without which a row called "1-2" means nothing on its own.
         ...(kind.group ? { group: kind.group } : {}),
-        ...(needs.has(p.id) ? { onlyWith: needs.get(p.id)! } : {}),
+        ...needs.get(p.id),
       },
     ]
   })
@@ -364,18 +479,24 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
   }
 
   // Rules linked by infoLink are faction/core rules shared across datasheets.
-  for (const link of entry.infoLinks ?? []) {
-    if (link.type !== 'rule') continue
-    const rule = index.rules.get(link.targetId)
-    const required = onlyWith(link.modifiers, index)
-    if (rule)
+  // The links may sit on the unit or on one of its model entries (a lone
+  // character's Deadly Demise hangs off the model), like profile links do.
+  // Only model entries: a weapon's entry links the keyword rules it carries
+  // (Assault, Anti-…), which are not abilities of the unit.
+  const owners = nested.filter((n) => !n.enhancement && n.node.type === 'model').map((n) => n.node)
+  for (const owner of [entry, ...owners]) {
+    for (const link of owner.infoLinks ?? []) {
+      if (link.type !== 'rule') continue
+      const rule = index.rules.get(link.targetId)
+      if (!rule || abilities.some((a) => a.id === rule.id && a.kind === 'faction')) continue
       abilities.push({
         id: rule.id,
         name: linkedName(rule.name, link.modifiers),
         kind: 'faction',
         text: rule.description ?? '',
-        ...(required ? { onlyWith: required } : {}),
+        ...needsOf(link.modifiers, index),
       })
+    }
   }
 
   const transport = ofKind('transport')[0]
@@ -400,7 +521,7 @@ function toDatasheet(entry: SelectionEntry, index: Index): Datasheet {
           return toWeapon(p, weapon, !own.has(p.id))
         })
         .sort((a, b) => Number(a.kind === 'melee') - Number(b.kind === 'melee')),
-    ],
+    ].reduce(dedupeWeapon, [] as WeaponProfile[]),
     abilities,
     models: collectModels(entry),
     ...(transport && characteristic(transport, 'Capacity')
@@ -479,6 +600,27 @@ function collectDetachments(cat: Catalogue, index: Index): Detachment[] {
   return detachments
 }
 
+/** "Name - Range 24", A 2, BS 4+, S 4, AP -1, D 2 [Assault, Heavy]" for a profile. */
+function weaponSummary(p: Profile): string {
+  const kind = classifyProfile(p)
+  const melee = kind?.kind === 'weapon' && kind.weapon === 'melee'
+  const parts = [
+    ['Range', 'Range'],
+    ['A', 'A'],
+    [melee ? 'WS' : 'BS', melee ? 'WS' : 'BS'],
+    ['S', 'S'],
+    ['AP', 'AP'],
+    ['D', 'D'],
+  ]
+    .map(([label, name]) => {
+      const value = characteristic(p, name!)
+      return value !== undefined ? (label === 'Range' ? `Range ${value}` : `${label} ${value}`) : undefined
+    })
+    .filter(Boolean)
+  const keywords = splitKeywords(characteristic(p, 'Keywords'))
+  return `${p.name} - ${parts.join(', ')}${keywords.length ? ` [${keywords.join(', ')}]` : ''}`
+}
+
 /**
  * Enhancements are the upgrade entries carrying an Enhancement cost, wherever
  * they sit in the tree; their rules text is an Abilities profile on the entry
@@ -501,11 +643,14 @@ function collectEnhancements(cat: Catalogue, index: Index): Ability[] {
       const profiles = collectProfiles(entry, index, new Set())
       const ability = profiles.find((p) => classifyProfile(p)?.kind === 'ability')
       const rule = (entry.rules ?? [])[0]
+      // A relic weapon has no rules text, only a profile: the profile is what
+      // the owner is choosing, so it is the text.
+      const weapon = profiles.find((p) => classifyProfile(p)?.kind === 'weapon')
       out.push({
         id: entry.id,
         name: entry.name,
         kind: 'enhancement',
-        text: (ability && abilityText(ability)) || rule?.description || '',
+        text: (ability && abilityText(ability)) || rule?.description || (weapon ? weaponSummary(weapon) : ''),
       })
     }
     for (const value of Object.values(node as Record<string, unknown>))
