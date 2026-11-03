@@ -1813,6 +1813,73 @@ Noticed, not caused here: `grants.live.test.ts` fails for **Necrons** on today's
 (no ability written as "attacks have:" any more). It fails the same way on unchanged `main`.
 The assertion that every faction has one is a per-faction assumption the fresher data broke.
 
+## Audit 2026-11-03 - open findings (four agents, Orks + Necrons, today's data)
+
+Not fixed yet. Agents ran the roster/play modules on the real fixtures and compared with
+Wahapedia 11ed; the starred ones were re-checked by hand.
+
+**Wrong rule on the wrong unit (table-facing, widespread)**
+1. ★ Necron detachment rules are army-wide: their text names keywords in plain caps (no `**`),
+   so `detachmentRules.ts` `ruleScope` finds none → all 12 detachments land on every unit.
+2. Abilities that come only with an attached leader are always listed (Warriors/Immortals/Destroyers
+   FNP 5+, Lychguard Fights First, Gretchin Stealth/Infiltrators): hidden-link condition on
+   `field: associations`, not handled by `parse.ts` `onlyWith`.
+3. Necron enhancements nested in a unit's Enhancements group are read as its own abilities
+   (Immortals "Tools of Dominion", Warriors "Enlivened Sentinels", Obelisk, Tomb Blades).
+4. ★ A bullet's condition is lost in `mods.ts` `statMods` (it keeps the leading "- ", `grants.ts`
+   strips it): Shoota Boyz +3" R always on for 36 Ork infantry; Flyboyz +1 hit; Squigbuggies'
+   enemy -1 hit applied to themselves. Melee Range then shows `Melee+3"` (`applyMod`).
+5. A detachment rule's clauses are scoped as a union: Green Tide's Boyz-only [SUSTAINED HITS 1]
+   reaches Big Mek and 36 other units (also Taktikal Brigade, Kult of Speed).
+6. "Targets a MONSTER/VEHICLE unit" style conditions are not seen (`INCOMING` only knows
+   "targets this/that/your"): Da Big Hunt +1 AP, Killa Kans, Kommandos, Wartrakks shown as always on.
+7. Psychic-only "+1 S" lands on every weapon; "+1 A, WS and S" keeps only A; `2D6 +1` → `3D6`;
+   prose "improve WS by 1" worsens it; M/OC not floored at 0; Territorial Obsession reads +1 OC on
+   a Vehicle (should be 3); "Instead … if it Advances" read as unconditional.
+
+**List building**
+8. ★ Every 3000-pt list is invalid: the game system's Onslaught entry is `hidden: true`, and
+   `withBattleSize` selects it, so `checkHidden` errors.
+9. The Silent King can never be Warlord (no Character category on the unit; the model has it).
+10. Crucible characters (Dynastic Conqueror, Hyperscientist, Triarchal Overseer) start with
+    "Abilities: at least 1 selections" because `instantiate` skips that group.
+
+**Attached units**
+11. Necron Cryptothralls / Canoptek Tomb Crawlers can never attach: association
+    `childId: model-or-unit` is not accepted (`evaluate.ts` ~515), and the instanceOf-Cryptek
+    condition must see the attached Cryptek. The "not attached" warning can't be cleared.
+12. A leader's "while leading" rules are not live on the bodyguard's card (`unitEffects.ts`
+    reuses the host's `facts.leading`); Skorpekh Lord's melee [LETHAL HITS] never reaches the
+    Destroyers; FNP etc. granted to "models in that unit" is text only.
+13. Battle-shock and half-strength are per member, not per attached unit; a dead bodyguard leaves
+    its character `leaderOf` set (still "leading", nested in a destroyed card).
+
+**Reminders and stratagems**
+14. "At the start of the battle round" is read as start of battle → round 1 only (Da Boss CP,
+    Silent King). "End of your opponent's turn" shows only in your turn; Eldritch Nightmare and
+    two Ork rules land in Command because `STATED_PHASE` stops at the first full stop.
+15. Stratagem targets with multi-word keywords split into one bold span per word keep only the
+    last word: Immortals excluded from Nanosaturation, Destroyer Cult from Insanity's Ire, Mounted
+    from Fungus-Fuel Injection; Heroic Intervention excludes Infantry.
+
+**Display**
+16. ★ "Damaged 6" (16 Ork vehicles/monsters) never sets `damagedAt` — `snapshot.ts` `DAMAGED`
+    wants "Damaged: 1-N".
+17. Markup leaks: `^^**X**^^` (72 texts), `<ins>`, single-star italics, stray `*` after every
+    Deadly Demise example; the datasheet browser renders ability text without `Marked` at all.
+18. Two identical weapon profiles on one unit give two rows (Kommandos/Stormboyz Slugga, Tomb
+    Crawlers). The Silent King lacks Deadly Demise (rule link on the model entry is not collected).
+    Three Ork relic weapons are listed as enhancements with empty text.
+
+**Upstream data (BSData/MFM), not app bugs**: Lokhust Heavy Destroyers priced 50 flat in BSData
+(MFM 50/100/165 — the app trusts BSData costs, so totals are off); Pantheon of Woe has no
+enhancements in BSData; Boyz special weapons capped at 2 per type regardless of size (rules: 1 per
+10 models); Sentry Gun/Searchlight/Breaching Robot have no copy limit.
+
+Checked clean: who-can-lead-whom (45 characters match MFM and Wahapedia), Leader/Support caps,
+points and Requisition bands (except Lokhust Heavy), DP budget, Epic Hero/Rule of 3/Battleline
+limits, every non-Crusade option addable, stats/weapons/keywords on 27 datasheets.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone
