@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { forDetachment } from './select'
+import { forDetachment, forUnit } from './select'
 import type { Stratagem } from './types'
 
 const strat = (name: string, detachment: string, core = false): Stratagem => ({
@@ -56,5 +56,25 @@ describe('forDetachment', () => {
       'Command Re-roll',
       'Rapid Advance',
     ])
+  })
+
+  describe('targets', () => {
+    const aimed = (name: string, target: string): Stratagem => ({ ...strat(name, 'Vanguard Spear'), target })
+    const list = [
+      // The export bolds a multi-word keyword one word at a time.
+      aimed('Saturate', 'One friendly **PALE** **ONES**/**RED** **GUARD** unit.'),
+      aimed('Intervene', 'One friendly __unengaged__ unit. You can only select a **VEHICLE** unit if it is a **CHARACTER**/**WALKER** unit.'),
+    ]
+    const targets = (keywords: string[]) => forUnit(list, keywords).map((s) => s.name)
+
+    it('reads a keyword bolded word by word as one phrase', () => {
+      expect(targets(['Pale', 'Ones'])).toContain('Saturate')
+      expect(targets(['Red', 'Guard'])).toContain('Saturate')
+      expect(targets(['Ones'])).not.toContain('Saturate')
+    })
+
+    it('does not let "you can only select" define the target', () => {
+      expect(targets(['Infantry'])).toContain('Intervene')
+    })
   })
 })

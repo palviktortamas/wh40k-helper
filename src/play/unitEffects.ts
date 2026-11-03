@@ -14,7 +14,7 @@
  */
 
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
-import { ruleAppliesTo } from '@/roster/detachmentRules'
+import { ruleTextFor } from '@/roster/detachmentRules'
 import { abilitiesInArmy } from '@/roster/armyAbilities'
 import { effectsFrom, type Effects } from './effects'
 import { isBackReference, type GrantingRule, type WeaponGrant } from './grants'
@@ -32,9 +32,12 @@ export function detachmentRulesFor(
 ) {
   return detachmentNames.flatMap((name) => {
     const detachment = catalogue?.detachments.find((d) => d.name === name)
-    return (detachment?.rules ?? [])
-      .filter((r) => ruleAppliesTo(r.text, keywords) !== false)
-      .map((rule) => ({ rule, detachmentName: name }))
+    // Each clause reaches only the units it names (`ruleTextFor`): a Boyz-only
+    // clause is not given to the Infantry another clause of the same rule names.
+    return (detachment?.rules ?? []).flatMap((rule) => {
+      const text = ruleTextFor(rule.text, keywords)
+      return text === undefined ? [] : [{ rule: { ...rule, text }, detachmentName: name }]
+    })
   })
 }
 
