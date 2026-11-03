@@ -4,6 +4,8 @@
  * wounds and statuses. Editing the roster afterwards never touches a game.
  */
 
+import { hostOf, livingModels, startingStrength, wholeUnitOf } from './attached'
+
 export type Phase = 'command' | 'movement' | 'shooting' | 'charge' | 'fight'
 
 export const PHASES: readonly Phase[] = ['command', 'movement', 'shooting', 'charge', 'fight']
@@ -211,12 +213,30 @@ export const inReserves = (unit: GameUnit): boolean =>
  * These units take a Battle-shock test in the Battle-shock step of their
  * controller's Command phase.
  */
-export function belowHalfStrength(unit: GameUnit): boolean {
+export function belowHalfStrength(unit: GameUnit, units?: readonly GameUnit[]): boolean {
   if (unit.destroyed) return false
-  const total = modelsTotal(unit)
-  if (total > 1) return modelsAlive(unit) * 2 < total
+  // An attached unit is one unit: its Starting Strength is the bodyguard's and
+  // every attached character's together (see attached.ts).
+  const family = units ? wholeUnitOf(unit, units, true) : [unit]
+  const total = startingStrength(family)
+  if (total > 1) return livingModels(family) * 2 < total
   const group = unit.models.find((g) => g.alive > 0)
   return group ? group.currentWounds * 2 < group.wounds : false
+}
+
+/**
+ * The units that take a Battle-shock test in your Command phase: one per
+ * *attached unit* — the bodyguard stands for the characters with it — below
+ * half-strength or already shocked.
+ */
+export function unitsToTest(units: readonly GameUnit[]): GameUnit[] {
+  return units.filter((u) => {
+    if (u.destroyed || inReserves(u) || hostOf(u, units)) return false
+    return (
+      belowHalfStrength(u, units) ||
+      wholeUnitOf(u, units).some((member) => member.statuses.includes('battleShocked'))
+    )
+  })
 }
 
 /**

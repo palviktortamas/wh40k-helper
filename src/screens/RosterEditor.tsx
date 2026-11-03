@@ -36,6 +36,7 @@ import { groupByRole, roleKey, roleOf } from '@/roster/roles'
 import { WARLORD_CATEGORY } from '@/roster/vocabulary'
 import { COST_TYPE } from '@/data/bsdata/schema'
 import { OptionTree, UnitEditor, effectsForBuiltUnit, type AttachedUnit } from './UnitEditor'
+import { modelCount } from '@/roster/size'
 import type { StatMod } from '@/play/mods'
 import { scrollParent, scrollToTop } from './scrollToTop'
 import { JumpBar } from './JumpBar'
@@ -975,6 +976,8 @@ function attachedTo(
         points: validation.unitPoints[unit.id] ?? 0,
         sheet: sheets.get(unit.entryId),
         enhancements: enhancementsTaken(unit, enhancementIds),
+        models: modelCount(unit),
+        leading: true,
       })
     }
   }
@@ -1005,6 +1008,8 @@ function familyOf(
       points: validation.unitPoints[other.id] ?? 0,
       sheet: sheets.get(other.entryId),
       enhancements: enhancementsTaken(other, enhancementIds),
+      models: modelCount(other),
+      leading: Boolean(other.attachedTo),
     }))
 }
 

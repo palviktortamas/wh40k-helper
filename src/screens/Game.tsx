@@ -9,11 +9,11 @@ import {
   LAST_ROUND,
   PHASE_LABELS,
   STATUS_LABELS,
-  belowHalfStrength,
   defaultCasualtyGroup,
   inReserves,
   modelsAlive,
   modelsTotal,
+  unitsToTest,
   totalVp,
   type Game as GameModel,
   type GameUnit,
@@ -32,6 +32,7 @@ import type { StratagemSet } from '@/stratagems/types'
 import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import { discoverMarks, type Mark } from '@/play/marks'
 import { attachedFamily, effectsForUnit } from '@/play/unitEffects'
+import { hostOf, livingModels, startingStrength, wholeUnitOf } from '@/play/attached'
 import { roleKey } from '@/roster/roles'
 import { scrollParent } from './scrollToTop'
 import { remindersForGame, showsNow } from '@/reminders/derive'
@@ -149,19 +150,26 @@ export function Game() {
 
   if (game.status === 'finished') return <Summary game={game} dispatch={dispatch} />
 
+  // A character stands with its bodyguard only while the bodyguard is on the
+  // table (see play/attached.ts): when it falls, the character becomes a unit
+  // of its own — its own card, free to embark — and returns with it if the
+  // bodyguard is restored.
   const leadersOf = new Map<string, GameUnit[]>()
   for (const unit of game.units) {
-    if (!unit.leaderOf) continue
-    leadersOf.set(unit.leaderOf, [...(leadersOf.get(unit.leaderOf) ?? []), unit])
+    const host = hostOf(unit, game.units)
+    if (!host) continue
+    leadersOf.set(host.id, [...(leadersOf.get(host.id) ?? []), unit])
   }
   const exists = (id: string | undefined) => Boolean(id) && game.units.some((t) => t.id === id)
   const passengersOf = new Map<string, GameUnit[]>()
   for (const unit of game.units) {
-    if (!unit.embarkedIn || !exists(unit.embarkedIn) || exists(unit.leaderOf)) continue
+    if (!unit.embarkedIn || !exists(unit.embarkedIn) || hostOf(unit, game.units)) continue
     passengersOf.set(unit.embarkedIn, [...(passengersOf.get(unit.embarkedIn) ?? []), unit])
   }
   // Leaders ride with their unit; embarked units ride inside their transport.
-  const topLevel = game.units.filter((u) => !exists(u.leaderOf) && !(u.embarkedIn && exists(u.embarkedIn)))
+  const topLevel = game.units.filter(
+    (u) => !hostOf(u, game.units) && !(u.embarkedIn && exists(u.embarkedIn)),
+  )
   const over = isBattleOver(game)
 
   const renderUnit = (unit: GameUnit, leader = false) => (
@@ -210,9 +218,7 @@ export function Game() {
     : 0
   const shockTests =
     game.turn === 'me' && game.phase === 'command'
-      ? game.units.filter(
-          (u) => !u.destroyed && !inReserves(u) && (belowHalfStrength(u) || u.statuses.includes('battleShocked')),
-        ).length
+      ? unitsToTest(game.units).length
       : 0
   const standing = game.units.filter((u) => !u.destroyed).length
   const tabs: { id: GameTab; label: string; count?: number; alert?: boolean }[] = [
@@ -518,9 +524,7 @@ function BattleShockStep({
   dispatch: (action: GameAction) => void
 }) {
   if (game.turn !== 'me' || game.phase !== 'command') return null
-  const testing = game.units.filter(
-    (u) => !u.destroyed && !inReserves(u) && (belowHalfStrength(u) || u.statuses.includes('battleShocked')),
-  )
+  const testing = unitsToTest(game.units)
   return (
     <section className="shock" aria-label="Battle-shock step">
       <h3 className="play__heading">
@@ -530,15 +534,17 @@ function BattleShockStep({
       {testing.length > 0 && (
         <ul className="shock__list">
           {testing.map((u) => {
-            const shocked = u.statuses.includes('battleShocked')
+            // An attached unit is tested as one: its characters stand with it.
+            const family = wholeUnitOf(u, game.units, true)
+            const shocked = family.some((m) => m.statuses.includes('battleShocked'))
             const ld = sheets.get(u.entryId)?.stats[0]?.ld
             return (
               <li key={u.id} className="shock__row">
                 <span className="shock__unit">
-                  <strong>{u.name}</strong>
+                  <strong>{family.map((m) => m.name).join(' + ')}</strong>
                   <span className="muted">
                     {' '}
-                    {modelsAlive(u)}/{modelsTotal(u)} models{ld ? ` · Ld ${ld}` : ''}
+                    {livingModels(family)}/{startingStrength(family)} models{ld ? ` · Ld ${ld}` : ''}
                     {shocked ? ' · currently Battle-shocked' : ' · below half-strength'}
                   </span>
                 </span>
@@ -596,7 +602,7 @@ function UnitCard({
         (u) =>
           u.id !== unit.id &&
           !u.destroyed &&
-          !u.leaderOf &&
+          !hostOf(u, game.units) &&
           !u.transportCapacity &&
           (!u.embarkedIn || u.embarkedIn === unit.id),
       )
