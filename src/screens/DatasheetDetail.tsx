@@ -4,6 +4,7 @@ import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
 import type { Datasheet } from '@/data/model'
 import { WeaponTable } from './WeaponTable'
+import { Marked } from './Marked'
 import './Datasheets.css'
 
 const STAT_COLUMNS = [
@@ -134,7 +135,7 @@ export function DatasheetDetail() {
                     <span className="rule-chip rule-chip--detachment">Only with {ability.onlyWith.join(' or ')}</span>
                   )}
                 </dt>
-                <dd>{ability.text || '—'}</dd>
+                <dd>{ability.text ? <Marked text={ability.text} /> : '—'}</dd>
               </div>
             ))}
           </dl>

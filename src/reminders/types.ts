@@ -7,6 +7,7 @@
 
 export type Trigger =
   | 'start_of_battle'
+  | 'start_of_round'
   | 'command_phase'
   | 'movement_phase'
   | 'shooting_phase'
@@ -16,6 +17,8 @@ export type Trigger =
   | 'when_targeted'
   | 'on_arrival_from_reserves'
   | 'end_of_turn'
+  | 'end_of_opponent_turn'
+  | 'end_of_each_turn'
   | 'opponent_turn'
   | 'once_per_battle'
   | 'once_per_turn'
@@ -23,6 +26,7 @@ export type Trigger =
 
 export const TRIGGERS: readonly Trigger[] = [
   'start_of_battle',
+  'start_of_round',
   'command_phase',
   'movement_phase',
   'shooting_phase',
@@ -32,6 +36,8 @@ export const TRIGGERS: readonly Trigger[] = [
   'when_targeted',
   'on_arrival_from_reserves',
   'end_of_turn',
+  'end_of_opponent_turn',
+  'end_of_each_turn',
   'opponent_turn',
   'once_per_battle',
   'once_per_turn',
@@ -40,6 +46,7 @@ export const TRIGGERS: readonly Trigger[] = [
 
 export const TRIGGER_LABELS: Record<Trigger, string> = {
   start_of_battle: 'Start of the battle',
+  start_of_round: 'Start of each battle round',
   command_phase: 'Command phase',
   movement_phase: 'Movement phase',
   shooting_phase: 'Shooting phase',
@@ -49,6 +56,8 @@ export const TRIGGER_LABELS: Record<Trigger, string> = {
   when_targeted: 'When targeted',
   on_arrival_from_reserves: 'Arriving from Reserves',
   end_of_turn: 'End of your turn',
+  end_of_opponent_turn: "End of your opponent's turn",
+  end_of_each_turn: 'End of each turn',
   opponent_turn: "Opponent's turn",
   once_per_battle: 'Any time, once per battle',
   once_per_turn: 'Any time, once per turn',

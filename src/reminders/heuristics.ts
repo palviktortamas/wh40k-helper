@@ -5,6 +5,7 @@
  * defaults — the owner overrides per ability in Settings → Reminders.
  */
 
+import { normalizeMarks } from '@/stratagems/marked'
 import type { Inferred, Once, Trigger } from './types'
 
 const TAGS = /<[^>]+>/g
@@ -12,7 +13,7 @@ const SPACES = /\s+/g
 
 /** Rule text may carry HTML from a rules-text source; reminders are plain. */
 export const plainText = (text: string): string =>
-  text
+  normalizeMarks(text)
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(TAGS, '')
     .replace(/&nbsp;/g, ' ')
@@ -21,8 +22,10 @@ export const plainText = (text: string): string =>
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'")
-    // Some sources mark keywords in bold with markdown asterisks.
+    // Some sources mark keywords in bold and emphasis with markdown asterisks.
+    .replace(/\*\*\*([^*]+)\*\*([^*]*)\*/g, '$1$2')
     .replace(/\*\*/g, '')
+    .replace(/\*([^*\n]+)\*/g, '$1')
     .replace(SPACES, ' ')
     .trim()
 
@@ -73,16 +76,44 @@ const STATED_PHASE: [RegExp, Trigger][] = [
   [/^[^.]{0,70}\b(?:in|at the start of|at the end of|during) (?:your|the|each) fight phase\b/i, 'fight_phase'],
 ]
 
+/**
+ * A phase stated anywhere in the text, as a moment: "At the start of the Fight
+ * phase", "in your Shooting phase". The earliest one wins. It is what a rule
+ * that opens with an aside ("ALPHA model only.") or a keyword line means, and
+ * it outranks a phase merely *implied* by a word like "Battle-shock test".
+ * "Until the end of the Fight phase" is a duration and is not matched.
+ */
+const ANYWHERE_PHASE =
+  /\b(?:in|at the start of|at the end of|during) (?:your|the|each) (command|movement|shooting|charge|fight) phase\b/gi
+const PHASE_TRIGGER: Record<string, Trigger> = {
+  command: 'command_phase',
+  movement: 'movement_phase',
+  shooting: 'shooting_phase',
+  charge: 'charge_phase',
+  fight: 'fight_phase',
+}
+const statedPhaseAnywhere = (plain: string): Trigger | undefined => {
+  ANYWHERE_PHASE.lastIndex = 0
+  const match = ANYWHERE_PHASE.exec(plain)
+  return match ? PHASE_TRIGGER[match[1]!.toLowerCase()] : undefined
+}
+
 const TRIGGER_RULES: [RegExp, Trigger][] = [
-  [/\b(start of the battle|before the (first )?battle round|during deployment|after both players have deployed|at the start of the first battle round|set up .* in reserves)/i, 'start_of_battle'],
+  // The start of a battle *round* is every round; the start of the battle is once.
+  [/\bat the start of (?:each|every|the) battle round\b/i, 'start_of_round'],
+  [/\b(start of the battle(?! round)|before the (first )?battle round|during deployment|after both players have deployed|at the start of the first battle round|set up .* in reserves)/i, 'start_of_battle'],
   [/\b(arrives? from (strategic )?reserves|set up (on the battlefield )?as reinforcements|arrives? as reinforcements|deep strike|when this unit is set up on the battlefield)/i, 'on_arrival_from_reserves'],
   [/\b(is charged|are charged|declares? a charge against|charges? (this|a friendly)|when an enemy unit .{0,40}charges|heroic intervention|ends a charge move within)/i, 'when_charged'],
   [/\b(selected as the target|is targeted|are targeted|targets? (this|a friendly) (unit|model)|each time an attack (targets|is allocated))/i, 'when_targeted'],
   // A *duration* is not a moment: "until the end of the turn" says how long an
   // effect lasts, not when to do anything.
-  [/\b(?<!until the )(end of your turn|end of the turn|at the end of each turn|end of your opponent'?s turn)/i, 'end_of_turn'],
+  [/\b(?<!until the )end of your opponent'?s turn/i, 'end_of_opponent_turn'],
+  [/\b(?<!until the )end of your turn/i, 'end_of_turn'],
+  [/\b(?<!until the )(end of the turn|end of each turn|end of every turn)/i, 'end_of_each_turn'],
   [/\b(your opponent'?s (turn|command|movement|shooting|charge|fight) phase|in your opponent'?s turn|during (your|the) opponent'?s|enemy (unit'?s )?(shooting|charge|fight) phase|in the enemy)/i, 'opponent_turn'],
 
+  // (A phase stated outright, anywhere in the text, is tried here — see
+  // `inferTrigger` — before these moments that only imply one.)
   // Moments inside a phase, for rules that never name the phase outright.
   [/\b(battle-?shock test|at the start of (?:your|the) command phase)/i, 'command_phase'],
   [/\b(selected to move|selected to make an? (?:advance|normal|fall.?back|advance\/fall-back)|makes? a normal move|is selected to (?:advance|fall back)|when this unit advances|disembark move)/i, 'movement_phase'],
@@ -132,7 +163,12 @@ export function inferOnce(text: string): Once | undefined {
 export function inferTrigger(text: string, ownText = text): Trigger {
   const plainOwn = plainText(ownText)
   for (const [pattern, trigger] of STATED_PHASE) if (pattern.test(plainOwn)) return trigger
-  for (const [pattern, trigger] of TRIGGER_RULES) if (pattern.test(text)) return trigger
+  const rules = TRIGGER_RULES
+  const impliedAt = rules.findIndex(([, trigger]) => trigger === 'command_phase')
+  for (const [pattern, trigger] of rules.slice(0, impliedAt)) if (pattern.test(text)) return trigger
+  const stated = statedPhaseAnywhere(plainOwn)
+  if (stated) return stated
+  for (const [pattern, trigger] of rules.slice(impliedAt)) if (pattern.test(text)) return trigger
   return 'custom'
 }
 

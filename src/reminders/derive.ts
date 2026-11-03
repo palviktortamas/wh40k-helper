@@ -102,21 +102,21 @@ export function remindersForCatalogue(
 
 /** Which triggers a phase raises, on your turn and on the opponent's. */
 const MINE: Record<Phase, Trigger[]> = {
-  command: ['command_phase', 'start_of_battle', 'once_per_battle', 'once_per_turn', 'custom'],
+  command: ['command_phase', 'start_of_battle', 'start_of_round', 'once_per_battle', 'once_per_turn', 'custom'],
   movement: ['movement_phase', 'on_arrival_from_reserves'],
   shooting: ['shooting_phase'],
   charge: ['charge_phase'],
-  fight: ['fight_phase', 'end_of_turn'],
+  fight: ['fight_phase', 'end_of_turn', 'end_of_each_turn'],
 }
 const THEIRS: Record<Phase, Trigger[]> = {
   command: ['opponent_turn'],
   movement: ['opponent_turn'],
   shooting: ['opponent_turn', 'when_targeted'],
   charge: ['opponent_turn', 'when_charged'],
-  fight: ['opponent_turn', 'when_targeted', 'fight_phase'],
+  fight: ['opponent_turn', 'when_targeted', 'fight_phase', 'end_of_opponent_turn', 'end_of_each_turn'],
 }
 
-/** Whether a reminder belongs in this phase of this turn (start-of-battle only in round 1). */
+/** Whether a reminder belongs in this phase of this turn (start-of-battle only in round 1; start-of-round every round, in your Command phase). */
 export function showsNow(reminder: Reminder, game: Pick<Game, 'round' | 'phase' | 'turn'>): boolean {
   if (!reminder.enabled) return false
   const table = game.turn === 'me' ? MINE : THEIRS

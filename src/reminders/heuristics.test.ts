@@ -23,6 +23,31 @@ describe('reminder heuristics', () => {
     expect(infer('Tally', 'At the end of your turn, count models within range.').trigger).toBe('end_of_turn')
   })
 
+  it('tells the start of a battle round from the start of the battle', () => {
+    expect(infer('Tribute', 'At the start of the battle round, gain 1CP.').trigger).toBe('start_of_round')
+    expect(infer('Muster', 'At the start of the battle, place a marker.').trigger).toBe('start_of_battle')
+  })
+
+  it('tells whose turn ends', () => {
+    expect(infer('Wane', "At the end of your opponent's turn, heal 1 model.").trigger).toBe('end_of_opponent_turn')
+    expect(infer('Lull', 'At the end of each turn, remove the marker.').trigger).toBe('end_of_each_turn')
+    expect(infer('Lull', 'Do this at the end of the turn.').trigger).toBe('end_of_each_turn')
+    // A duration is still not a moment.
+    expect(infer('Haste', 'This unit can advance. Lasts until the end of the turn.').trigger).not.toBe('end_of_each_turn')
+  })
+
+  it('reads the stated phase from past the first full stop', () => {
+    const r = infer('Zeal', 'ALPHA model only. At the start of the Fight phase, this unit gains Lethal Hits. If it fails a Battle-shock test, it loses it.')
+    expect(r.trigger).toBe('fight_phase')
+    expect(infer('Lurch', 'Hardy. In your Movement phase, after this unit moves, it can take a Battle-shock test.').trigger).toBe('movement_phase')
+    // Without any stated phase the battle-shock moment still means Command.
+    expect(infer('Nerve', 'Each time a unit takes a Battle-shock test, add 1.').trigger).toBe('command_phase')
+  })
+
+  it('strips every mark from the plain form', () => {
+    expect(plainText('^^**ALPHA^^** and ^^BETA^^ <ins>new</ins> *slant* ***Example:** x.*')).toBe('ALPHA and BETA new slant Example: x.')
+  })
+
   it('marks once-per-battle and once-per-turn, and uses them as the trigger when there is no phase', () => {
     const once = infer('Big Shout (Once per battle)', 'Roll a D6.')
     expect(once.once).toBe('battle')
