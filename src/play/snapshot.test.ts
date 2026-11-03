@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildGameUnits, modelGroups } from './snapshot'
+import { buildGameUnits, damagedThreshold, modelGroups } from './snapshot'
 import { weaponCounts } from '@/play/weapons'
 import type { ParsedCatalogue } from '@/data/model'
 import type { Roster, Selection } from '@/roster/types'
@@ -229,5 +229,17 @@ describe('game snapshot', () => {
     const after = weaponCounts(wounded, catalogue.datasheets[0])
     expect(after.rows.find((r) => r.profile.name === 'Big gun')!.count).toBe(1)
     expect(after.rows.find((r) => r.profile.name === 'Rifle')!.count).toBe(8)
+  })
+})
+
+describe('the damaged threshold', () => {
+  it('reads the range spelling', () => {
+    expect(damagedThreshold([{ name: 'Damaged: 1-4 Wounds Remaining', text: '' }])).toBe('4')
+  })
+  it('reads the number a linked rule appends to its name', () => {
+    expect(damagedThreshold([{ name: 'Other', text: '' }, { name: 'Damaged 6', text: 'While this model has equal to or less than 6 wounds' }])).toBe('6')
+  })
+  it('is absent for a model that cannot be damaged', () => {
+    expect(damagedThreshold([{ name: 'Undamaged Rule', text: 'Nothing' }])).toBeUndefined()
   })
 })

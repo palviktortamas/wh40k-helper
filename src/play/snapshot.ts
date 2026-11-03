@@ -17,6 +17,20 @@ import { attachmentKind, kindOfAssociation } from '@/roster/attachment'
 
 /** "Damaged: 1-4 Wounds Remaining" — the threshold is the upper bound. */
 const DAMAGED = /damaged:\s*\d+\s*[-–]\s*(\d+)/i
+/**
+ * "Damaged 6": the other way the data writes it — the rule is linked with its
+ * number appended to the name, and the text only says "equal to or less than".
+ */
+const DAMAGED_NAMED = /^damaged\s+(\d+)\s*$/i
+
+/** The wounds at or below which a model is damaged, from either spelling. */
+export const damagedThreshold = (abilities: readonly { name: string; text: string }[]): string | undefined => {
+  for (const a of abilities) {
+    const hit = DAMAGED.exec(`${a.name} ${a.text}`)?.[1] ?? DAMAGED_NAMED.exec(a.name.trim())?.[1]
+    if (hit !== undefined) return hit
+  }
+  return undefined
+}
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -165,9 +179,7 @@ export function buildGameUnits(
   return roster.selections.map((unit) => {
     const sheet = sheets.get(unit.entryId)
     const enhancements = enhancementsOf(unit)
-    const damaged = sheet?.abilities
-      .map((a) => DAMAGED.exec(`${a.name} ${a.text}`)?.[1])
-      .find((hit) => hit !== undefined)
+    const damaged = damagedThreshold(sheet?.abilities ?? [])
     return {
       id: unit.id,
       name: names.get(unit.id) ?? unit.name,
