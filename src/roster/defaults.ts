@@ -96,6 +96,25 @@ function fillGroup(group: ResolvedGroup, depth: number): Selection[] {
     take(instantiate(preferred, Math.max(1, required), depth))
   }
 
+  // A minimum the group's own entries cannot meet because every option sits in
+  // a nested group ("Abilities" holding "Shared abilities" and "Cryptek
+  // abilities"): the minimum counts them all, so take the first plain option
+  // of a nested group the data does not switch off by some condition. The
+  // user can still swap it; what they must not meet is an error on a fresh add.
+  if (required > 0 && out.length === 0 && candidates.length === 0) {
+    const switchable = (hide: { field: string }[]) => hide.some((m) => m.field === 'hidden')
+    for (const nested of group.groups) {
+      if (nested.hidden || switchable(nested.modifiers)) continue
+      const options = nested.entries.filter((e) => !e.hidden && !switchable(e.modifiers))
+      if (options.length === 0) continue
+      const preferred = options.find((e) => e.id === group.defaultEntryId) ?? options[0]!
+      take(instantiate(preferred, Math.max(1, required), depth))
+      const nestedTaken = out[out.length - 1]
+      if (nestedTaken) nestedTaken.groupId = nested.id
+      break
+    }
+  }
+
   // Entries that are individually required regardless of the group minimum.
   for (const candidate of candidates) {
     if (budget <= 0) break
