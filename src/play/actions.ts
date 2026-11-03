@@ -6,6 +6,7 @@
 
 import { hasLapsed, expiryFor } from './duration'
 import type { ActiveRule } from './types'
+import { wholeUnitOf } from './attached'
 import {
   LAST_ROUND,
   PHASES,
@@ -193,10 +194,7 @@ function expireMarks(game: Game): Game {
 function wholeUnit(game: Game, unitId: string): string[] {
   const unit = game.units.find((u) => u.id === unitId)
   if (!unit) return [unitId]
-  const hostId = unit.leaderOf ?? unit.id
-  return game.units
-    .filter((u) => !u.destroyed && (u.id === hostId || u.leaderOf === hostId))
-    .map((u) => u.id)
+  return wholeUnitOf(unit, game.units).map((u) => u.id)
 }
 
 /** The moment a state granted now lapses, from the rule's own wording. */
@@ -636,10 +634,22 @@ function applyAction(game: Game, action: GameAction): Game {
     case 'toggleStatus': {
       const g = remember(game)
       const has = g.units.find((u) => u.id === action.unitId)?.statuses.includes(action.status)
-      const next = updateUnit(g, action.unitId, (u) => ({
-        ...u,
-        statuses: has ? u.statuses.filter((s) => s !== action.status) : [...u.statuses, action.status],
-      }))
+      // Battle-shock and the rest belong to the unit, and an attached unit is
+      // one unit: a mob that is shocked has its characters shocked with it.
+      const touched = new Set(wholeUnit(g, action.unitId))
+      const next: Game = {
+        ...g,
+        units: g.units.map((u) =>
+          touched.has(u.id)
+            ? {
+                ...u,
+                statuses: has
+                  ? u.statuses.filter((s) => s !== action.status)
+                  : [...new Set([...u.statuses, action.status])],
+              }
+            : u,
+        ),
+      }
       return withLog(
         next,
         `${unitName(g, action.unitId)}: ${has ? 'no longer' : 'now'} ${STATUS_LABELS[action.status]}`,

@@ -8,6 +8,7 @@ import type { CatalogueRecord } from '@/data/db'
 import { buildGraph, childOptions, type CatalogueGraph, type ResolvedEntry, type ResolvedGroup } from './resolve'
 import { analyseRoster, type Analysis } from './evaluate'
 import { coreChecks } from './coreChecks'
+import { withMfmPoints } from './pricing'
 import { bareSelection, cloneSelection, newSelectionId } from './defaults'
 import type { Roster, Selection, ValidationIssue } from './types'
 import { walkSelections } from './types'
@@ -121,7 +122,19 @@ export function validate(
   /** The installed datasheets, when the caller has them (the size check reads their price list). */
   sheets: readonly Datasheet[] = [],
 ): Validation {
-  const analysis = analyseRoster(roster, graph)
+  const evaluated = analyseRoster(roster, graph)
+  // The price list outranks the catalogue's costs where the two differ (§4.1).
+  const priced = withMfmPoints(roster, evaluated, sheets)
+  const analysis: Analysis = {
+    ...evaluated,
+    points: priced.points,
+    unitPoints: priced.unitPoints,
+    // The catalogue's own limit check ran on its own total. When the manual
+    // pushed the army over a limit the catalogue thought it was under, layer 2
+    // has to say so (and when the catalogue already did, it need not repeat).
+    pointsLimitChecked:
+      evaluated.pointsLimitChecked && !(priced.adjusted && evaluated.points <= roster.pointsLimit),
+  }
   const issues = [...analysis.issues, ...coreChecks(roster, analysis, graph, sheets)]
   const errors = issues.filter((i) => i.severity === 'error')
   return {

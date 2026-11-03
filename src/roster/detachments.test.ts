@@ -272,3 +272,40 @@ describe('detachment points budget', () => {
     expect(evaluateRoster(twice, graph()).detachmentPoints).toBe(3)
   })
 })
+
+describe('a battle size the data hides', () => {
+  // The real game system keeps its biggest battle size `hidden` with no
+  // modifier to reveal it; the app selects it from the points limit, so it
+  // must not be reported as "not available".
+  const hiddenLarge = (): GameSystem => ({
+    ...gameSystem,
+    sharedSelectionEntries: [
+      {
+        ...battleSize,
+        selectionEntryGroups: [
+          {
+            ...battleSize.selectionEntryGroups![0]!,
+            selectionEntries: [
+              { id: 'e-small', name: 'Skirmish', type: 'upgrade' },
+              { id: 'e-large', name: 'Grand Battle', type: 'upgrade', hidden: true },
+            ],
+          },
+        ],
+      },
+      detachmentPicker,
+    ],
+  })
+
+  it('does not flag the configuration the app chose itself', () => {
+    const g = buildGraph(hiddenLarge(), catalogue)
+    const roster = withDetachmentToggled(
+      withDetachmentToggled(withSquad(started('e-large')), g, 'e-vanguard', true),
+      g,
+      'e-bulwark',
+      true,
+    )
+    const result = evaluateRoster(roster, g)
+    expect(result.issues.filter((i) => /not available/.test(i.message))).toEqual([])
+    expect(result.detachmentPointsLimit).toBe(3)
+  })
+})

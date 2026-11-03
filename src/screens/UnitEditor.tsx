@@ -229,6 +229,10 @@ export type AttachedUnit = {
   sheet: Datasheet | undefined
   /** Names of the enhancements it carries. */
   enhancements: string[]
+  /** Models it is built with, which count towards the whole unit's size. */
+  models: number
+  /** It is a character joined to another unit rather than the unit itself. */
+  leading: boolean
 }
 
 /** The datasheet as the loadout stands: carried weapons with counts, abilities, detachment rules. */
@@ -256,10 +260,15 @@ export function effectsForBuiltUnit(
     sheet,
     catalogue,
     detachmentNames: detachments.map((d) => d.name),
+    // What a condition counts is the whole unit as built, not nothing.
+    models: modelCount(selection),
+    leading: Boolean(selection.attachedTo),
     attached: attached.map((joined) => ({
       name: joined.name,
       sheet: joined.sheet,
       enhancements: joined.enhancements.map((name) => ({ name })),
+      models: joined.models,
+      leading: joined.leading,
     })),
   })
 }

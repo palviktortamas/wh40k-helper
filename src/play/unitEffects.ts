@@ -23,6 +23,7 @@ import type { StatMod } from './mods'
 import { activePhrases, situationsIn, type Situation } from './situations'
 import type { Facts } from './conditions'
 import type { ActiveRule, GameUnit, UnitStatus } from './types'
+import { hostOf, livingModels, wholeUnitOf } from './attached'
 
 /** The rules a detachment the army took grants to a unit it names. */
 export function detachmentRulesFor(
@@ -52,21 +53,26 @@ export function attachedFamily(
   units: readonly GameUnit[],
   sheets: Map<string, Datasheet>,
 ): Member[] {
-  const hostId = unit.leaderOf ?? unit.id
-  return units
-    .filter((other) => other.id !== unit.id && !other.destroyed && (other.id === hostId || other.leaderOf === hostId))
+  return wholeUnitOf(unit, units)
+    .filter((other) => other.id !== unit.id && !other.destroyed)
     .map((other) => ({
+      id: other.id,
       name: other.name,
       sheet: sheets.get(other.entryId),
       enhancements: other.enhancements ?? [],
       marks: other.marks ?? [],
       statuses: other.statuses,
       inEffect: other.inEffect ?? [],
+      models: livingModels([other]),
+      // Leading only while the unit it joined is still standing.
+      leading: Boolean(hostOf(other, units)),
     }))
 }
 
 /** One member of an attached unit, as much of it as the caller knows. */
 export type Member = {
+  /** The unit's id, when it is one in a game: how the viewed unit finds its host. */
+  id?: string
   /** What the roster calls it, for "…· Warboss" on the chip. */
   name: string
   sheet: Datasheet | undefined
@@ -78,6 +84,10 @@ export type Member = {
   statuses?: readonly UnitStatus[]
   /** Rules the player has put into effect on it — a Stratagem, an ability. */
   inEffect?: readonly ActiveRule[]
+  /** Models of it still alive; they count towards the whole unit's size. */
+  models?: number
+  /** It is a character leading the unit it joined (unknown when left out). */
+  leading?: boolean
 }
 
 type Context = {
@@ -220,6 +230,8 @@ export function effectsForUnit({
   detachmentNames,
   marks = [],
   attached = [],
+  models,
+  leading,
 }: {
   unit: GameUnit
   sheet: Datasheet | undefined
@@ -227,6 +239,10 @@ export function effectsForUnit({
   detachmentNames: readonly string[]
   marks?: readonly Mark[]
   attached?: readonly Member[]
+  /** Living models in this unit alone, when `unit` carries no model list (the builder). */
+  models?: number
+  /** Whether this unit is leading another, when `unit` cannot say (the builder). */
+  leading?: boolean
 }): Effects {
   const context: Context = { catalogue, detachmentNames, marks }
   // A state belongs to the *unit*, and a unit is the bodyguard and every
@@ -246,9 +262,19 @@ export function effectsForUnit({
   // What the app can answer for itself: how many models are still alive, and
   // whether this model is leading a unit. A condition it can settle must never
   // be a toggle — the count changes as models die.
+  // Rules count the whole attached unit — "while this unit contains 10 or
+  // more models" is the bodyguard and its characters together — and each model
+  // answers "is it leading" for itself, so a Leader's "while this model is
+  // leading a unit" is live on the bodyguard's card exactly when it is true.
+  const own = models ?? unit.models?.reduce((sum, group) => sum + group.alive, 0)
+  const total =
+    own === undefined || attached.some((m) => m.models === undefined)
+      ? undefined
+      : own + attached.reduce((sum, m) => sum + (m.models ?? 0), 0)
   const facts: Facts = {
-    models: unit.models?.reduce((sum, group) => sum + group.alive, 0) ?? 0,
-    leading: Boolean(unit.leaderOf),
+    ...(total !== undefined ? { models: total } : {}),
+    leading:
+      leading ?? (Boolean(unit.leaderOf) && attached.some((m) => m.id === unit.leaderOf)),
   }
   const self: Member = {
     name: unit.name,
@@ -259,19 +285,24 @@ export function effectsForUnit({
   }
   const printed = effectsFrom(rulesFor(self, context), active, facts)
   const activated = effectsOfActive(self, active, facts)
-  const own = merge(printed, activated)
+  const mine = merge(printed, activated)
 
-  const grants = [...own.grants]
-  const mods = [...own.mods]
-  const seenGrants = new Set(own.grants.map(grantKey))
-  const seenMods = new Set(own.mods.map(modKey))
+  const grants = [...mine.grants]
+  const mods = [...mine.mods]
+  const seenGrants = new Set(mine.grants.map(grantKey))
+  const seenMods = new Set(mine.mods.map(modKey))
 
   for (const member of attached) {
     // What the attached model's own rules do for it alone is on its own sheet;
-    // here only what they do for the unit it is part of.
+    // here only what they do for the unit it is part of. Its conditions are
+    // read with its own facts, not the viewed unit's.
+    const theirFacts: Facts = {
+      ...(facts.models !== undefined ? { models: facts.models } : {}),
+      ...(member.leading !== undefined ? { leading: member.leading } : {}),
+    }
     const theirs = merge(
-      effectsFrom(rulesFor({ ...member, marks: held }, context), active, facts),
-      effectsOfActive(member, active, facts),
+      effectsFrom(rulesFor({ ...member, marks: held }, context), active, theirFacts),
+      effectsOfActive(member, active, theirFacts),
     )
     for (const grant of theirs.grants) {
       if (grant.subject !== 'unit' || seenGrants.has(grantKey(grant))) continue

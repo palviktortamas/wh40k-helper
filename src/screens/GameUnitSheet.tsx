@@ -3,6 +3,7 @@ import type { Datasheet, ParsedCatalogue } from '@/data/model'
 import type { GameAction } from '@/play/actions'
 import { STATUS_LABELS, modelsAlive, modelsTotal, type Game, type GameUnit } from '@/play/types'
 import { groupModes, loadoutByModel, weaponCounts } from '@/play/weapons'
+import { hostOf } from '@/play/attached'
 import { attachedFamily, detachmentRulesFor, effectsForUnit, situationsForUnit } from '@/play/unitEffects'
 import { roleKey } from '@/roster/roles'
 import { abilitiesInArmy } from '@/roster/armyAbilities'
@@ -228,7 +229,7 @@ export function GameUnitSheet({
   onBack: () => void
 }) {
   const sheet = sheets.get(unit.entryId)
-  const leaders = game.units.filter((l) => l.leaderOf === unit.id && !l.destroyed)
+  const leaders = game.units.filter((l) => !l.destroyed && hostOf(l, game.units)?.id === unit.id)
   // How long a state switched on here lasts, in the rules' own wordings.
   const [lasts, setLasts] = useState('')
 

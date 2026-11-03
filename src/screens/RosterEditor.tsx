@@ -36,6 +36,7 @@ import { groupByRole, roleKey, roleOf } from '@/roster/roles'
 import { WARLORD_CATEGORY } from '@/roster/vocabulary'
 import { COST_TYPE } from '@/data/bsdata/schema'
 import { OptionTree, UnitEditor, effectsForBuiltUnit, type AttachedUnit } from './UnitEditor'
+import { modelCount } from '@/roster/size'
 import type { StatMod } from '@/play/mods'
 import { scrollParent, scrollToTop } from './scrollToTop'
 import { JumpBar } from './JumpBar'
@@ -759,12 +760,26 @@ function UnitCard({
   const entry = graph.resolve(unit.entryId)
   const kind = entry ? attachmentKind(entry) : undefined
   const kindLabel = kind?.label ?? 'Leader'
+  // The chip names the association it is attached through, not the first one
+  // the datasheet lists: a unit that can join two ways is one of them here.
+  const usedAssociation = entry?.associations.find((a) => a.id === unit.associationId)
+  const attachedLabel = (usedAssociation && kindOfAssociation(usedAssociation)?.label) ?? kindLabel
   const enhancements = enhancementsTaken(unit, enhancementIds)
   const key = roleKey(role)
   // Attach, Warlord and Remove are decisions made once per unit; the card is
   // read a hundred times. They fold behind one control.
   const [acting, setActing] = useState(false)
   const canWarlord = validation.characterSelectionIds.includes(unit.id)
+  // Which option the attach control shows: the association it was attached
+  // under, or (for an older roster) the first that reaches its target.
+  const attachedValue = (() => {
+    if (!unit.attachedTo) return ''
+    const under = leading.find(
+      (l) => l.association.id === unit.associationId && l.targetIds.includes(unit.attachedTo!),
+    )
+    const via = under ?? leading.find((l) => l.targetIds.includes(unit.attachedTo!))
+    return via ? `${via.association.id}|${unit.attachedTo}` : ''
+  })()
 
   if (compact) {
     // One line per unit: name, points, the chips that matter, the roll-up. Tap → editor.
@@ -777,7 +792,7 @@ function UnitCard({
               <span className="muted units__pts">{validation.unitPoints[unit.id] ?? 0} pts</span>
             </span>
             <span className="units__chips">
-              {nested && <span className="chip">{kindLabel}</span>}
+              {nested && <span className="chip">{attachedLabel}</span>}
               {isWarlord && <span className="chip chip--warlord">Warlord</span>}
               {enhancements.length > 0 && <span className="rule-chip rule-chip--enhancement">{enhancements.length}× enh.</span>}
               {errors > 0 && <span className="chip chip--error">✕ {errors}</span>}
@@ -799,7 +814,7 @@ function UnitCard({
             <span className="muted units__pts">{validation.unitPoints[unit.id] ?? 0} pts</span>
           </span>
           <span className="units__chips">
-            {nested && <span className="chip">{kindLabel}</span>}
+            {nested && <span className="chip">{attachedLabel}</span>}
             {isWarlord && <span className="chip chip--warlord">Warlord</span>}
             {errors > 0 && <span className="chip chip--error">✕ {errors}</span>}
           </span>
@@ -864,10 +879,14 @@ function UnitCard({
               <label className="units__attachLabel">
                 Attach as {kindLabel}
                 <select
-                  value={unit.attachedTo ?? ''}
+                  value={attachedValue}
                   onChange={(e) => {
-                    const targetId = e.target.value
-                    const match = leading.find((l) => l.targetIds.includes(targetId))
+                    // The option carries the association it attaches under, so a
+                    // unit that can join the same target two ways keeps the one chosen.
+                    const [associationId, targetId] = e.target.value.split('|')
+                    const match = leading.find(
+                      (l) => l.association.id === associationId && targetId && l.targetIds.includes(targetId),
+                    )
                     const next: Selection = { ...unit }
                     if (targetId && match) {
                       next.attachedTo = targetId
@@ -901,7 +920,7 @@ function UnitCard({
                           ? `free · ${others.join(', ')}`
                           : 'free'
                       return (
-                        <option key={`${l.association.id}:${id}`} value={id} disabled={full}>
+                        <option key={`${l.association.id}|${id}`} value={`${l.association.id}|${id}`} disabled={full}>
                           {nameOf(id)} · {note}
                         </option>
                       )
@@ -975,6 +994,8 @@ function attachedTo(
         points: validation.unitPoints[unit.id] ?? 0,
         sheet: sheets.get(unit.entryId),
         enhancements: enhancementsTaken(unit, enhancementIds),
+        models: modelCount(unit),
+        leading: true,
       })
     }
   }
@@ -1005,6 +1026,8 @@ function familyOf(
       points: validation.unitPoints[other.id] ?? 0,
       sheet: sheets.get(other.entryId),
       enhancements: enhancementsTaken(other, enhancementIds),
+      models: modelCount(other),
+      leading: Boolean(other.attachedTo),
     }))
 }
 

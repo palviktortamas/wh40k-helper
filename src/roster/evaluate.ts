@@ -164,6 +164,7 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
     emitted: new Set(),
     headroom: new Map(),
     groupHeadroom: new Map(),
+    configIds: new Set(roster.configuration.map((c) => c.id)),
   }
 
   const roots = context.roots
@@ -193,7 +194,7 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
   for (const node of virtuals) applyModifiers(node, context)
 
   for (const node of context.all) {
-    checkHidden(node, issues)
+    checkHidden(node, context, issues)
     checkConstraints(node, context, issues)
     checkGroupConstraints(node, context, issues)
     checkAttachment(node, context, issues)
@@ -261,7 +262,15 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
     ...(detachmentPointsLimit === undefined ? {} : { detachmentPointsLimit }),
     ...(warlordNode ? { warlordSelectionId: rootOf(warlordNode).selection.id } : {}),
     characterSelectionIds: characterCategory
-      ? roots.filter((r) => r.categoryIds.has(characterCategory)).map((r) => r.selection.id)
+      ? // A datasheet may carry the keyword only on one of its models (a unit
+        // of a lord and his throne), so the unit counts when any model does.
+        roots
+          .filter((r) =>
+            subtree(r).some(
+              (n) => n.entry.type !== 'upgrade' && n.categoryIds.has(characterCategory),
+            ),
+          )
+          .map((r) => r.selection.id)
       : [],
     headroom: Object.fromEntries(context.headroom),
     groupHeadroom: Object.fromEntries(context.groupHeadroom),
@@ -321,6 +330,8 @@ type Context = {
   /** How many more of each selection its tightest `max` allows (see EvaluationResult.headroom). */
   headroom: Map<string, number>
   groupHeadroom: Map<string, number>
+  /** Ids of the roster's own configuration selections (battle size, detachments). */
+  configIds: Set<string>
   /**
    * Set while a group's own modifiers are evaluated against the selection that
    * owns the group. A group is not a selection, so for its conditions the owner
@@ -511,27 +522,39 @@ function linkAssociations(roots: Node[], context: Context, issues: ValidationIss
 function eligible(leader: Node, association: Association, candidate: Node, context: Context): boolean {
   if (candidate.parent) return false
   if (candidate.virtual) return false
-  // `childId: 'unit'` names any unit-level selection, which in a roster is a root.
+  // `childId: 'unit'` names any unit-level selection, which in a roster is a root;
+  // 'model-or-unit' is the same thing seen from a condition's scope.
   if (
     association.childId !== 'unit' &&
+    association.childId !== 'model-or-unit' &&
     association.childId !== 'any' &&
     !matches(candidate, association.childId)
   )
     return false
-  const from = (condition: Condition) => (condition.queryFromSelf ? leader : candidate)
-  const direct = (association.conditions ?? []).every((c) => testCondition(from(c), c, context))
-  const grouped = (association.conditionGroups ?? []).every((g) =>
-    testGroupFrom(leader, candidate, g, context),
-  )
+  // "A unit being led by a CRYPTEK model" is a unit with a Cryptek in it: for a
+  // keyword test on the candidate itself, the characters already attached to it
+  // count too (the leader being tested does not).
+  const members = [candidate, ...candidate.attachedLeaders.map((l) => l.leader).filter((l) => l !== leader)]
+  const test = (condition: Condition): boolean => {
+    if (condition.queryFromSelf) return testCondition(leader, condition, context)
+    if (condition.type === 'instanceOf' && condition.scope === 'self')
+      return members.some((m) => testCondition(m, condition, context))
+    return testCondition(candidate, condition, context)
+  }
+  const direct = (association.conditions ?? []).every(test)
+  const grouped = (association.conditionGroups ?? []).every((g) => testGroupFrom(candidate, g, test, context))
   return direct && grouped
 }
 
-function testGroupFrom(leader: Node, candidate: Node, group: ConditionGroup, context: Context): boolean {
+function testGroupFrom(
+  candidate: Node,
+  group: ConditionGroup,
+  test: (condition: Condition) => boolean,
+  context: Context,
+): boolean {
   const results = [
-    ...(group.conditions ?? []).map((c) =>
-      testCondition(c.queryFromSelf ? leader : candidate, c, context),
-    ),
-    ...(group.conditionGroups ?? []).map((g) => testGroupFrom(leader, candidate, g, context)),
+    ...(group.conditions ?? []).map(test),
+    ...(group.conditionGroups ?? []).map((g) => testGroupFrom(candidate, g, test, context)),
     ...(group.localConditionGroups ?? []).map((l) => testLocalGroup(candidate, l, context)),
   ]
   if (results.length === 0) return true
@@ -974,8 +997,12 @@ const tighten = (map: Map<string, number>, key: string, room: number): void => {
   if (known === undefined || room < known) map.set(key, room)
 }
 
-function checkHidden(node: Node, issues: ValidationIssue[]): void {
+function checkHidden(node: Node, context: Context, issues: ValidationIssue[]): void {
   if (!node.hidden) return
+  // The app selects the battle size itself from the points limit, and the data
+  // keeps its biggest size `hidden` with nothing to reveal it: a configuration
+  // option the data hides outright (and no modifier did) is not the user's error.
+  if (node.entry.hidden && context.configIds.has(rootOf(node).selection.id)) return
   issues.push({
     severity: 'error',
     selectionId: node.selection.id,
