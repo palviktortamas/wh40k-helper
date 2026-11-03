@@ -23,12 +23,15 @@ function Abilities({
   unit,
   sheet,
   detachmentNames,
+  attachedNames,
   catalogue,
   dispatch,
 }: {
   unit: GameUnit
   sheet: Datasheet
   detachmentNames: readonly string[]
+  /** Datasheet names of the units it stands with — some rules come only with one of them. */
+  attachedNames: readonly string[]
   catalogue: ParsedCatalogue | undefined
   dispatch: (action: GameAction) => void
 }) {
@@ -37,7 +40,7 @@ function Abilities({
   // them itself, and every detachment the army took may name this one.
   const granted = detachmentRulesFor(keywords, detachmentNames, catalogue)
   const enhancementText = new Map((catalogue?.enhancements ?? []).map((e) => [e.id, e.text]))
-  const abilities = abilitiesInArmy(sheet.abilities, detachmentNames)
+  const abilities = abilitiesInArmy(sheet.abilities, detachmentNames, attachedNames)
 
   if (abilities.length === 0 && granted.length === 0 && (unit.enhancements?.length ?? 0) === 0) return null
   return (
@@ -489,7 +492,7 @@ export function GameUnitSheet({
       {sheet && (
         <>
           <h3>Abilities</h3>
-          <Abilities unit={unit} sheet={sheet} detachmentNames={game.detachmentNames} catalogue={catalogue} dispatch={dispatch} />
+          <Abilities unit={unit} sheet={sheet} detachmentNames={game.detachmentNames} attachedNames={family.flatMap((m) => (m.sheet ? [m.sheet.name] : []))} catalogue={catalogue} dispatch={dispatch} />
         </>
       )}
 
@@ -545,7 +548,7 @@ export function GameUnitSheet({
               }
             />
             {leaderSheet && (
-              <Abilities unit={leader} sheet={leaderSheet} detachmentNames={game.detachmentNames} catalogue={catalogue} dispatch={dispatch} />
+              <Abilities unit={leader} sheet={leaderSheet} detachmentNames={game.detachmentNames} attachedNames={attachedFamily(leader, game.units, sheets).flatMap((m) => (m.sheet ? [m.sheet.name] : []))} catalogue={catalogue} dispatch={dispatch} />
             )}
           </section>
         )

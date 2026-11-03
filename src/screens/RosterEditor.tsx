@@ -1168,9 +1168,9 @@ function UnitPicker({
                     </div>
                     {expanded && sheet && (
                       <div className="picker__preview">
-                        {abilitiesInArmy(sheet.abilities, detachmentNames).length > 0 && (
+                        {abilitiesInArmy(sheet.abilities, detachmentNames, []).length > 0 && (
                           <ul className="abilities">
-                            {abilitiesInArmy(sheet.abilities, detachmentNames).map((a) => (
+                            {abilitiesInArmy(sheet.abilities, detachmentNames, []).map((a) => (
                               <li key={a.id} className="abilities__item">
                                 <div className="abilities__head">{a.name}</div>
                                 <p className="abilities__text">

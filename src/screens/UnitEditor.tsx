@@ -292,7 +292,9 @@ function BuiltSheet({
   const { grants, mods } = effectsForBuiltUnit(sheet, selection, family, detachments, catalogue)
   const keywords = [...sheet.keywords, ...sheet.factionKeywords]
   const detachmentNames = detachments.map((d) => d.name)
-  const abilities = abilitiesInArmy(sheet.abilities, detachmentNames)
+  // Some rules come only while a certain character stands with the unit.
+  const namesOf = (units: readonly AttachedUnit[]) => units.flatMap((u) => (u.sheet ? [u.sheet.name] : []))
+  const abilities = abilitiesInArmy(sheet.abilities, detachmentNames, namesOf(family))
   // Every detachment the army took can speak about this unit, so each is asked.
   const detachmentRules = detachments.flatMap((d) =>
     (d.rules ?? [])
@@ -308,7 +310,10 @@ function BuiltSheet({
   // bodyguard is a judgement the rules text makes in prose, so everything the
   // character has is listed and tagged with its name rather than guessed at.
   const fromAttached = attached.flatMap((joined) => [
-    ...abilitiesInArmy(joined.sheet?.abilities ?? [], detachmentNames)
+    ...abilitiesInArmy(joined.sheet?.abilities ?? [], detachmentNames, [
+      sheet.name,
+      ...namesOf(family.filter((f) => f.id !== joined.id)),
+    ])
       .filter((a) => a.kind !== 'core' && a.kind !== 'faction')
       .map((ability) => ({ key: `${joined.id}:${ability.id}`, name: ability.name, text: ability.text, from: joined, tag: joined.kindLabel })),
     ...joined.enhancements.map((name) => ({

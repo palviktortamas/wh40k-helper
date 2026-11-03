@@ -16,6 +16,7 @@
  */
 
 import { plainText } from '@/reminders/heuristics'
+import { normalizeMarks } from '@/stratagems/marked'
 import { conditionMet, type Facts } from './conditions'
 
 export type GrantKind = 'ranged' | 'melee' | 'any'
@@ -105,7 +106,8 @@ export const subjectOf = (before: string, clause = '', heading?: GrantSubject): 
  */
 const BOLD_MARKER = '@@bold@@'
 export const plainTextKeepingBold = (text: string): string =>
-  plainText(text.split('**').join(BOLD_MARKER)).split(BOLD_MARKER).join('**')
+  // A keyword spelt ^^X^^ is the same keyword as **X**, so it must stay bold.
+  plainText(normalizeMarks(text).split('**').join(BOLD_MARKER)).split(BOLD_MARKER).join('**')
 
 /** Bold marks are for the reader of the rule, not for the reader of the app. */
 export const unbold = (text: string): string => text.replace(/\*\*/g, '')

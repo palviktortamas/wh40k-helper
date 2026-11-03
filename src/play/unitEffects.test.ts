@@ -241,6 +241,30 @@ describe('a rule the player has put into effect', () => {
     expect(mods.map((m) => [m.stat, m.value, m.target, m.source])).toEqual([['A', '+1', 'melee', 'Stratagem']])
   })
 
+  // "Until the end of the phase" is how long it lasts — the game tracks that
+  // expiry itself — not a condition the player still has to meet.
+  it('is in force for as long as its words say, not waiting on them', () => {
+    const boosted = {
+      ...mob,
+      inEffect: [
+        {
+          id: 's1',
+          name: 'Roar',
+          source: 'Stratagem',
+          text: "Until the end of the phase, this unit's melee attacks have +1 **A**.",
+        },
+      ],
+    } as unknown as GameUnit
+    const { mods } = effectsForUnit({
+      unit: boosted,
+      sheet: catalogue.datasheets[0]!,
+      catalogue,
+      detachmentNames: [],
+    })
+    const a = mods.find((m) => m.stat === 'A')
+    expect(a?.when).toBeUndefined()
+  })
+
   it('reaches the character in the unit it was used on', () => {
     const boss = { ...unit('u2', 'ds-boss', 'Boss'), leaderOf: 'u1' }
     const { mods } = effectsForUnit({

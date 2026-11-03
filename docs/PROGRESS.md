@@ -1813,9 +1813,60 @@ Noticed, not caused here: `grants.live.test.ts` fails for **Necrons** on today's
 (no ability written as "attacks have:" any more). It fails the same way on unchanged `main`.
 The assertion that every faction has one is a per-faction assumption the fresher data broke.
 
-## Audit 2026-11-03 - open findings (four agents, Orks + Necrons, today's data)
+## Done 2026-11-03 - the audit fixed (five agents, merged and checked together)
 
-Not fixed yet. Agents ran the roster/play modules on the real fixtures and compared with
+Every app finding below is fixed; the upstream ones stay upstream. Five agents worked on separate
+branches by area and were merged into `main` without conflict. Full suite: 446 synthetic tests, 538
+with both fixture factions, all green (the Necron `grants.live` failure is gone: the test no longer
+assumes every faction writes an "attacks have:" list). **`PARSER_VERSION` → 9.** Not walked
+through in the browser; the screens changed only in what they are handed.
+
+- **Parser.** Abilities the data hides unless a character is attached (`associations` condition)
+  carry `Ability.onlyWithAttached` (datasheet names; empty = any character).
+  `abilitiesInArmy(abilities, detachments, attachedNames?)` drops them when the caller says who
+  stands with the unit. Every army-aware site now passes it (unit effects per member, game unit
+  sheet, reminders, unit editor, picker = nobody); the browser labels "Only with X attached".
+  Entries with an Enhancement cost no longer lend their profiles to the unit. Rule links on nested
+  *model* entries are collected (only models: weapon entries link their keyword rules). `damagedThreshold`
+  reads "Damaged N" as well as "Damaged: 1-N". Identical weapon profiles are merged at parse time.
+  Relic weapons sold as enhancements get their profile as text.
+- **Scope** (`detachmentRules.ts`). `normalise` brings bold, plain caps and `^^**X^^**` to one
+  `**PHRASE**` form, and merges the export's one-bold-span-per-word. Each clause is scoped on its own;
+  a clause naming nobody follows the one before it. `ruleTextFor(text, keywords)` hands a unit only
+  its clauses, and `detachmentRulesFor` uses it. "You can only select an X unit if…" no longer
+  defines a stratagem's target. `detachmentRules.live.test.ts` fails on any rule that names units
+  but reads as army-wide. Open: other factions' small-caps spellings in the stratagem export
+  (`PROSEcUTORS`) stay unscoped.
+- **Mods and grants** (`mods.ts`, `grants.ts`). The bullet marker is stripped before reading the
+  condition. A heading's melee/ranged half, weapon filter and target carry to its bullets. Enemy-subject
+  effects and auras for other units stay off the carrier. Target conditions ("attacks that target a
+  MONSTER unit", "against ranged attacks") are conditions, flagged `against` so no tick makes them
+  live. `StatMod.weapon` ({keyword, except, name}) confines a bonus to the weapons it names. `applyMod`:
+  dice keep their count (`2D6`+1 = `2D6+1`), stat floors, "Melee" untouched, improve/worsen flip
+  the sign on BS/WS/Sv, an `instead` mod replaces the other delta. Always-on mod rows on the fixtures
+  went from 28 to 19, and none were added. Open: grants (not mods) have no weapon filter yet, and "if
+  your unit has the VEHICLE keyword" has no fact to answer it.
+- **Roster and attached units.** `checkHidden` skips a hidden entry under the roster's own
+  configuration (3000-pt Onslaught). A unit is a Character when any model is (Silent King). `fillGroup`
+  takes a nested group's first option when a required group holds only nested groups (Crucible).
+  Associations accept `childId: model-or-unit`, and a scope-self `instanceOf` also sees the characters
+  attached to the candidate ("a unit led by a CRYPTEK"). `src/play/attached.ts`: "effectively
+  attached" while the host stands (`hostOf`, `wholeUnitOf`), so a destroyed bodyguard frees its
+  character and revive restores it. Battle-shock and half-strength are per attached unit. Each member's
+  rules are read with its own `leading` and the whole unit's model count. Points come from the manual's
+  bands (`roster/pricing.ts`), so Lokhust Heavy Destroyers cost 50/100/165.
+- **Reminders and markup.** `start_of_round` shows every round; `end_of_turn` /
+  `end_of_opponent_turn` / `end_of_each_turn` are separate. A phase stated anywhere in the text beats
+  implied ones (18 of 685 reminders moved, all checked). `normalizeMarks` (stratagems/marked.ts)
+  is the one place markup spellings are folded, and `plainTextKeepingBold` (grants.ts, now also used by
+  marks.ts) calls it, so a `^^X^^` keyword is bold to the effects readers. The datasheet browser
+  renders through `Marked`.
+- **Coordinator follow-up.** A rule put into effect drops its "Until …" condition
+  (`effectsOfActive`): that is its duration, which `duration.ts` tracks, not something to meet.
+
+## Audit 2026-11-03 - findings (four agents, Orks + Necrons, today's data)
+
+All fixed except the upstream ones; see the section above. Agents ran the roster/play modules on the real fixtures and compared with
 Wahapedia 11ed; the starred ones were re-checked by hand.
 
 **Wrong rule on the wrong unit (table-facing, widespread)**

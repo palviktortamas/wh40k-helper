@@ -13,6 +13,7 @@
  * bold phrase that is not shouting is a state.
  */
 
+import { plainTextKeepingBold } from './grants'
 import { plainText } from '@/reminders/heuristics'
 import { ruleAppliesTo } from '@/roster/detachmentRules'
 import { abilitiesInArmy } from '@/roster/armyAbilities'
@@ -171,14 +172,6 @@ export function grantedMarks(rawText: string, marks: readonly Mark[]): Grant[] {
   return out
 }
 
-/**
- * `plainText` strips the bold marks, but here they are the signal that tells a
- * state from ordinary prose — so they are parked behind a marker that survives
- * the cleaning, and put back afterwards.
- */
-const BOLD_MARKER = '@@bold@@'
-const plainTextKeepingBold = (text: string): string =>
-  plainText(text.split('**').join(BOLD_MARKER)).split(BOLD_MARKER).join('**')
 
 /**
  * The rules that say what a mark *does* for one unit: its own abilities, and

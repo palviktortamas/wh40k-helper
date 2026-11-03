@@ -88,6 +88,11 @@ export type Member = {
   models?: number
   /** It is a character leading the unit it joined (unknown when left out). */
   leading?: boolean
+  /**
+   * Datasheet names of the others it stands with, for the rules the data grants
+   * only while a certain character is attached. Unknown when left out.
+   */
+  attachedNames?: readonly string[]
 }
 
 type Context = {
@@ -109,8 +114,11 @@ function effectsOfActive(member: Member, active: readonly string[], facts: Facts
     source: rule.source,
   }))
   const { grants, mods } = effectsFrom(rules, active, facts)
+  // Putting the rule into effect settles its "If you do", and its "Until the
+  // end of the phase" is how long it lasts, which the game tracks itself
+  // (duration.ts) — neither is left for the player to meet.
   const settled = <T extends { when?: string; met?: boolean }>(effect: T): T => {
-    if (!effect.when || !isBackReference(effect.when)) return effect
+    if (!effect.when || !(isBackReference(effect.when) || /^until\b/i.test(effect.when.trim()))) return effect
     const { when: _dropped, ...rest } = effect
     void _dropped
     return rest as T
@@ -132,7 +140,7 @@ function rulesFor(member: Member, context: Context): GrantingRule[] {
       text: rule.text,
       source: detachmentName,
     })),
-    ...abilitiesInArmy(sheet?.abilities ?? [], detachmentNames).map((a) => ({
+    ...abilitiesInArmy(sheet?.abilities ?? [], detachmentNames, member.attachedNames).map((a) => ({
       name: a.name,
       text: a.text,
       source: a.kind === 'faction' ? 'Faction rule' : 'Datasheet',
@@ -276,9 +284,12 @@ export function effectsForUnit({
     leading:
       leading ?? (Boolean(unit.leaderOf) && attached.some((m) => m.id === unit.leaderOf)),
   }
+  const sheetNames = (members: readonly Member[]) =>
+    members.flatMap((m) => (m.sheet ? [m.sheet.name] : []))
   const self: Member = {
     name: unit.name,
     sheet,
+    attachedNames: sheetNames(attached),
     enhancements: unit.enhancements ?? [],
     marks: held,
     inEffect: unit.inEffect ?? [],
@@ -301,7 +312,18 @@ export function effectsForUnit({
       ...(member.leading !== undefined ? { leading: member.leading } : {}),
     }
     const theirs = merge(
-      effectsFrom(rulesFor({ ...member, marks: held }, context), active, theirFacts),
+      effectsFrom(
+        rulesFor(
+          {
+            ...member,
+            marks: held,
+            attachedNames: sheetNames([self, ...attached.filter((m) => m !== member)]),
+          },
+          context,
+        ),
+        active,
+        theirFacts,
+      ),
       effectsOfActive(member, active, theirFacts),
     )
     for (const grant of theirs.grants) {

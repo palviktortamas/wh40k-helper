@@ -10,6 +10,7 @@ import type { Ability, ParsedCatalogue } from '@/data/model'
 import type { Game, GameUnit, Phase } from '@/play/types'
 import { infer } from './heuristics'
 import { abilitiesInArmy } from '@/roster/armyAbilities'
+import { wholeUnitOf } from '@/play/attached'
 import { withOverride } from './store'
 import type { Reminder, ReminderOverride, Trigger } from './types'
 
@@ -46,7 +47,10 @@ export function remindersForGame(game: Game, catalogue: ParsedCatalogue, overrid
   for (const unit of game.units) {
     if (unit.destroyed) continue
     const sheet = sheets.get(unit.entryId)
-    for (const ability of abilitiesInArmy(sheet?.abilities ?? [], game.detachmentNames)) {
+    const attachedNames = wholeUnitOf(unit, game.units)
+      .filter((other) => other.id !== unit.id)
+      .flatMap((other) => sheets.get(other.entryId)?.name ?? [])
+    for (const ability of abilitiesInArmy(sheet?.abilities ?? [], game.detachmentNames, attachedNames)) {
       if (ability.kind === 'faction' || ability.kind === 'core') {
         if (!army.has(ability.id)) army.set(ability.id, fromAbility(ability, 'army', overrides))
         continue

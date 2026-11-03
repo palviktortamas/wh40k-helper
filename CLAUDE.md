@@ -58,7 +58,11 @@ data (lists and faction) — the app had never asked for persistent storage. It 
 start (`data/persist.ts`), and Settings → Backup saves/restores everything the owner made as one
 file (`data/backup.ts`); see the journal. **2026-11-03:** an ability the data hides unless the army
 holds a detachment (extra psychic powers, a Deep Strike) carries `Ability.onlyWith`, and every
-army-aware screen filters through `roster/armyAbilities.ts`. The sync/proxy Worker is **deferred by the owner** ("not needed
+army-aware screen filters through `roster/armyAbilities.ts`. The same day, a four-agent audit
+found ~18 app bugs and they were all fixed (journal: "Done 2026-11-03 - the audit fixed"). The main
+changes: rules are scoped clause by clause whatever the keyword spelling; an attached unit is one unit
+at the table (`play/attached.ts`); points come from the manual's bands (`roster/pricing.ts`);
+`PARSER_VERSION` is 9. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one
