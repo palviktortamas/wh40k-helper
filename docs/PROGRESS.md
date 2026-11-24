@@ -2013,6 +2013,12 @@ bought yet, so it stands *apart* from the bought ≥ assembled ≥ painted chain
   "200 pts planned" and "255 pts · 85 painted · 170 pts planned", and the Planned filter shows exactly
   those two units. Viewed at 390 and at 1280 px.
 
+**Then: "let me filter the collection too."** The Collection tab has chips: All / Planned / Bought /
+Assembled / Painted, plus the hobby backlog **To assemble** (bought > assembled) and **To paint**
+(assembled > painted) (`rowMatches`, `ROW_FILTERS`). Each chip carries how many rows it would show.
+The stat tiles keep counting the whole faction. Checked in headless Chrome on Wazdakka (planned),
+Warboss (all painted) and Boyz (30/20/10): each chip showed exactly the rows it should.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

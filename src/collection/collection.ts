@@ -76,3 +76,26 @@ export type StageFilter = 'any' | Count
 
 export const hasStage = (entry: CollectionEntry | undefined, filter: StageFilter): boolean =>
   filter === 'any' || (entry ? countOf(entry, filter) : 0) > 0
+
+/**
+ * The Collection screen's filter: rows with models at a stage (or planned), and
+ * the hobby backlog — bought but not all assembled, assembled but not all painted.
+ */
+export type RowFilter = 'all' | Count | 'toAssemble' | 'toPaint'
+
+export const ROW_FILTERS: readonly { id: RowFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'planned', label: 'Planned' },
+  { id: 'bought', label: 'Bought' },
+  { id: 'assembled', label: 'Assembled' },
+  { id: 'painted', label: 'Painted' },
+  { id: 'toAssemble', label: 'To assemble' },
+  { id: 'toPaint', label: 'To paint' },
+]
+
+export function rowMatches(entry: CollectionEntry, filter: RowFilter): boolean {
+  if (filter === 'all') return true
+  if (filter === 'toAssemble') return entry.bought > entry.assembled
+  if (filter === 'toPaint') return entry.assembled > entry.painted
+  return countOf(entry, filter) > 0
+}

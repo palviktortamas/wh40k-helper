@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Datasheet } from '@/data/model'
-import { collectionStats, hasStage, pointsForModels, startingModels, withCount } from './collection'
+import { collectionStats, hasStage, pointsForModels, rowMatches, startingModels, withCount } from './collection'
 import type { CollectionEntry } from './types'
 
 // Invented datasheets in the parsed model's shape — no game data.
@@ -97,5 +97,24 @@ describe('the add-unit filter', () => {
     expect(hasStage(undefined, 'bought')).toBe(false)
     expect(hasStage(owned, 'planned')).toBe(false)
     expect(hasStage(entry('mob', 0, 0, 0, 10), 'planned')).toBe(true)
+  })
+})
+
+describe('the collection screen filter', () => {
+  const backlog = entry('mob', 20, 12, 5, 10)
+  it('shows rows with models at a stage, or planned', () => {
+    expect(rowMatches(backlog, 'all')).toBe(true)
+    expect(rowMatches(backlog, 'planned')).toBe(true)
+    expect(rowMatches(entry('mob', 10), 'planned')).toBe(false)
+    expect(rowMatches(entry('mob', 10, 0, 0), 'painted')).toBe(false)
+  })
+
+  // The hobby backlog: what is still to build, and what is built but bare.
+  it('shows what is left to assemble and to paint', () => {
+    expect(rowMatches(backlog, 'toAssemble')).toBe(true)
+    expect(rowMatches(backlog, 'toPaint')).toBe(true)
+    expect(rowMatches(entry('mob', 10, 10, 4), 'toAssemble')).toBe(false)
+    expect(rowMatches(entry('mob', 10, 10, 10), 'toPaint')).toBe(false)
+    expect(rowMatches(entry('mob', 0, 0, 0, 10), 'toAssemble')).toBe(false)
   })
 })

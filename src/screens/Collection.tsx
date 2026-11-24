@@ -4,7 +4,16 @@ import { getInstalledCatalogues } from '@/data/worker/client'
 import { getSetting, setSetting, type CatalogueRecord } from '@/data/db'
 import type { Datasheet } from '@/data/model'
 import { groupByRole } from '@/roster/roles'
-import { collectionStats, countOf, pointsForModels, startingModels, withCount } from '@/collection/collection'
+import {
+  collectionStats,
+  countOf,
+  pointsForModels,
+  ROW_FILTERS,
+  rowMatches,
+  startingModels,
+  withCount,
+  type RowFilter,
+} from '@/collection/collection'
 import { getCollection, newEntry, saveEntry } from '@/collection/store'
 import { COUNTS, STAGE_LABELS, type CollectionEntry, type Count } from '@/collection/types'
 import './Datasheets.css'
@@ -24,6 +33,7 @@ export function Collection() {
   const [catalogueId, setCatalogueId] = useState<string | null>(null)
   const [entries, setEntries] = useState<CollectionEntry[]>([])
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<RowFilter>('all')
 
   useEffect(() => {
     void (async () => {
@@ -81,8 +91,9 @@ export function Collection() {
         .sort((a, b) => a.name.localeCompare(b.name))
         .slice(0, 20)
     : []
+  const shown = entries.filter((e) => rowMatches(e, filter))
   const groups = groupByRole(
-    [...entries].sort((a, b) => a.name.localeCompare(b.name)),
+    [...shown].sort((a, b) => a.name.localeCompare(b.name)),
     (e) => sheets.get(e.entryId)?.role,
   )
 
@@ -130,6 +141,25 @@ export function Collection() {
           ))}
           {matches.length === 0 && <li className="muted">No unit by that name that is not already listed.</li>}
         </ul>
+      )}
+
+      {entries.length > 0 && (
+        <div className="sheets__roles collection__filters" role="group" aria-label="Show">
+          {ROW_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              className={`sheets__role${filter === f.id ? ' sheets__role--on' : ''}`}
+              aria-pressed={filter === f.id}
+              onClick={() => setFilter(f.id)}
+            >
+              {f.label}
+              {f.id !== 'all' && <span className="collection__filterCount"> {entries.filter((e) => rowMatches(e, f.id)).length}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      {entries.length > 0 && shown.length === 0 && (
+        <p className="muted">Nothing here — every unit is past this point, or none has reached it yet.</p>
       )}
 
       {entries.length === 0 && !needle && (

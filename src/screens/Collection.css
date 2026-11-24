@@ -187,3 +187,9 @@
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* How many rows each filter would show: numbers, so the choice needs no trial and error. */
+.collection__filterCount {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
