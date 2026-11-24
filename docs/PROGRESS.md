@@ -1931,6 +1931,31 @@ Checked clean: who-can-lead-whom (45 characters match MFM and Wahapedia), Leader
 points and Requisition bands (except Lokhust Heavy), DP budget, Epic Hero/Rule of 3/Battleline
 limits, every non-Crusade option addable, stats/weapons/keywords on 27 datasheets.
 
+## 2026-11-24 - the BSData source is gone; everything archived
+
+**`BSData/wh40k-11e` and `BSData/wh40k-11e-mfm` return 404**: the repos, their raw files and the
+API alike, and the BSData account has no 40k repos left. So the Data screen can no longer install or
+update a faction. Catalogues already installed keep working, because they re-parse from the raw text
+stored on the device. The owner asked to save the data while it is still there. Everything is in
+`/home/viktor/wh40k-data-archive/2026-11-24/`, **outside the repo** (README there):
+- full git clones of the freshest surviving copy (`momper14/wh40k-11e`, upstream to 2026-11-11)
+  and an older one;
+- the MFM points mirror (`richardsolomou/wh40k-11e-mfm`, v1.6);
+- Wahapedia's whole CSV export (20 files, which include datasheets with points), the mission deck,
+  the core rules and the export format page.
+
+Fixtures for the live suites are built from that archive now. Both factions pass as before.
+
+Owner question answered: Da Gobshot Thunderbuss (a Brute Bosses enhancement) is hidden unless the unit
+carries the **WARBOSS keyword**, which is a category, not one datasheet. The app offers it on Warboss,
+Warboss in Mega Armour, Warboss on Warbike, Beastboss, Beastboss on Squigosaur and Deffkilla Wartrike,
+and on no other character. That matches Wahapedia ("Warboss model only"; those units carry the keyword).
+
+**Open, the owner's call:** where the app gets catalogues now. One option is a file import on the Data
+screen, fed from the archive. Another is a configurable source URL; the obvious one is a stranger's fork,
+which may vanish too. A third is to build catalogues from the Wahapedia export, which would be a new
+parser.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone
