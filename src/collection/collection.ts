@@ -1,14 +1,16 @@
 import type { Datasheet } from '@/data/model'
-import { STAGES, type CollectionEntry, type Stage } from './types'
+import { COUNTS, STAGES, type CollectionEntry, type Count } from './types'
 
 /**
  * Sets one stage's count and moves the others so the stages still nest: what
  * is painted has been assembled, and what is assembled was bought. Raising
  * painted raises the stages below it; lowering bought lowers the ones above.
+ * What is planned is not owned yet, so it moves on its own.
  */
-export function withCount(entry: CollectionEntry, stage: Stage, count: number): CollectionEntry {
+export function withCount(entry: CollectionEntry, stage: Count, count: number): CollectionEntry {
   const n = Math.max(0, Math.floor(count))
   const next = { ...entry, [stage]: n }
+  if (stage === 'planned') return next
   const at = STAGES.indexOf(stage)
   for (let i = at - 1; i >= 0; i--) next[STAGES[i]!] = Math.max(next[STAGES[i]!], n)
   for (let i = at + 1; i < STAGES.length; i++) next[STAGES[i]!] = Math.min(next[STAGES[i]!], n)
@@ -53,20 +55,24 @@ export type StageTotals = { models: number; points: number }
 export function collectionStats(
   entries: readonly CollectionEntry[],
   sheets: Map<string, Datasheet>,
-): Record<Stage, StageTotals> {
-  const totals = Object.fromEntries(STAGES.map((s) => [s, { models: 0, points: 0 }])) as Record<Stage, StageTotals>
+): Record<Count, StageTotals> {
+  const totals = Object.fromEntries(COUNTS.map((s) => [s, { models: 0, points: 0 }])) as Record<Count, StageTotals>
   for (const entry of entries) {
     const sheet = sheets.get(entry.entryId)
-    for (const stage of STAGES) {
-      totals[stage].models += entry[stage]
-      totals[stage].points += pointsForModels(sheet, entry[stage])
+    for (const stage of COUNTS) {
+      const n = countOf(entry, stage)
+      totals[stage].models += n
+      totals[stage].points += pointsForModels(sheet, n)
     }
   }
   return totals
 }
 
-/** The add-unit picker's filter: any datasheet, or only those with models at a stage. */
-export type StageFilter = 'any' | Stage
+/** A row's count at a stage; a row saved before plans existed plans nothing. */
+export const countOf = (entry: CollectionEntry, stage: Count): number => entry[stage] ?? 0
+
+/** The add-unit picker's filter: any datasheet, or only those with models at a stage (or planned). */
+export type StageFilter = 'any' | Count
 
 export const hasStage = (entry: CollectionEntry | undefined, filter: StageFilter): boolean =>
-  filter === 'any' || (entry?.[filter] ?? 0) > 0
+  filter === 'any' || (entry ? countOf(entry, filter) : 0) > 0

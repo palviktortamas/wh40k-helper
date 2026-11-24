@@ -17,7 +17,7 @@
 
 .collection__stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
   margin: 0;
 }
@@ -80,17 +80,24 @@
   padding: 0.75rem;
 }
 
-.collection__add {
+.collection__match {
   display: flex;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 44px;
-  padding: 0.5rem 0.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
   background: var(--surface);
-  border: 0;
-  color: inherit;
-  font: inherit;
-  text-align: left;
+}
+
+.collection__matchName {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.collection__add {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0.5rem 0.6rem;
+  white-space: nowrap;
 }
 
 /* --- the owned list ------------------------------------------------------- */
@@ -125,8 +132,16 @@
 
 .collection__counts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
+}
+
+/* Four across once there is room for them (a PC); two by two on a phone. */
+@media (min-width: 600px) {
+  .collection__stats,
+  .collection__counts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .collection__gone {

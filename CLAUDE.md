@@ -67,7 +67,7 @@ faction no longer works; installed ones keep working, and the owner wants no new
 The data is archived outside the repo at `/home/viktor/wh40k-data-archive/` (fixtures come from
 there). The same day: bold move and shooting types ("pulse jet move") open their definition, read
 from the stratagem export (`stratagems/terms.ts`, `screens/Terms.tsx`). There is also a **Collection
-tab** (bought / assembled / painted models per datasheet with points, Dexie v10, in the backup) that
+tab** (planned / bought / assembled / painted models per datasheet with points, Dexie v10, in the backup) that
 the add-unit picker can filter by. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored

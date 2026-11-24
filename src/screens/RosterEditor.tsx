@@ -26,9 +26,9 @@ import { exportRosterText } from '@/roster/export'
 import { unitNames } from '@/roster/naming'
 import { detachmentEnhancements, detachmentStratagems } from '@/roster/detachmentInfo'
 import { abilitiesInArmy } from '@/roster/armyAbilities'
-import { hasStage, type StageFilter } from '@/collection/collection'
+import { countOf, hasStage, type StageFilter } from '@/collection/collection'
 import { getCollection } from '@/collection/store'
-import { STAGES, STAGE_LABELS, type CollectionEntry } from '@/collection/types'
+import { COUNTS, STAGE_LABELS, type CollectionEntry } from '@/collection/types'
 import { getStratagemSet } from '@/stratagems/store'
 import type { StratagemSet } from '@/stratagems/types'
 import { attachmentKind, attachmentsOf, capacityOf, heldOfKind, kindOfAssociation } from '@/roster/attachment'
@@ -1067,7 +1067,7 @@ function UnitPicker({
   catalogueId: string
 }) {
   const [query, setQuery] = useState('')
-  /** Only units the owner has bought, assembled or painted (the Collection tab). */
+  /** Only units the owner has planned, bought, assembled or painted (the Collection tab). */
   const [stage, setStage] = useState<StageFilter>('any')
   const [owned, setOwned] = useState<Map<string, CollectionEntry>>(new Map())
   useEffect(() => {
@@ -1126,7 +1126,7 @@ function UnitPicker({
       />
       {owned.size > 0 && (
         <div className="sheets__roles picker__owned" role="group" aria-label="Filter by your collection">
-          {(['any', ...STAGES] as const).map((s) => (
+          {(['any', ...COUNTS] as const).map((s) => (
             <button
               key={s}
               className={`sheets__role${stage === s ? ' sheets__role--on' : ''}`}
@@ -1179,11 +1179,14 @@ function UnitPicker({
                               {inList} in list
                             </span>
                           )}
-                          {mine && (
+                          {mine && mine.bought > 0 && (
                             <span className="picker__count picker__count--owned">
                               own {mine.bought}
                               {mine.painted > 0 ? ` · ${mine.painted} painted` : mine.assembled > 0 ? ` · ${mine.assembled} built` : ''}
                             </span>
+                          )}
+                          {mine && countOf(mine, 'planned') > 0 && (
+                            <span className="picker__count picker__count--owned">plan {countOf(mine, 'planned')}</span>
                           )}
                         </span>
                         <span className="muted picker__pts">{pointsLine(sheet, entry)}</span>

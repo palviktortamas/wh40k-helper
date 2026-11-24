@@ -4,9 +4,9 @@ import { getInstalledCatalogues } from '@/data/worker/client'
 import { getSetting, setSetting, type CatalogueRecord } from '@/data/db'
 import type { Datasheet } from '@/data/model'
 import { groupByRole } from '@/roster/roles'
-import { collectionStats, pointsForModels, startingModels, withCount } from '@/collection/collection'
+import { collectionStats, countOf, pointsForModels, startingModels, withCount } from '@/collection/collection'
 import { getCollection, newEntry, saveEntry } from '@/collection/store'
-import { STAGES, STAGE_LABELS, type CollectionEntry, type Stage } from '@/collection/types'
+import { COUNTS, STAGE_LABELS, type CollectionEntry, type Count } from '@/collection/types'
 import './Datasheets.css'
 import './Units.css'
 import './Collection.css'
@@ -15,8 +15,9 @@ const LAST_FACTION_KEY = 'collection.catalogue'
 
 /**
  * What the owner has on the shelf, per faction: models bought, assembled and
- * painted for each datasheet, with what they come to in points. The list
- * builder can then offer only the units the owner actually has.
+ * painted for each datasheet, and those planned but not bought yet, with what
+ * they come to in points. The list builder can then offer only the units the
+ * owner actually has (or plans to).
  */
 export function Collection() {
   const [catalogues, setCatalogues] = useState<CatalogueRecord[] | null>(null)
@@ -66,9 +67,9 @@ export function Collection() {
     setEntries(await getCollection(catalogueId))
   }
 
-  const add = (sheet: Datasheet) => {
+  const add = (sheet: Datasheet, as: 'bought' | 'planned') => {
     setQuery('')
-    void save(newEntry(catalogueId, sheet.id, sheet.name, startingModels(sheet)))
+    void save(newEntry(catalogueId, sheet.id, sheet.name, { [as]: startingModels(sheet) }))
   }
 
   const stats = collectionStats(entries, sheets)
@@ -111,16 +112,19 @@ export function Collection() {
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Add a unit you own…"
+        placeholder="Add a unit you own or plan to buy…"
         aria-label="Search units to add"
       />
       {needle && (
         <ul className="collection__matches">
           {matches.map((sheet) => (
-            <li key={sheet.id}>
-              <button className="tap collection__add" onClick={() => add(sheet)}>
-                <span>{sheet.name}</span>
-                <span className="muted">+ {startingModels(sheet)}</span>
+            <li key={sheet.id} className="collection__match">
+              <span className="collection__matchName">{sheet.name}</span>
+              <button className="tap collection__add" aria-label={`Own ${startingModels(sheet)} ${sheet.name}`} onClick={() => add(sheet, 'bought')}>
+                + {startingModels(sheet)} own
+              </button>
+              <button className="tap collection__add" aria-label={`Plan ${startingModels(sheet)} ${sheet.name}`} onClick={() => add(sheet, 'planned')}>
+                + {startingModels(sheet)} plan
               </button>
             </li>
           ))}
@@ -129,7 +133,7 @@ export function Collection() {
       )}
 
       {entries.length === 0 && !needle && (
-        <p className="muted">Nothing listed yet. Search above to add the units you own.</p>
+        <p className="muted">Nothing listed yet. Search above to add the units you own or plan to buy.</p>
       )}
 
       {groups.map((group) => (
@@ -151,19 +155,21 @@ export function Collection() {
 
 function Stats({ stats }: { stats: ReturnType<typeof collectionStats> }) {
   const total = stats.bought.points
-  const share = (stage: Stage) => (total > 0 ? Math.round((stats[stage].points / total) * 100) : 0)
+  const share = (stage: Count) => (total > 0 ? Math.round((stats[stage].points / total) * 100) : 0)
+  // Assembled and painted are shares of what is bought; planned and bought stand on their own.
+  const ofBought = (stage: Count) => stage === 'assembled' || stage === 'painted'
   return (
     <dl className="collection__stats">
-      {STAGES.map((stage) => (
+      {COUNTS.map((stage) => (
         <div key={stage} className={`collection__stat collection__stat--${stage}`}>
           <dt>{STAGE_LABELS[stage]}</dt>
           <dd>
             <strong>{stats[stage].points} pts</strong>
             <span className="muted collection__models">
               {stats[stage].models} model{stats[stage].models === 1 ? '' : 's'}
-              {stage !== 'bought' && total > 0 ? ` · ${share(stage)}%` : ''}
+              {ofBought(stage) && total > 0 ? ` · ${share(stage)}%` : ''}
             </span>
-            {stage !== 'bought' && (
+            {ofBought(stage) && (
               <span className="collection__bar" aria-hidden="true">
                 <span style={{ width: `${share(stage)}%` }} />
               </span>
@@ -191,17 +197,19 @@ function Row({
       <div className="collection__head">
         <span className="collection__name">{sheet?.name ?? entry.name}</span>
         <span className="muted">
-          {pointsForModels(sheet, entry.bought)} pts
+          {entry.bought > 0 && `${pointsForModels(sheet, entry.bought)} pts`}
           {entry.painted > 0 &&
             (entry.painted === entry.bought ? ' · all painted' : ` · ${pointsForModels(sheet, entry.painted)} painted`)}
+          {countOf(entry, 'planned') > 0 &&
+            `${entry.bought > 0 ? ' · ' : ''}${pointsForModels(sheet, countOf(entry, 'planned'))} pts planned`}
         </span>
       </div>
       <div className="collection__counts">
-        {STAGES.map((stage) => (
+        {COUNTS.map((stage) => (
           <Counter
             key={stage}
             label={STAGE_LABELS[stage]}
-            value={entry[stage]}
+            value={countOf(entry, stage)}
             unitName={sheet?.name ?? entry.name}
             onChange={(n) => onChange(withCount(entry, stage, n))}
           />

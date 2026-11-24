@@ -2001,6 +2001,18 @@ BSData (Playwright `route`), so installing worked. The walk:
 
 No console errors. Not yet seen on the phone.
 
+**Later the same day, owner's ask: "add planned to buy too."** `planned` is a fourth count, models not
+bought yet, so it stands *apart* from the bought ≥ assembled ≥ painted chain (`withCount` moves it alone).
+- It is optional on the record, so rows saved before it read as 0 (`countOf`); no Dexie bump.
+- A row is kept while anything is bought *or* planned.
+- The add search offers "+ N own" and "+ N plan" per match.
+- There is a fourth stat tile (points and models; the percentages stay shares of bought). The counters
+  sit two by two on a phone and four across from 600 px.
+- The picker gets a Planned chip and a "plan N" pill.
+- Checked in headless Chrome: planning Wazdakka and 20 more Boyz gives 370 pts planned. The rows read
+  "200 pts planned" and "255 pts · 85 painted · 170 pts planned", and the Planned filter shows exactly
+  those two units. Viewed at 390 and at 1280 px.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

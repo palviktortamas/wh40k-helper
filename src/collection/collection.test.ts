@@ -14,7 +14,7 @@ const mob = sheet('mob', {
 const hero = sheet('hero', { role: 'Character', pricing: [{ from: 1, costs: [{ models: 1, points: 60 }] }] })
 const old = sheet('old', { role: 'Vehicle', basePoints: 100 })
 
-const entry = (entryId: string, bought: number, assembled = 0, painted = 0): CollectionEntry => ({
+const entry = (entryId: string, bought: number, assembled = 0, painted = 0, planned = 0): CollectionEntry => ({
   id: `cat:${entryId}`,
   catalogueId: 'cat',
   entryId,
@@ -22,6 +22,7 @@ const entry = (entryId: string, bought: number, assembled = 0, painted = 0): Col
   bought,
   assembled,
   painted,
+  planned,
   updatedAt: 0,
 })
 
@@ -32,6 +33,20 @@ describe('a collection entry', () => {
     expect(withCount(entry('mob', 10, 8, 8), 'bought', 4)).toMatchObject({ bought: 4, assembled: 4, painted: 4 })
     expect(withCount(entry('mob', 10, 8, 3), 'assembled', 15)).toMatchObject({ bought: 15, assembled: 15, painted: 3 })
     expect(withCount(entry('mob', 10), 'bought', -3)).toMatchObject({ bought: 0, assembled: 0, painted: 0 })
+  })
+
+  // Planned models are ones not bought yet, so they stand apart from the chain.
+  it('counts what is planned on its own, leaving the owned models alone', () => {
+    expect(withCount(entry('mob', 10, 5, 2), 'planned', 20)).toMatchObject({ planned: 20, bought: 10, assembled: 5, painted: 2 })
+    expect(withCount(entry('mob', 10, 5, 2, 20), 'bought', 0)).toMatchObject({ planned: 20, bought: 0, assembled: 0, painted: 0 })
+    expect(withCount(entry('mob', 0, 0, 0, 5), 'planned', -1)).toMatchObject({ planned: 0 })
+  })
+
+  it('reads a row saved before plans existed as planning nothing', () => {
+    const { planned: _gone, ...old } = entry('mob', 10)
+    void _gone
+    expect(withCount(old as CollectionEntry, 'bought', 12).planned ?? 0).toBe(0)
+    expect(collectionStats([old as CollectionEntry], new Map([[mob.id, mob]])).planned).toEqual({ models: 0, points: 0 })
   })
 
   it('starts at the smallest size the unit is priced at', () => {
@@ -63,7 +78,8 @@ describe('points of the models owned', () => {
 describe('collection statistics', () => {
   it('adds up models and points per stage', () => {
     const sheets = new Map([mob, hero].map((s) => [s.id, s]))
-    const stats = collectionStats([entry('mob', 20, 10, 10), entry('hero', 2, 2, 1)], sheets)
+    const stats = collectionStats([entry('mob', 20, 10, 10, 10), entry('hero', 2, 2, 1)], sheets)
+    expect(stats.planned).toEqual({ models: 10, points: 80 })
     expect(stats.bought).toEqual({ models: 22, points: 270 })
     expect(stats.assembled).toEqual({ models: 12, points: 200 })
     expect(stats.painted).toEqual({ models: 11, points: 140 })
@@ -79,5 +95,7 @@ describe('the add-unit filter', () => {
     expect(hasStage(owned, 'assembled')).toBe(true)
     expect(hasStage(owned, 'painted')).toBe(false)
     expect(hasStage(undefined, 'bought')).toBe(false)
+    expect(hasStage(owned, 'planned')).toBe(false)
+    expect(hasStage(entry('mob', 0, 0, 0, 10), 'planned')).toBe(true)
   })
 })
