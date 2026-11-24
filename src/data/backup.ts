@@ -1,7 +1,8 @@
 /**
  * The full backup (spec §3): everything the owner made on this device in one
  * JSON file — rosters, games, settings, Data Health and reminder overrides,
- * and the mission deck when its cards were edited. Downloaded game data is
+ * the collection (what is bought, assembled and painted), and the mission
+ * deck when its cards were edited. Downloaded game data is
  * left out; it comes back from the Data screen.
  *
  * A browser may clear a site's storage when the site is not used for a while,
@@ -15,6 +16,7 @@ import type { Roster } from '@/roster/types'
 import type { Game } from '@/play/types'
 import type { MissionDeck } from '@/missions/types'
 import type { ReminderOverride } from '@/reminders/types'
+import type { CollectionEntry } from '@/collection/types'
 
 export const BACKUP_ENVELOPE_VERSION = 1
 export const BACKUP_LAST_KEY = 'backup.last'
@@ -26,6 +28,7 @@ export type BackupContents = {
   overrides: OverrideRecord[]
   reminderOverrides: ReminderOverride[]
   missions: MissionDeck[]
+  collection: CollectionEntry[]
 }
 
 export type BackupEnvelope = {
@@ -36,7 +39,7 @@ export type BackupEnvelope = {
   contents: BackupContents
 }
 
-const COLLECTIONS = ['rosters', 'games', 'settings', 'overrides', 'reminderOverrides', 'missions'] as const
+const COLLECTIONS = ['rosters', 'games', 'settings', 'overrides', 'reminderOverrides', 'missions', 'collection'] as const
 
 export const emptyContents = (): BackupContents => ({
   rosters: [],
@@ -45,6 +48,7 @@ export const emptyContents = (): BackupContents => ({
   overrides: [],
   reminderOverrides: [],
   missions: [],
+  collection: [],
 })
 
 export function makeBackupJson(contents: BackupContents, exportedAt: number): string {
@@ -126,6 +130,7 @@ export function planRestore(backup: BackupContents, local: BackupContents): Rest
       overrides: newer(backup.overrides, local.overrides, (o) => o.key, (o) => o.decidedAt),
       reminderOverrides: newer(backup.reminderOverrides, local.reminderOverrides, (o) => o.id, (o) => o.updatedAt),
       missions: newer(backup.missions, local.missions, (d) => d.id, deckStamp),
+      collection: newer(backup.collection, local.collection, (e) => e.id, (e) => e.updatedAt),
     },
     counts,
   }
@@ -139,6 +144,7 @@ async function readLocal(): Promise<BackupContents> {
     overrides: await db.overrides.toArray(),
     reminderOverrides: await db.reminderOverrides.toArray(),
     missions: await db.missions.toArray(),
+    collection: await db.collection.toArray(),
   }
 }
 
@@ -166,7 +172,7 @@ export async function restoreBackup(text: string): Promise<RestorePlan['counts']
   const { write } = plan
   await db.transaction(
     'rw',
-    [db.rosters, db.games, db.settings, db.overrides, db.reminderOverrides, db.missions],
+    [db.rosters, db.games, db.settings, db.overrides, db.reminderOverrides, db.missions, db.collection],
     async () => {
       await db.rosters.bulkPut(write.rosters)
       await db.games.bulkPut(write.games)
@@ -174,6 +180,7 @@ export async function restoreBackup(text: string): Promise<RestorePlan['counts']
       await db.overrides.bulkPut(write.overrides)
       await db.reminderOverrides.bulkPut(write.reminderOverrides)
       await db.missions.bulkPut(write.missions)
+      await db.collection.bulkPut(write.collection)
     },
   )
   return plan.counts

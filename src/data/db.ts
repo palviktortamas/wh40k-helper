@@ -6,6 +6,7 @@ import type { Game } from '@/play/types'
 import type { MissionDeck } from '@/missions/types'
 import type { ReminderOverride } from '@/reminders/types'
 import type { StratagemSet } from '@/stratagems/types'
+import type { CollectionEntry } from '@/collection/types'
 import { migrateGameToManyDetachments } from '@/play/migrate'
 
 /**
@@ -75,6 +76,7 @@ const db = new Dexie('wh40k-helper') as Dexie & {
   missions: EntityTable<MissionDeck, 'id'>
   reminderOverrides: EntityTable<ReminderOverride, 'id'>
   stratagems: EntityTable<StratagemSet, 'id'>
+  collection: EntityTable<CollectionEntry, 'id'>
 }
 
 db.version(1).stores({
@@ -193,6 +195,20 @@ db.version(9)
       .toCollection()
       .modify((game: Record<string, unknown>) => migrateGameToManyDetachments(game)),
   )
+
+/** v10: the owner's collection — models bought, assembled and painted per datasheet. */
+db.version(10).stores({
+  settings: 'key',
+  catalogues: 'id, name',
+  health: 'catalogueId',
+  overrides: 'key',
+  rosters: 'id, catalogueId, updatedAt',
+  games: 'id, rosterId, status, updatedAt',
+  missions: 'id',
+  reminderOverrides: 'id',
+  stratagems: 'id',
+  collection: 'id, catalogueId',
+})
 
 export { db }
 

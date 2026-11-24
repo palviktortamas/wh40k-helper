@@ -62,7 +62,13 @@ army-aware screen filters through `roster/armyAbilities.ts`. The same day, a fou
 found ~18 app bugs and they were all fixed (journal: "Done 2026-11-03 - the audit fixed"). The main
 changes: rules are scoped clause by clause whatever the keyword spelling; an attached unit is one unit
 at the table (`play/attached.ts`); points come from the manual's bands (`roster/pricing.ts`);
-`PARSER_VERSION` is 9. The sync/proxy Worker is **deferred by the owner** ("not needed
+`PARSER_VERSION` is 9. **2026-11-24:** BSData's 40k repos are gone from GitHub, so installing a
+faction no longer works; installed ones keep working, and the owner wants no new source ("no need").
+The data is archived outside the repo at `/home/viktor/wh40k-data-archive/` (fixtures come from
+there). The same day: bold move and shooting types ("pulse jet move") open their definition, read
+from the stratagem export (`stratagems/terms.ts`, `screens/Terms.tsx`). There is also a **Collection
+tab** (bought / assembled / painted models per datasheet with points, Dexie v10, in the backup) that
+the add-unit picker can filter by. The sync/proxy Worker is **deferred by the owner** ("not needed
 now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one

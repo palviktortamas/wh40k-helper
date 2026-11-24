@@ -12,6 +12,7 @@ import { Datasheets } from './screens/Datasheets'
 import { DatasheetDetail } from './screens/DatasheetDetail'
 import { Settings } from './screens/Settings'
 import { Reminders } from './screens/Reminders'
+import { Collection } from './screens/Collection'
 
 export function App() {
   const theme = useTheme()
@@ -25,6 +26,7 @@ export function App() {
           <Route index element={<Navigate to="/rosters" replace />} />
           <Route path="/rosters" element={<Rosters />} />
           <Route path="/rosters/:rosterId" element={<RosterEditor />} />
+          <Route path="/collection" element={<Collection />} />
           <Route path="/play" element={<Play />} />
           <Route path="/play/:gameId" element={<Game />} />
           <Route path="/data" element={<Data />} />

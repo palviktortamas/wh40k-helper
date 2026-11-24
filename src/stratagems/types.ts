@@ -5,6 +5,8 @@
  * and are joined to a roster by detachment name.
  */
 
+import type { RuleTerm } from './terms'
+
 export type Stratagem = {
   /** Wahapedia stratagem id. */
   id: string
@@ -34,6 +36,11 @@ export type StratagemSet = {
   importedAt: number
   /** Stratagems across every faction in the export; filtered per game. */
   stratagems: Stratagem[]
+  /**
+   * The move, shoot and fight types the same table defines ("pulse jet move"),
+   * which rules name in bold. Absent on a set imported before they were read.
+   */
+  terms?: RuleTerm[]
 }
 
 export const STRATAGEM_SET_ID = 'wahapedia'

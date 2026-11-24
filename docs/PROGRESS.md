@@ -1956,6 +1956,51 @@ screen, fed from the archive. Another is a configurable source URL; the obvious 
 which may vanish too. A third is to build catalogues from the Wahapedia export, which would be a new
 parser.
 
+The owner's answer: **"no need"**. Installed factions keep working, and the archive is the fallback.
+
+## Done 2026-11-24 - move types explained, and a Collection tab
+
+**"Pulse Jet is missing its description."** It wasn't the ability: its text was there all along.
+What was missing was the term it names. 11th edition defines every move, shoot and fight type once
+("pulse jet move", "surge move", "advance move", "snap shooting", …), and abilities just name them
+in bold. BSData carries none of those definitions. Wahapedia's stratagem export lists them in the
+same table, typed "Movement Ability" / "Shooting Ability": 22 on today's file, some printed twice,
+once with a non-breaking hyphen.
+- `stratagems/terms.ts` `parseRuleTerms` reads them (first copy wins; each section's `</div>` is a
+  line break). `termFor` matches a rule's bold words whatever the case, hyphen or spacing.
+- `StratagemSet.terms`, set on every import. `wantsBundledImport` re-imports the shipped export on
+  start for a set saved before terms existed, so installed phones pick them up on the next start.
+- `screens/Terms.tsx` `TermsProvider` (around the routed screens in `AppShell`) holds them. `Marked`
+  turns a bold phrase that names one into a dotted-underlined button, which opens the definition in a
+  bottom sheet (Escape, the backdrop or Close shut it). That is every screen that shows rules text.
+
+**Collection tab** (`/collection`, a fifth nav tab, which fits at 390 px).
+- Per faction, one record per datasheet: `bought` ≥ `assembled` ≥ `painted` models
+  (`collection/types.ts`). `withCount` keeps them nested both ways. A row whose bought count drops to 0
+  is deleted.
+- Points per stage come from `pointsForModels`: whole units from the price list, biggest size first
+  (30 models = 20 + 10), any leftover at the smallest unit's per-model rate, and `basePoints` per model
+  without a list.
+- The screen shows three stat tiles (points, models, % of bought points), an "Add a unit you own…"
+  search that starts a row at the unit's smallest priced size, and role-grouped rows with − / typed
+  number / + per stage. The faction choice is remembered (`collection.catalogue` setting).
+- Dexie **v10** adds `collection: 'id, catalogueId'`. The backup carries it, and a restore takes only
+  what is newer (`planRestore`); the Settings text says so.
+- The add-unit picker loads the roster's faction collection. When there is any, it shows chips (All
+  units / Bought / Assembled / Painted, `hasStage`) and an "own 30 · 10 painted" pill per row.
+
+Walked through in headless Chrome at 390 px. The archived catalogue was served where the app looks for
+BSData (Playwright `route`), so installing worked. The walk:
+- install Orks;
+- add Boyz 30/20/10 and a painted Warboss;
+- tiles 355 / 270 (76%) / 185 (52%) pts;
+- reload keeps both rows;
+- the picker's Painted filter shows only the Warboss;
+- Wazdakka's sheet has PULSE JET MOVE, INGRESS MOVE and ADVANCE MOVE as buttons, and the sheet opens
+  and closes.
+
+No console errors. Not yet seen on the phone.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

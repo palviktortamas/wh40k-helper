@@ -26,6 +26,9 @@ import { exportRosterText } from '@/roster/export'
 import { unitNames } from '@/roster/naming'
 import { detachmentEnhancements, detachmentStratagems } from '@/roster/detachmentInfo'
 import { abilitiesInArmy } from '@/roster/armyAbilities'
+import { hasStage, type StageFilter } from '@/collection/collection'
+import { getCollection } from '@/collection/store'
+import { STAGES, STAGE_LABELS, type CollectionEntry } from '@/collection/types'
 import { getStratagemSet } from '@/stratagems/store'
 import type { StratagemSet } from '@/stratagems/types'
 import { attachmentKind, attachmentsOf, capacityOf, heldOfKind, kindOfAssociation } from '@/roster/attachment'
@@ -202,6 +205,7 @@ export function RosterEditor() {
         counts={picked}
         total={roster.selections.length}
         catalogueName={catalogue.name}
+        catalogueId={roster.catalogueId}
       />
     )
   }
@@ -1049,6 +1053,7 @@ function UnitPicker({
   counts,
   total,
   catalogueName,
+  catalogueId,
 }: {
   graph: CatalogueGraph
   validation: Validation
@@ -1059,8 +1064,15 @@ function UnitPicker({
   counts: Map<string, number>
   total: number
   catalogueName: string
+  catalogueId: string
 }) {
   const [query, setQuery] = useState('')
+  /** Only units the owner has bought, assembled or painted (the Collection tab). */
+  const [stage, setStage] = useState<StageFilter>('any')
+  const [owned, setOwned] = useState<Map<string, CollectionEntry>>(new Map())
+  useEffect(() => {
+    void getCollection(catalogueId).then((list) => setOwned(new Map(list.map((e) => [e.entryId, e]))))
+  }, [catalogueId])
   /** A group id from `groupByRole`, or 'all'. */
   const [role, setRole] = useState<string>('all')
   const [open, setOpen] = useState<string | null>(null)
@@ -1083,9 +1095,10 @@ function UnitPicker({
   const shown = groupByRole(
     entries.filter(
       ({ entry, sheet }) =>
-        !needle ||
-        entry.name.toLowerCase().includes(needle) ||
-        (sheet?.keywords ?? []).some((k) => k.toLowerCase().includes(needle)),
+        hasStage(owned.get(entry.id), stage) &&
+        (!needle ||
+          entry.name.toLowerCase().includes(needle) ||
+          (sheet?.keywords ?? []).some((k) => k.toLowerCase().includes(needle))),
     ),
     (e) => e.roleName,
   ).filter((g) => role === 'all' || g.id === role)
@@ -1111,6 +1124,20 @@ function UnitPicker({
         aria-label="Search units"
         autoFocus
       />
+      {owned.size > 0 && (
+        <div className="sheets__roles picker__owned" role="group" aria-label="Filter by your collection">
+          {(['any', ...STAGES] as const).map((s) => (
+            <button
+              key={s}
+              className={`sheets__role${stage === s ? ' sheets__role--on' : ''}`}
+              aria-pressed={stage === s}
+              onClick={() => setStage(s)}
+            >
+              {s === 'any' ? 'All units' : STAGE_LABELS[s]}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="sheets__roles" role="group" aria-label="Filter by role">
         <button className={`sheets__role${role === 'all' ? ' sheets__role--on' : ''}`} aria-pressed={role === 'all'} onClick={() => setRole('all')}>
           All
@@ -1139,6 +1166,7 @@ function UnitPicker({
                 const id = entry.linkId ?? entry.id
                 const expanded = open === id
                 const inList = counts.get(entry.id) ?? 0
+                const mine = owned.get(entry.id)
                 return (
                   <li key={id} className={`picker__item role-stripe role--${group.key}`}>
                     <div className="picker__row">
@@ -1149,6 +1177,12 @@ function UnitPicker({
                           {inList > 0 && (
                             <span className="picker__count" aria-label={`${inList} in the roster`}>
                               {inList} in list
+                            </span>
+                          )}
+                          {mine && (
+                            <span className="picker__count picker__count--owned">
+                              own {mine.bought}
+                              {mine.painted > 0 ? ` · ${mine.painted} painted` : mine.assembled > 0 ? ` · ${mine.assembled} built` : ''}
                             </span>
                           )}
                         </span>
@@ -1197,7 +1231,11 @@ function UnitPicker({
           </section>
         )
       })}
-      {shown.length === 0 && <p className="muted">No units match.</p>}
+      {shown.length === 0 && (
+        <p className="muted">
+          {stage === 'any' ? 'No units match.' : `No ${STAGE_LABELS[stage].toLowerCase()} units match — see the Collection tab.`}
+        </p>
+      )}
     </section>
   )
 }

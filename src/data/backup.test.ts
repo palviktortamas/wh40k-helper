@@ -38,6 +38,25 @@ describe('backup', () => {
     expect(envelope.contents).toEqual(original)
   })
 
+  // The collection is the owner's own record of what is on the shelf, like a
+  // roster: losing it to a cleared browser is exactly what the backup is for.
+  it('carries the collection, and restores only what is newer', () => {
+    const shelf = (id: string, updatedAt: number) => ({
+      id,
+      catalogueId: 'cat',
+      entryId: id,
+      name: id,
+      bought: 10,
+      assembled: 5,
+      painted: 1,
+      updatedAt,
+    })
+    const original = contents({ collection: [shelf('a', 5), shelf('b', 5)] })
+    expect(parseBackupEnvelope(makeBackupJson(original, 1)).contents.collection).toEqual(original.collection)
+    const plan = planRestore(original, contents({ collection: [shelf('a', 9)] }))
+    expect(plan.write.collection.map((e) => e.id)).toEqual(['b'])
+  })
+
   it('rejects files that are not backups, with a readable message', () => {
     expect(() => parseBackupEnvelope('hello')).toThrow(/not JSON/)
     expect(() => parseBackupEnvelope('{"app":"other"}')).toThrow(/not a backup/)

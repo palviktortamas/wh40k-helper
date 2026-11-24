@@ -8,6 +8,7 @@
 import { db } from '@/data/db'
 import { getSyncConfig } from '@/sync/client'
 import { parseStratagems } from './parseCsv'
+import { parseRuleTerms } from './terms'
 import { STRATAGEM_SET_ID, type StratagemSet } from './types'
 
 /** Where the export lives; the app never fetches it directly (no CORS). */
@@ -18,7 +19,7 @@ export const getStratagemSet = (): Promise<StratagemSet | undefined> => db.strat
 export async function importStratagemsCsv(csv: string): Promise<StratagemSet> {
   const stratagems = parseStratagems(csv)
   if (stratagems.length === 0) throw new Error('That file holds no stratagems — pick Stratagems.csv from the Wahapedia export.')
-  const set: StratagemSet = { id: STRATAGEM_SET_ID, importedAt: Date.now(), stratagems }
+  const set: StratagemSet = { id: STRATAGEM_SET_ID, importedAt: Date.now(), stratagems, terms: parseRuleTerms(csv) }
   await db.stratagems.put(set)
   return set
 }
@@ -68,9 +69,15 @@ export async function importBundledStratagems(): Promise<StratagemSet | undefine
 /** Fired on `window` when the set changes behind a screen's back (the first-start import). */
 export const STRATAGEMS_CHANGED = 'wh40k:stratagems-changed'
 
-/** On start: bring in the shipped stratagems when the device has none yet. */
+/**
+ * Whether the shipped export should be imported on start: the device has none,
+ * or it has a set from before the move and shooting types were read from it.
+ */
+export const wantsBundledImport = (set: StratagemSet | undefined): boolean => !set || set.terms === undefined
+
+/** On start: bring in the shipped stratagems when the device has none yet (or lacks the terms). */
 export async function ensureStratagems(): Promise<void> {
-  if (await getStratagemSet()) return
+  if (!wantsBundledImport(await getStratagemSet())) return
   try {
     if (await importBundledStratagems()) window.dispatchEvent(new Event(STRATAGEMS_CHANGED))
   } catch (error) {

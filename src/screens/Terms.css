@@ -1,0 +1,66 @@
+/* A bold phrase that names a defined move or shooting type: tap to read it. */
+.term {
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.term.kw {
+  font-size: 0.9em;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.term-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.term-sheet {
+  width: min(100%, 40rem);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+}
+
+.term-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.term-sheet__head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.term-sheet__close {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.term-sheet__kind {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.term-sheet__text {
+  margin: 0;
+  line-height: 1.5;
+}

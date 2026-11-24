@@ -856,6 +856,16 @@
   white-space: nowrap;
 }
 
+/* What the owner has on the shelf (the Collection tab): told apart by its words, not its colour. */
+.picker__count--owned {
+  background: none;
+  color: var(--text-muted);
+}
+
+.picker__owned {
+  margin-bottom: 0.25rem;
+}
+
 /* --- unit editor: the owner's own name ----------------------------------- */
 
 .editor__name {

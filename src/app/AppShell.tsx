@@ -5,10 +5,12 @@ import { ensureMissionDeck } from '@/missions/store'
 import { ensureStratagems } from '@/stratagems/store'
 import { requestPersistentStorage } from '@/data/persist'
 import { useServiceWorkerUpdate } from './useServiceWorkerUpdate'
+import { TermsProvider } from '@/screens/Terms'
 import './AppShell.css'
 
 const TABS = [
   { to: '/rosters', label: 'Rosters', icon: 'M4 5h16v3H4zm0 5.5h16v3H4zM4 16h16v3H4z' },
+  { to: '/collection', label: 'Collection', icon: 'M3 7l9-4 9 4v10l-9 4-9-4zm9-1.8L6.2 7.7 12 10.2l5.8-2.5zM5 9.3v6.4l6 2.6v-6.4zm8 9 6-2.6V9.3l-6 2.6z' },
   { to: '/play', label: 'Play', icon: 'M8 5v14l11-7z' },
   { to: '/data', label: 'Data', icon: 'M12 3c4.4 0 8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3V6c0-1.7 3.6-3 8-3zm0 2c-3.5 0-6 .9-6 1s2.5 1 6 1 6-.9 6-1-2.5-1-6-1z' },
   { to: '/settings', label: 'Settings', icon: 'M12 8a4 4 0 100 8 4 4 0 000-8zm8.9 4a7 7 0 00-.1-1.2l2-1.5-2-3.5-2.4 1a7 7 0 00-2-1.2L16 3H8l-.4 2.6a7 7 0 00-2 1.2l-2.4-1-2 3.5 2 1.5a7 7 0 000 2.4l-2 1.5 2 3.5 2.4-1a7 7 0 002 1.2L8 21h8l.4-2.6a7 7 0 002-1.2l2.4 1 2-3.5-2-1.5c.06-.4.1-.8.1-1.2z' },
@@ -39,7 +41,9 @@ export function AppShell({ context }: Props) {
       </header>
 
       <main className="shell__main">
-        <Outlet context={context} />
+        <TermsProvider>
+          <Outlet context={context} />
+        </TermsProvider>
       </main>
 
       <nav className="shell__nav" aria-label="Main">

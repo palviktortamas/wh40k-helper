@@ -169,7 +169,7 @@ function BackupSettings() {
         {storage?.usage !== undefined && ` ${megabytes(storage.usage)} in use.`}
       </p>
       <p className="settings__hint">
-        A backup is one file with every roster, game, setting and edited mission card. Faction data
+        A backup is one file with every roster, game, setting, your collection and edited mission cards. Faction data
         is not inside — it downloads again from Data.{' '}
         {last ? `Last backup ${new Date(last).toLocaleString()}.` : 'No backup made on this device yet.'}
       </p>
