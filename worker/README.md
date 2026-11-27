@@ -1,25 +1,39 @@
-# Wahapedia relay
+# The owner's server
 
-The app is offline-first and has no backend. Wahapedia sends no CORS headers, so the browser cannot
-fetch its files directly. This tiny Cloudflare Worker (free tier) fetches one page or export file
-from `wahapedia.ru` and hands it to the app with those headers, so the Data screen can refresh the
-mission deck and the stratagems. It stores nothing.
+A Cloudflare Worker (free tier) with one D1 database. It does three things for the app:
 
-Sync between devices does **not** use this Worker any more: it goes through a private gist on the
-owner's GitHub (`src/sync/gist.ts`).
+- **Accounts.** A person logs in once per device. The first account ever made is the owner's and an
+  admin. After that, signing up needs a one-time invitation code an admin makes in Settings → Account
+  (valid for two weeks). Passwords are PBKDF2-hashed and only a hash of each session token is stored.
+  Failed logins are counted per name (10) and per address (40) in a quarter-hour window.
+- **Saving.** Every list, game, collection row and setting a person makes is a record. The app sends
+  what changed a moment after the change and gets back what changed on their other devices. The newer
+  copy wins, and a deletion wins over older copies. Each person's records are kept apart.
+- **Wahapedia relay.** `GET /proxy?url=https://wahapedia.ru/…` for logged-in users, with the CORS
+  headers that site lacks, so the Data screen can refresh the mission deck and stratagems.
 
-## Deploy (done 2026-11-27; repeat only to change it)
+Requests are answered only for the app's own origins (`ALLOWED_ORIGINS`, by default GitHub Pages and
+the local dev server).
 
-1. `npx wrangler login` (approve in the browser).
-2. In this directory: `npx wrangler deploy`. The account needs a workers.dev subdomain; wrangler
-   asks for one, or register it under Workers in the Cloudflare dashboard.
-3. Set the passphrase as a secret: `npx wrangler secret put SYNC_PASSPHRASE` (30+ random characters).
-4. In the app, Settings → Sync → "Your own endpoint": the Worker URL and the same passphrase, on
-   each device.
+## Deployed
 
-## Behaviour
+`https://wh40k-helper-server.wh40k-relay-5058a9.workers.dev`, database `wh40k`. The app has this URL
+built in (`src/sync/server.ts`); a dev build can point elsewhere with `VITE_SERVER_URL`.
 
-- `GET /proxy?url=<https://wahapedia.ru/…>` with `Authorization: Bearer <passphrase>` returns that
-  page or file with CORS headers. Other hosts are refused (403), a missing or wrong passphrase gets
-  401. Nothing runs in the background; the app calls it only when you tap a refresh on the Data
-  screen.
+## Change it
+
+```sh
+npx wrangler login
+npx wrangler d1 execute wh40k --remote --file=schema.sql   # only when the schema changes
+npx wrangler deploy
+```
+
+## Work on it locally
+
+```sh
+npx wrangler d1 execute wh40k --local --file=schema.sql
+npx wrangler dev --port 8787 --local
+VITE_SERVER_URL=http://localhost:8787 npm run dev          # from the repo root
+```
+
+The tests (`src/server.test.js`) run the server against Node's built-in SQLite with `npm test`.

@@ -47,3 +47,6 @@ missions-ca-*.json
 # Game data fetched from Wahapedia at build time (scripts/fetch-mission-deck.mjs); never committed.
 /public/missions-ca-*.html
 /public/stratagems-wahapedia.csv
+
+# Cloudflare local state (wrangler dev, local D1)
+.wrangler/

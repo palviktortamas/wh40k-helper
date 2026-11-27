@@ -10,7 +10,7 @@
  * lives outside the browser.
  */
 
-import { db, getSetting, setSetting, type OverrideRecord, type SettingRecord } from './db'
+import { db, getSetting, isDeviceSetting, setSetting, type OverrideRecord, type SettingRecord } from './db'
 import { APP_ID } from '@/roster/transfer'
 import type { Roster } from '@/roster/types'
 import type { Game } from '@/play/types'
@@ -124,9 +124,7 @@ export function planRestore(backup: BackupContents, local: BackupContents): Rest
     write: {
       rosters: newer(backup.rosters, local.rosters, (r) => r.id, (r) => r.updatedAt, true),
       games: newer(backup.games, local.games, (g) => g.id, (g) => g.updatedAt, true),
-      settings: newer(backup.settings, local.settings, (s) => s.key, () => 0).filter(
-        (s) => s.key !== BACKUP_LAST_KEY,
-      ),
+      settings: newer(backup.settings, local.settings, (s) => s.key, () => 0).filter((s) => !isDeviceSetting(s.key)),
       overrides: newer(backup.overrides, local.overrides, (o) => o.key, (o) => o.decidedAt),
       reminderOverrides: newer(backup.reminderOverrides, local.reminderOverrides, (o) => o.id, (o) => o.updatedAt),
       missions: newer(backup.missions, local.missions, (d) => d.id, deckStamp),
@@ -135,6 +133,12 @@ export function planRestore(backup: BackupContents, local: BackupContents): Rest
     counts,
   }
 }
+
+/** What may leave the device in a backup file: never the login or the save bookkeeping. */
+export const shareableContents = (contents: BackupContents): BackupContents => ({
+  ...contents,
+  settings: contents.settings.filter((s) => !isDeviceSetting(s.key)),
+})
 
 /** Everything the owner made on this device, as the backup (and sync) carries it. */
 export async function readLocalContents(): Promise<BackupContents> {
@@ -153,7 +157,7 @@ export const backupFileName = (at: number) => `wh40k-helper-backup-${new Date(at
 
 /** The backup file's text, and a note that one was made. */
 export async function exportBackup(): Promise<{ text: string; at: number; rosters: number }> {
-  const local = await readLocalContents()
+  const local = shareableContents(await readLocalContents())
   const contents: BackupContents = {
     ...local,
     // An unedited deck is re-imported from the build; only edits are worth keeping.

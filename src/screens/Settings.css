@@ -141,3 +141,17 @@
 .sync__status {
   font-size: 0.875rem;
 }
+
+/* A fresh invitation code, big enough to read out or copy. */
+.settings__invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.settings__invite code {
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  user-select: all;
+}

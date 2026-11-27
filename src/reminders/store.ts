@@ -5,6 +5,7 @@
  */
 
 import { db, getSetting, setSetting } from '@/data/db'
+import { recordDeletion } from '@/sync/client'
 import type { Reminder, ReminderOverride, Trigger } from './types'
 
 export const REMINDERS_ENABLED_KEY = 'reminders.enabled'
@@ -29,7 +30,11 @@ export async function saveOverride(
   return next
 }
 
-export const clearOverride = (id: string): Promise<void> => db.reminderOverrides.delete(id)
+export async function clearOverride(id: string): Promise<void> {
+  await db.reminderOverrides.delete(id)
+  // So the owner's other devices drop it too.
+  await recordDeletion('reminderOverrides', id)
+}
 
 /** Applies an override to a reminder built from the defaults. */
 export function withOverride(reminder: Reminder, override: ReminderOverride | undefined): Reminder {

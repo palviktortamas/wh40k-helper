@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import type { Theme } from '@/app/useTheme'
-import { getSetting, setSetting } from '@/data/db'
-import { getSyncConfig, saveSyncConfig } from '@/sync/client'
-import { GITHUB_TOKEN_KEY, NEW_TOKEN_URL } from '@/sync/gist'
-import { SyncButton } from './SyncButton'
+import { createInvite, getSession, type Session } from '@/sync/server'
+import { logOut, saveNow } from '@/sync/engine'
 import { backupFileName, exportBackup, lastBackupAt, restoreBackup } from '@/data/backup'
 import { requestPersistentStorage, storageState, type StorageState } from '@/data/persist'
 import './Settings.css'
@@ -14,8 +12,6 @@ const THEMES: { value: Theme; label: string }[] = [
   { value: 'light', label: 'Light' },
   { value: 'system', label: 'System' },
 ]
-
-const WORKER_README = 'https://github.com/palviktortamas/wh40k-helper/tree/main/worker'
 
 export function Settings() {
   const [theme, setTheme] = useOutletContext<[Theme, (next: Theme) => void]>()
@@ -44,7 +40,7 @@ export function Settings() {
 
       <BackupSettings />
 
-      <SyncSettings />
+      <AccountSettings />
 
       <fieldset className="settings__group">
         <legend>Reminders</legend>
@@ -203,123 +199,80 @@ function BackupSettings() {
 }
 
 /**
- * Sync between the owner's devices through a private gist on the owner's
- * GitHub (spec §4.4). Manual only: the app talks to GitHub when Sync is tapped
- * and at no other time.
+ * The account this device is logged in to (spec §4.4): everything made here is
+ * saved to it automatically. An admin can invite others with one-time codes.
  */
-function SyncSettings() {
-  const [token, setToken] = useState('')
-  const [saved, setSaved] = useState(false)
-
-  useEffect(() => {
-    void getSetting<string>(GITHUB_TOKEN_KEY, '').then((t) => {
-      setToken(t)
-      setSaved(Boolean(t))
-    })
-  }, [])
-
-  const save = async () => {
-    await setSetting(GITHUB_TOKEN_KEY, token.trim())
-    setSaved(Boolean(token.trim()))
-  }
-
-  return (
-    <fieldset className="settings__group">
-      <legend>Sync between your devices</legend>
-      <p className="settings__hint">
-        Lists, games, your collection and settings are kept in one private gist on your GitHub
-        account, so the PC and the phone see the same things. Nothing runs in the background: tap
-        Sync when you start and when you finish on a device. No game data is sent.
-      </p>
-      <ol className="settings__hint settings__steps">
-        <li>
-          <a href={NEW_TOKEN_URL} target="_blank" rel="noreferrer">
-            Make a GitHub token
-          </a>{' '}
-          — the link ticks only <b>gist</b>; choose "No expiration" and generate.
-        </li>
-        <li>Paste it below on each device (the same token or one per device).</li>
-        <li>Tap Sync.</li>
-      </ol>
-      <label className="settings__field">
-        GitHub token (gist access only)
-        <input
-          type="password"
-          value={token}
-          onChange={(e) => {
-            setToken(e.target.value)
-            setSaved(false)
-          }}
-          onBlur={() => void save()}
-          autoComplete="off"
-          autoCapitalize="off"
-          autoCorrect="off"
-          placeholder="ghp_…"
-        />
-      </label>
-      <div className="settings__actions">
-        <SyncButton disabled={!token.trim()} beforeSync={save} />
-        {!saved && token.trim() && <span className="settings__hint">Saved when you tap Sync.</span>}
-      </div>
-      <EndpointSettings />
-    </fieldset>
-  )
-}
-
-/**
- * The owner's own endpoint, still used to fetch the mission deck and the
- * stratagem export through it (Data screen). Sync no longer needs it.
- */
-function EndpointSettings() {
-  const [url, setUrl] = useState('')
-  const [passphrase, setPassphrase] = useState('')
+function AccountSettings() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [invite, setInvite] = useState<{ code: string; expiresAt: number } | null>(null)
+  const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    void getSyncConfig().then((c) => {
-      setUrl(c.url)
-      setPassphrase(c.passphrase)
-    })
+    void getSession().then(setSession)
   }, [])
 
+  const run = async (task: () => Promise<void>) => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await task()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!session) return null
   return (
-    <details className="settings__advanced">
-      <summary>Your own endpoint (optional, for fetching Wahapedia files)</summary>
+    <fieldset className="settings__group">
+      <legend>Account</legend>
       <p className="settings__hint">
-        Only for refreshing the mission deck and stratagems on the Data screen.{' '}
-        <a href={WORKER_README} target="_blank" rel="noreferrer">
-          How to set one up
-        </a>
-        .
+        Logged in as <b>{session.username}</b>
+        {session.isAdmin ? ' (admin)' : ''}. Your lists, games, collection and settings are saved to
+        your account automatically and appear on every device you log in on. Offline, changes wait on
+        this device and are saved when the connection returns.
       </p>
-      <label className="settings__field">
-        Endpoint URL
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://wh40k-helper-sync.you.workers.dev"
-          autoCapitalize="off"
-          autoCorrect="off"
-        />
-      </label>
-      <label className="settings__field">
-        Passphrase
-        <input type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoComplete="off" />
-      </label>
       <div className="settings__actions">
+        <button className="button button--quiet" disabled={busy} onClick={() => void run(saveNow)}>
+          Save now
+        </button>
         <button
           className="button button--quiet"
-          onClick={() => void saveSyncConfig({ url, passphrase }).then(() => setMessage('Saved.'))}
+          disabled={busy}
+          onClick={() => {
+            if (!confirm('Log out? Everything is saved to your account first, then removed from this device.')) return
+            void run(logOut)
+          }}
         >
-          Save
+          Log out
         </button>
-        {message && (
-          <span className="settings__hint" role="status">
-            {message}
-          </span>
-        )}
       </div>
-    </details>
+      {session.isAdmin && (
+        <>
+          <p className="settings__hint">
+            Invite someone: each code works once, for two weeks. They choose their own user name and
+            password, and keep their own lists.
+          </p>
+          <div className="settings__actions">
+            <button className="button" disabled={busy} onClick={() => void run(async () => setInvite(await createInvite()))}>
+              Make an invitation code
+            </button>
+          </div>
+          {invite && (
+            <p className="settings__invite" role="status">
+              <code>{invite.code}</code>
+              <span className="settings__hint">valid until {new Date(invite.expiresAt).toLocaleDateString()}</span>
+            </p>
+          )}
+        </>
+      )}
+      {message && (
+        <p className="settings__hint" role="alert">
+          {message}
+        </p>
+      )}
+    </fieldset>
   )
 }

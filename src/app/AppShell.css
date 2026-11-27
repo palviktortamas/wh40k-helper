@@ -126,3 +126,15 @@
     gap: 0.5rem;
   }
 }
+
+/* Whether the latest changes reached the account. */
+.shell__save {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.shell__save--error {
+  color: var(--danger);
+}

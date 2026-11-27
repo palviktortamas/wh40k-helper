@@ -2080,6 +2080,81 @@ owner's own GitHub account**: nothing to host, one token per device.
 - Not yet clicked in the app: the owner enters the URL and passphrase under Settings → Sync → "Your own
   endpoint", then uses the Data screen's "through my endpoint" refreshes.
 
+## Done 2026-11-27 (later) - accounts, a log-in, and automatic saving
+
+**Owner:** "Can we make it easier: be able to create users, and you have to log in for doing
+anything — for fear of bots. Then saving is easier than the relay." Asked who may sign up, the owner
+answered: **"me plus people I invite"**. This replaces the gist sync and the passphrase relay from
+earlier the same day (both removed: `sync/gist.ts`, `sync/merge.ts`, `screens/SyncButton.tsx`, the
+endpoint settings, the `wh40k-helper-relay` Worker, `~/.wh40k-relay-passphrase`).
+
+**Server** (`worker/src/index.js`, `worker/schema.sql`, D1 `wh40k`), deployed at
+`https://wh40k-helper-server.wh40k-relay-5058a9.workers.dev`.
+- **Accounts:**
+  - The first account becomes the admin with no code (`/auth/status` says whether it is the first).
+  - Every later account needs a one-time invitation code made by an admin (`POST /invites`,
+    12 characters `XXXX-XXXX-XXXX` without look-alikes, valid 14 days; case, dashes and spaces are
+    ignored).
+  - Passwords are PBKDF2-SHA256 (100k iterations, the Workers maximum) and need 10+ characters.
+  - Sessions: a random 32-byte token on the device, only its SHA-256 on the server, and a 365-day
+    sliding window.
+  - Failed logins are counted per name (10) and per address (40) over 15 minutes; after that, 429.
+- **Records:**
+  - `records(user_id, collection, id, updated_at, deleted, data, seq)`. An upsert keeps the newer
+    `updated_at`, and `seq` is the per-user change counter.
+  - `POST /sync {cursor, items}` stores what is newer and returns changes after the cursor, 500 at
+    a time, with `more`.
+  - Kinds: rosters, games, collection, reminderOverrides, overrides, missions, settings.
+- **`/proxy`** is the Wahapedia relay, for signed-in users only.
+- **CORS** answers only GitHub Pages and the local dev origins.
+- `worker/src/server.test.js` runs the real handler against Node's built-in `node:sqlite` shaped
+  like D1 (9 tests: first account is admin; invites needed, single-use and admin-only; lockout;
+  logout; newer-wins and deletions; users kept apart; login required for sync and relay; paging).
+
+**App.**
+- `AppShell` shows `screens/Login.tsx` until a session exists: log in, or create an account (the
+  first one with no code). After that, the header says **Saved / Saving… / Offline — kept on this
+  device / Not saved**.
+- `sync/engine.ts`:
+  - Dexie hooks on every personal table (settings only for non-device keys) schedule a save 2 s after
+    the last write. A save also runs on start, on log-in, and on the `online` event.
+  - A save sends `localChanges` since `sync.pushedAt` plus the tombstones, applies `planApply` for
+    what comes back (only newer copies), fires `wh40k:synced` so Rosters and Collection reload,
+    and prunes the tombstones that were sent.
+  - A 401 ends the session.
+- **Settings are now dated:** `setSetting` stamps `updatedAt`, so a newer choice wins across
+  devices. `isDeviceSetting` (`auth.*`, `sync.*`, `backup.last`) never leaves the device: not in a
+  sync, and now **not in the backup file either** (it used to include everything; tested).
+- **Deletion records** cover rosters, games, collection rows and reminder overrides.
+- **Logging out** (Settings → Account) saves first, refuses when offline, then clears the person's
+  records from the device. Logging in as someone other than the last user also starts the device
+  clean (`adoptAccount`), so accounts never mix.
+- **Settings → Account** shows who is logged in, Save now, Log out, and for an admin "Make an
+  invitation code".
+- **The Data screen** buttons are "Fetch/Refresh from Wahapedia" through the server, enabled once
+  logged in.
+
+**Checked.**
+- Full suite: 481 tests, and 528 with the fixtures. Build and guard pass.
+- Walked through in headless Chrome against the local server (`wrangler dev --local`, local D1),
+  using three browser profiles:
+  - A creates the first account (admin), installs Orks, imports the owner's list, owns a Warboss:
+    **Saved**. It makes an invitation code.
+  - B logs in as the same person and gets the list and the Warboss. B removes the Warboss, and A gets
+    the removal on its next start.
+  - A goes offline and adds Boyz: "Offline — kept on this device". Back online, it saves, and B has
+    the Boyz.
+  - A bot with a made-up code is refused. The invited friend gets an empty account and no invite
+    button.
+  - B logs out and is back at the log-in screen.
+  - No console errors.
+  - The one failure on the way was the script reading a stale "Saved".
+- Live server, checked without creating any account (the first one must be the owner's):
+  `firstAccount: true`; sync, relay and invites without a login give 401; CORS allows only the
+  Pages origin.
+- **Not yet done by a person:** the owner creates the first account on the live server, then logs in
+  on the phone.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

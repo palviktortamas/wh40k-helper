@@ -1,6 +1,9 @@
-name = "wh40k-helper-relay"
-main = "sync.js"
+name = "wh40k-helper-server"
+main = "src/index.js"
 compatibility_date = "2026-09-01"
 
-# No storage: the Worker only relays Wahapedia files (sync uses a private gist).
-# The passphrase is a secret: `npx wrangler secret put SYNC_PASSPHRASE`.
+# Accounts and each person's saved records. Schema: schema.sql.
+[[d1_databases]]
+binding = "DB"
+database_name = "wh40k"
+database_id = "bd74fbd8-1678-423a-836a-5982f767fa11"

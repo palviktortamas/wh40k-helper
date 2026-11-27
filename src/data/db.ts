@@ -18,6 +18,8 @@ import { migrateGameToManyDetachments } from '@/play/migrate'
 export type SettingRecord = {
   key: string
   value: unknown
+  /** When it was last set, so a newer choice on another device wins. Absent on old records. */
+  updatedAt?: number
 }
 
 /**
@@ -217,6 +219,13 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
   return row === undefined ? fallback : (row.value as T)
 }
 
+/**
+ * Settings that belong to this device alone and never leave it — not in a
+ * backup, not to the server: the login, the save bookkeeping, the last backup date.
+ */
+export const isDeviceSetting = (key: string): boolean =>
+  key.startsWith('auth.') || key.startsWith('sync.') || key === 'backup.last'
+
 export async function setSetting(key: string, value: unknown): Promise<void> {
-  await db.settings.put({ key, value })
+  await db.settings.put({ key, value, updatedAt: Date.now() })
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyContents, makeBackupJson, parseBackupEnvelope, planRestore, type BackupContents } from './backup'
+import { emptyContents, makeBackupJson, parseBackupEnvelope, planRestore, shareableContents, type BackupContents } from './backup'
 import type { Roster } from '@/roster/types'
 import type { Game } from '@/play/types'
 import type { MissionDeck } from '@/missions/types'
@@ -89,9 +89,20 @@ describe('backup', () => {
   })
 
   it('keeps the settings already chosen on this device', () => {
-    const backup = contents({ settings: [{ key: 'theme', value: 'light' }, { key: 'sync.url', value: 'x' }] })
+    const backup = contents({ settings: [{ key: 'theme', value: 'light' }, { key: 'reminders.enabled', value: false }] })
     const local = contents({ settings: [{ key: 'theme', value: 'dark' }] })
-    expect(planRestore(backup, local).write.settings).toEqual([{ key: 'sync.url', value: 'x' }])
+    expect(planRestore(backup, local).write.settings).toEqual([{ key: 'reminders.enabled', value: false }])
+  })
+
+  // A login belongs to one device: a backup never carries it, and a restore never brings one in.
+  it('leaves the login and the save bookkeeping out, both ways', () => {
+    const settings = [
+      { key: 'auth.session', value: { token: 't' } },
+      { key: 'sync.cursor', value: 4 },
+      { key: 'theme', value: 'dark' },
+    ]
+    expect(shareableContents(contents({ settings })).settings).toEqual([{ key: 'theme', value: 'dark' }])
+    expect(planRestore(contents({ settings }), contents({})).write.settings).toEqual([{ key: 'theme', value: 'dark' }])
   })
 
   it('restores an edited mission deck only when it is newer than the one here', () => {

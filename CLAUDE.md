@@ -68,11 +68,12 @@ The data is archived outside the repo at `/home/viktor/wh40k-data-archive/` (fix
 there). The same day: bold move and shooting types ("pulse jet move") open their definition, read
 from the stratagem export (`stratagems/terms.ts`, `screens/Terms.tsx`). There is also a **Collection
 tab** (planned / bought / assembled / painted models per datasheet with points, Dexie v10, in the backup) that
-the add-unit picker can filter by. **2026-11-27:** devices sync through a **private gist** in
-the owner's GitHub (`sync/gist.ts`, `sync/merge.ts`; a gist-only token per device, Sync in Settings
-and on Rosters). The Cloudflare Worker is only the Wahapedia relay now, and it is **deployed**
-(`worker/`, `https://wh40k-helper-relay.wh40k-relay-5058a9.workers.dev`; passphrase in the owner's
-`~/.wh40k-relay-passphrase`, never in the repo). Price-list points
+the add-unit picker can filter by. **2026-11-27:** the app needs a **log-in** (owner: "for fear of
+bots"). The owner's **server** is a Cloudflare Worker + D1 (`worker/`, deployed at
+`https://wh40k-helper-server.wh40k-relay-5058a9.workers.dev`). It holds the accounts (the first is
+the admin; later ones need a one-time invitation code from Settings → Account), saves each person's
+records automatically (`sync/engine.ts`, `sync/records.ts`), and relays Wahapedia for signed-in users.
+The gist sync and the passphrase relay of the same day are gone. Price-list points
 keep an enhancement's cost on top (`unitEnhancementPoints`). Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one
@@ -93,9 +94,10 @@ second faction keeps catching single-codex assumptions (see `test/fixtures.ts`).
   two paths under `dist/`.
 - **Nothing may be Ork-specific.** Orks are the v1 test faction; adding a faction must be a data
   install, not a code change. No faction names in code, no special-cased branches.
-- **Offline-first.** The only network calls are the data updates on the Data screen and, when the
-  owner has configured one, the owner's own sync endpoint on an explicit "Sync now" (spec §4.4).
-  Never sync in the background.
+- **Offline-first, with an account (owner's decision 2026-11-27).** Everything works offline once a
+  device has logged in. The network calls are the data updates on the Data screen, the Wahapedia relay,
+  and **automatic saving** to the owner's server (`worker/`, `sync/engine.ts`), which runs a moment after
+  each change and whenever the device comes back online. No other background traffic, no telemetry.
 - **PC and phone are both first-class.** Lists are built at a PC and played from the phone; keep
   the content column readable at 1280 px wide as well as at 390 px.
 - **IndexedDB for all primary state** (via Dexie). `localStorage` is never used for real data.

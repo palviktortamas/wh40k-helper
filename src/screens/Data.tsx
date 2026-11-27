@@ -19,7 +19,7 @@ import {
   importMissionDeckHtml,
 } from '@/missions/store'
 import type { MissionDeck } from '@/missions/types'
-import { getSyncConfig } from '@/sync/client'
+import { getSession } from '@/sync/server'
 import {
   STRATAGEMS_CHANGED,
   STRATAGEMS_SOURCE_URL,
@@ -280,7 +280,7 @@ export function Data() {
       </ul>
       <p className="data__meta">
         Wahapedia rules text for datasheets (Phase 1b) is not imported yet; the mission deck and the
-        stratagems above come from Wahapedia through your own endpoint or a saved file.
+        stratagems above come from Wahapedia through your server or a saved file.
       </p>
     </section>
   )
@@ -288,7 +288,7 @@ export function Data() {
 
 /**
  * Stratagems (spec §6.3): BSData has none, so they come from Wahapedia's
- * `Stratagems.csv` export — through the owner's endpoint or as a file saved
+ * `Stratagems.csv` export — through the owner's server or as a file saved
  * from the browser. One import covers every faction; games filter it by
  * detachment.
  */
@@ -301,7 +301,7 @@ function StratagemsSection() {
   useEffect(() => {
     const load = () => void getStratagemSet().then((s) => setSet(s ?? null))
     load()
-    void getSyncConfig().then((c) => setEndpoint(Boolean(c.url && c.passphrase)))
+    void getSession().then((session) => setEndpoint(Boolean(session)))
     // The first-start import may finish after this screen opened.
     window.addEventListener(STRATAGEMS_CHANGED, load)
     return () => window.removeEventListener(STRATAGEMS_CHANGED, load)
@@ -339,7 +339,7 @@ function StratagemsSection() {
         ) : (
           <p className="data__meta">
             Not imported yet. Play Mode's stratagem list needs it — the app ships the export and loads it
-            on first start; if that did not happen, load it below, fetch it through your endpoint, or open{' '}
+            on first start; if that did not happen, load it below, fetch it from Wahapedia, or open{' '}
             <a href={STRATAGEMS_SOURCE_URL} target="_blank" rel="noreferrer">
               Stratagems.csv
             </a>{' '}
@@ -358,7 +358,7 @@ function StratagemsSection() {
             onClick={() =>
               void run(async () => {
                 const imported = await importBundledStratagems()
-                if (!imported) throw new Error('This build carries no stratagems — import the file or fetch through your endpoint.')
+                if (!imported) throw new Error('This build carries no stratagems — import the file or fetch it from Wahapedia.')
                 return imported
               })
             }
@@ -368,10 +368,10 @@ function StratagemsSection() {
           <button
             className="data__button data__button--quiet"
             disabled={busy || !endpoint}
-            title={endpoint ? '' : 'Configure your endpoint under Settings → Sync first'}
+            title={endpoint ? '' : 'Log in first'}
             onClick={() => void run(fetchStratagemsViaEndpoint)}
           >
-            {busy ? 'Working…' : set ? 'Refresh through my endpoint' : 'Fetch through my endpoint'}
+            {busy ? 'Working…' : set ? 'Refresh from Wahapedia' : 'Fetch from Wahapedia'}
           </button>
           <label className="data__button data__button--quiet tap data__file">
             Import Stratagems.csv
@@ -407,7 +407,7 @@ function StratagemsSection() {
 /**
  * The Chapter Approved mission deck (spec §6.1). Wahapedia publishes it but
  * sends no CORS headers, so the page arrives either through the owner's
- * endpoint (Settings → Sync) or as a file saved from the browser.
+ * server or as a file saved from the browser.
  */
 function MissionDeckSection() {
   const [deck, setDeck] = useState<MissionDeck | null>(null)
@@ -418,7 +418,7 @@ function MissionDeckSection() {
   useEffect(() => {
     const load = () => void getMissionDeck().then((d) => setDeck(d ?? null))
     load()
-    void getSyncConfig().then((c) => setEndpoint(Boolean(c.url && c.passphrase)))
+    void getSession().then((session) => setEndpoint(Boolean(session)))
     // The first-start import may finish after this screen opened.
     window.addEventListener(MISSIONS_CHANGED, load)
     return () => window.removeEventListener(MISSIONS_CHANGED, load)
@@ -475,7 +475,7 @@ function MissionDeckSection() {
             onClick={() =>
               void run(async () => {
                 const imported = await importBundledMissionDeck()
-                if (!imported) throw new Error('This build carries no mission deck — import the saved page or fetch through your endpoint.')
+                if (!imported) throw new Error('This build carries no mission deck — import the saved page or fetch it from Wahapedia.')
                 return imported
               })
             }
@@ -485,10 +485,10 @@ function MissionDeckSection() {
           <button
             className="data__button data__button--quiet"
             disabled={busy || !endpoint}
-            title={endpoint ? '' : 'Configure your endpoint under Settings → Sync first'}
+            title={endpoint ? '' : 'Log in first'}
             onClick={() => void run(fetchMissionDeckViaEndpoint)}
           >
-            {busy ? 'Working…' : deck ? 'Refresh through my endpoint' : 'Fetch through my endpoint'}
+            {busy ? 'Working…' : deck ? 'Refresh from Wahapedia' : 'Fetch from Wahapedia'}
           </button>
           <label className="data__button data__button--quiet tap data__file">
             Import saved page
@@ -505,7 +505,7 @@ function MissionDeckSection() {
         </div>
         {!endpoint && !deck && (
           <p className="data__meta">
-            Without an endpoint you can also open the deck page in a browser, save it as HTML, and
+            You can also open the deck page in a browser, save it as HTML, and
             import the file here.
           </p>
         )}

@@ -15,6 +15,7 @@ import {
   type RowFilter,
 } from '@/collection/collection'
 import { getCollection, newEntry, saveEntry } from '@/collection/store'
+import { SYNCED } from '@/sync/engine'
 import { COUNTS, STAGE_LABELS, type CollectionEntry, type Count } from '@/collection/types'
 import './Datasheets.css'
 import './Units.css'
@@ -46,7 +47,11 @@ export function Collection() {
 
   useEffect(() => {
     if (!catalogueId) return
-    void getCollection(catalogueId).then(setEntries)
+    const load = () => void getCollection(catalogueId).then(setEntries)
+    load()
+    // Saving may bring rows changed on another device.
+    window.addEventListener(SYNCED, load)
+    return () => window.removeEventListener(SYNCED, load)
   }, [catalogueId])
 
   const record = catalogues?.find((c) => c.id === catalogueId)

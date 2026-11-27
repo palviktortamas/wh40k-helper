@@ -1,12 +1,12 @@
 /**
  * Stratagem persistence and import. One record on the device holding every
  * faction's stratagems from Wahapedia's export, filtered per game. Wahapedia
- * sends no CORS headers, so the file arrives through the owner's endpoint or
+ * sends no CORS headers, so the file arrives through the owner's server or
  * as a file the owner saved from the browser (spec §4.2).
  */
 
 import { db } from '@/data/db'
-import { getSyncConfig } from '@/sync/client'
+import { fetchThroughServer } from '@/sync/server'
 import { parseStratagems } from './parseCsv'
 import { parseRuleTerms } from './terms'
 import { STRATAGEM_SET_ID, type StratagemSet } from './types'
@@ -24,21 +24,9 @@ export async function importStratagemsCsv(csv: string): Promise<StratagemSet> {
   return set
 }
 
-/** Fetches the export through the owner's endpoint and imports it. */
+/** Fetches the export through the owner's server and imports it. */
 export async function fetchStratagemsViaEndpoint(): Promise<StratagemSet> {
-  const { url, passphrase } = await getSyncConfig()
-  if (!url || !passphrase) throw new Error('Set the endpoint URL and passphrase under Settings → Sync first.')
-  let response: Response
-  try {
-    response = await fetch(`${url}/proxy?url=${encodeURIComponent(STRATAGEMS_SOURCE_URL)}`, {
-      headers: { authorization: `Bearer ${passphrase}` },
-    })
-  } catch {
-    throw new Error('Could not reach the endpoint — offline, or the URL is wrong.')
-  }
-  if (response.status === 401) throw new Error('The endpoint rejected the passphrase.')
-  if (!response.ok) throw new Error(`The endpoint answered ${response.status}.`)
-  return importStratagemsCsv(await response.text())
+  return importStratagemsCsv(await fetchThroughServer(STRATAGEMS_SOURCE_URL))
 }
 
 export const removeStratagems = (): Promise<void> => db.stratagems.delete(STRATAGEM_SET_ID)

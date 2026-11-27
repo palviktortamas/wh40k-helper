@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { reparseStaleCatalogues } from '@/data/worker/client'
 import { ensureMissionDeck } from '@/missions/store'
@@ -6,6 +6,9 @@ import { ensureStratagems } from '@/stratagems/store'
 import { requestPersistentStorage } from '@/data/persist'
 import { useServiceWorkerUpdate } from './useServiceWorkerUpdate'
 import { TermsProvider } from '@/screens/Terms'
+import { Login } from '@/screens/Login'
+import { getSession, SESSION_CHANGED, type Session } from '@/sync/server'
+import { SAVE_STATE, saveState, startAutoSave, type SaveState } from '@/sync/engine'
 import './AppShell.css'
 
 const TABS = [
@@ -23,6 +26,18 @@ type Props = {
 
 export function AppShell({ context }: Props) {
   const sw = useServiceWorkerUpdate()
+  // Nobody uses the app without logging in (owner's decision 2026-11-27); a
+  // device that has logged in once keeps the session and works offline.
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
+  useEffect(() => {
+    const load = () => void getSession().then(setSession)
+    load()
+    window.addEventListener(SESSION_CHANGED, load)
+    return () => window.removeEventListener(SESSION_CHANGED, load)
+  }, [])
+  useEffect(() => {
+    if (session) startAutoSave()
+  }, [session])
 
   // A parser fix reaches installed factions from their stored raw text — offline, once per start.
   // The mission deck and the stratagems the build shipped are imported the first time the app runs.
@@ -34,10 +49,14 @@ export function AppShell({ context }: Props) {
     void ensureStratagems()
   }, [])
 
+  if (session === undefined) return null
+  if (session === null) return <Login />
+
   return (
     <div className="shell">
       <header className="shell__header">
         <h1>WH40k Play Helper</h1>
+        <SaveStatus />
       </header>
 
       <main className="shell__main">
@@ -75,5 +94,31 @@ export function AppShell({ context }: Props) {
         </div>
       )}
     </div>
+  )
+}
+
+const SAVE_LABELS: Record<SaveState, string> = {
+  idle: '',
+  saving: 'Saving…',
+  saved: 'Saved',
+  offline: 'Offline — kept on this device',
+  error: 'Not saved',
+  loggedOut: '',
+}
+
+/** Whether what was made here has reached the account: said in words, never by colour alone. */
+function SaveStatus() {
+  const [{ state, error }, setState] = useState(saveState())
+  useEffect(() => {
+    const update = () => setState(saveState())
+    window.addEventListener(SAVE_STATE, update)
+    return () => window.removeEventListener(SAVE_STATE, update)
+  }, [])
+  const label = SAVE_LABELS[state]
+  if (!label) return null
+  return (
+    <span className={`shell__save shell__save--${state}`} role="status" title={error || label}>
+      {label}
+    </span>
   )
 }
