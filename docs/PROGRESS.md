@@ -2156,6 +2156,26 @@ endpoint settings, the `wh40k-helper-relay` Worker, `~/.wh40k-relay-passphrase`)
   reports `firstAccount: false`, so sign-up needs an invitation code. Still to do: logging in on the
   phone.
 
+## Done 2026-11-27 (evening) - the app's own dialogs instead of the browser's
+
+**Owner:** "I really hate this kind of alerts, can you remove them? or implement a native one?" (a
+screenshot of the browser's `confirm()` box). All 13 `confirm()` / `alert()` calls are gone:
+- deleting a roster, a game or a game in progress;
+- removing a unit, a faction or the stratagems;
+- logging out, ending a game, and starting an illegal list;
+- the "imported" and "copied" notices;
+- the text export and the share fallback when the clipboard is blocked. These now show the text in a
+  selectable box.
+- `src/app/dialogs.ts` is a queue any code can use: `ask({title, message, confirmLabel, danger})`
+  resolves true or false, and `tell({title, message, text})` resolves on dismissal. One dialog
+  shows at a time, in order. Tested on its own.
+- `src/app/DialogHost.tsx`, mounted in `AppShell`, draws the front one as a native `<dialog>` with
+  `showModal()`, so the browser handles focus, Escape and the screen reader. Escape and a tap on the
+  backdrop count as Cancel. Confirm buttons say what they do ("Delete", "Remove", "Log out", "Start
+  anyway", "End game"); destroying ones are the danger colour, with the words carrying the meaning.
+- Checked in headless Chrome against the local server, on Log out: Cancel, Escape and the backdrop
+  keep you logged in, the confirm button logs out. **Zero browser popups** seen, no console errors.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

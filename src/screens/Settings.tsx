@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ask } from '@/app/dialogs'
 import { Link, useOutletContext } from 'react-router-dom'
 import type { Theme } from '@/app/useTheme'
 import { createInvite, getSession, type Session } from '@/sync/server'
@@ -241,10 +242,16 @@ function AccountSettings() {
         <button
           className="button button--quiet"
           disabled={busy}
-          onClick={() => {
-            if (!confirm('Log out? Everything is saved to your account first, then removed from this device.')) return
-            void run(logOut)
-          }}
+          onClick={() =>
+            void run(async () => {
+              const yes = await ask({
+                title: 'Log out?',
+                message: 'Everything is saved to your account first, then removed from this device.',
+                confirmLabel: 'Log out',
+              })
+              if (yes) await logOut()
+            })
+          }
         >
           Log out
         </button>

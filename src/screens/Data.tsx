@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ask } from '@/app/dialogs'
 import { Link } from 'react-router-dom'
 import {
   getHealth,
@@ -123,7 +124,15 @@ export function Data() {
   }
 
   const remove = async (record: CatalogueRecord) => {
-    if (!confirm(`Remove ${record.name}? Its data will be downloaded again if you reinstall.`)) return
+    if (
+      !(await ask({
+        title: `Remove ${record.name}?`,
+        message: 'Its data will be downloaded again if you reinstall.',
+        confirmLabel: 'Remove',
+        danger: true,
+      }))
+    )
+      return
     await removeCatalogue(record.id)
     await refreshInstalled()
   }
@@ -390,7 +399,8 @@ function StratagemsSection() {
               className="data__button data__button--quiet"
               disabled={busy}
               onClick={async () => {
-                if (!confirm('Remove the imported stratagems from this device?')) return
+                if (!(await ask({ title: 'Remove the imported stratagems from this device?', confirmLabel: 'Remove', danger: true })))
+                  return
                 await removeStratagems()
                 setSet(null)
               }}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ask } from '@/app/dialogs'
 import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
@@ -369,7 +370,9 @@ export function Game() {
               <button
                 className="button button--quiet"
                 onClick={() => {
-                  if (confirm('End the game now and record the result?')) dispatch({ type: 'endGame' })
+                  void ask({ title: 'End the game now and record the result?', confirmLabel: 'End game' }).then((yes) => {
+                    if (yes) dispatch({ type: 'endGame' })
+                  })
                 }}
               >
                 End game

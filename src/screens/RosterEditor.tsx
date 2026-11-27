@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ask, tell } from '@/app/dialogs'
 import { Link, useParams } from 'react-router-dom'
 import { getCatalogue } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
@@ -350,7 +351,7 @@ export function RosterEditor() {
             } catch {
               // Clipboard is blocked in some mobile contexts; showing the text
               // is more useful than an error the user cannot act on.
-              alert(text)
+              void tell({ title: 'The list as text', message: 'Copying was blocked here — select the text below and copy it.', text })
             }
           }}
         >
@@ -960,7 +961,9 @@ function UnitCard({
             <button
               className="button button--quiet button--danger"
               onClick={() => {
-                if (confirm(`Remove ${shownName} from the list?`)) update(removeUnit(roster, unit.id))
+                void ask({ title: `Remove ${shownName} from the list?`, confirmLabel: 'Remove', danger: true }).then((yes) => {
+                  if (yes) update(removeUnit(roster, unit.id))
+                })
               }}
             >
               Remove

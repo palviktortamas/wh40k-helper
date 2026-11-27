@@ -7,6 +7,7 @@ import { requestPersistentStorage } from '@/data/persist'
 import { useServiceWorkerUpdate } from './useServiceWorkerUpdate'
 import { TermsProvider } from '@/screens/Terms'
 import { Login } from '@/screens/Login'
+import { DialogHost } from './DialogHost'
 import { getSession, SESSION_CHANGED, type Session } from '@/sync/server'
 import { SAVE_STATE, saveState, startAutoSave, type SaveState } from '@/sync/engine'
 import './AppShell.css'
@@ -75,6 +76,8 @@ export function AppShell({ context }: Props) {
           </NavLink>
         ))}
       </nav>
+
+      <DialogHost />
 
       {sw.updateAvailable && (
         <div className="toast" role="status">

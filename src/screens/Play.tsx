@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ask } from '@/app/dialogs'
 import { Link, useNavigate } from 'react-router-dom'
 import { getInstalledCatalogues } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
@@ -60,11 +61,11 @@ export function Play() {
     if (!chosen) return
     const { roster, catalogue, validation } = chosen
     if (!validation.legal) {
-      const ok = confirm(
-        `"${roster.name}" has ${validation.errors.length} validation error${
-          validation.errors.length === 1 ? '' : 's'
-        }. Start the game anyway?`,
-      )
+      const ok = await ask({
+        title: 'Start the game anyway?',
+        message: `"${roster.name}" has ${validation.errors.length} validation error${validation.errors.length === 1 ? '' : 's'}.`,
+        confirmLabel: 'Start anyway',
+      })
       if (!ok) return
     }
     const game = await saveGame(
@@ -104,9 +105,12 @@ export function Play() {
                       // A game in progress is not history yet, so the warning
                       // says what is actually lost.
                       if (
-                        !confirm(
-                          `Delete the game "${game.rosterName} vs ${game.opponentName}"? It is still in progress at round ${game.round}, and this cannot be undone.`,
-                        )
+                        !(await ask({
+                          title: `Delete the game "${game.rosterName} vs ${game.opponentName}"?`,
+                          message: `It is still in progress at round ${game.round}, and this cannot be undone.`,
+                          confirmLabel: 'Delete',
+                          danger: true,
+                        }))
                       )
                         return
                       await deleteGame(game.id)
@@ -227,7 +231,7 @@ export function Play() {
                   <button
                     className="button button--quiet"
                     onClick={async () => {
-                      if (!confirm('Delete this game from the history?')) return
+                      if (!(await ask({ title: 'Delete this game from the history?', confirmLabel: 'Delete', danger: true }))) return
                       await deleteGame(game.id)
                       await refresh()
                     }}

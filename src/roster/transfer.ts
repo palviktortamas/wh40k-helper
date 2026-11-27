@@ -5,6 +5,7 @@
  */
 
 import type { Roster } from './types'
+import { tell } from '@/app/dialogs'
 
 export const APP_ID = 'wh40k-helper'
 export const ROSTER_ENVELOPE_VERSION = 1
@@ -92,7 +93,7 @@ export async function shareText(title: string, text: string): Promise<'shared' |
     await navigator.clipboard.writeText(text)
     return 'copied'
   } catch {
-    alert(text)
+    await tell({ title: 'Copy this roster', message: 'Copying was blocked here — select the text below and copy it.', text })
     return 'shown'
   }
 }

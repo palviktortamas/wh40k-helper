@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ask, tell } from '@/app/dialogs'
 import { Link, useNavigate } from 'react-router-dom'
 import { getInstalledCatalogues } from '@/data/worker/client'
 import type { CatalogueRecord } from '@/data/db'
@@ -77,7 +78,7 @@ export function Rosters() {
       const roster = adoptRoster(envelope.roster, rosters.map((r) => r.name))
       await saveRoster(roster)
       if (!catalogues.some((c) => c.id === roster.catalogueId)) {
-        alert(`Imported. Install "${envelope.catalogueName}" under Data to edit and validate it.`)
+        void tell({ title: 'Imported', message: `Install "${envelope.catalogueName}" under Data to edit and validate it.` })
       }
       setImporting(false)
       setPasted('')
@@ -265,7 +266,7 @@ function RosterCard({
               roster.name,
               exportRosterJson(roster, catalogue?.name ?? 'Unknown faction'),
             )
-            if (outcome === 'copied') alert('Roster JSON copied. Paste it into "Import" on the other device.')
+            if (outcome === 'copied') void tell({ title: 'Roster copied', message: 'Paste it into "Import" on the other device.' })
           }}
         >
           Share
@@ -273,7 +274,7 @@ function RosterCard({
         <button
           className="button button--quiet"
           onClick={async () => {
-            if (!confirm(`Delete "${roster.name}"? This cannot be undone.`)) return
+            if (!(await ask({ title: `Delete "${roster.name}"?`, message: 'This cannot be undone.', confirmLabel: 'Delete', danger: true }))) return
             await deleteRoster(roster.id)
             await onChanged()
           }}
