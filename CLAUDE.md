@@ -68,8 +68,10 @@ The data is archived outside the repo at `/home/viktor/wh40k-data-archive/` (fix
 there). The same day: bold move and shooting types ("pulse jet move") open their definition, read
 from the stratagem export (`stratagems/terms.ts`, `screens/Terms.tsx`). There is also a **Collection
 tab** (planned / bought / assembled / painted models per datasheet with points, Dexie v10, in the backup) that
-the add-unit picker can filter by. The sync/proxy Worker is **deferred by the owner** ("not needed
-now, maybe later") — do not push for it. Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
+the add-unit picker can filter by. **2026-11-27:** devices sync through a **private gist** in
+the owner's GitHub (`sync/gist.ts`, `sync/merge.ts`; a gist-only token per device, Sync in Settings
+and on Rosters). The Cloudflare Worker is only the optional Wahapedia proxy now. Price-list points
+keep an enhancement's cost on top (`unitEnhancementPoints`). Still open: a real game to tune the reminder defaults, and which factions come next. Leftovers are in the journal's "Next". `PARSER_VERSION` in `src/data/bsdata/parse.ts` must
 be bumped whenever the parsed model changes — installed catalogues re-parse themselves from stored
 raw text at start. Real-catalogue tests: `WH40K_FIXTURES=<dir>` with `gs.json` plus either one
 faction flat (catalogue `.json`, its `.yaml`, libraries as `lib-*.json`) or a subdirectory per

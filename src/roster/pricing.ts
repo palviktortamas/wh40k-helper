@@ -35,13 +35,13 @@ export type PricedRoster = {
 
 /**
  * Restates each root unit's points from the manual's bands. A unit's cost from
- * the catalogue also carries whatever else it adds up (an enhancement is its
- * own cost type, so it is not in here); only the part the manual prices is
- * replaced, and only when the two disagree.
+ * the catalogue also carries the enhancements inside it (an Upgrade on a
+ * squad), which the manual does not price, so those are kept on top; only the
+ * models' part is replaced, and only when the two disagree.
  */
 export function withMfmPoints(
   roster: Roster,
-  evaluation: Pick<EvaluationResult, 'points' | 'unitPoints'>,
+  evaluation: Pick<EvaluationResult, 'points' | 'unitPoints'> & Partial<Pick<EvaluationResult, 'unitEnhancementPoints'>>,
   sheets: readonly Datasheet[],
 ): PricedRoster {
   const sheetOf = new Map(sheets.map((s) => [s.id, s]))
@@ -54,7 +54,9 @@ export function withMfmPoints(
     seen.set(unit.entryId, ordinal)
     const models = modelCount(unit)
     if (models === 0) continue
-    const price = mfmPriceOf(sheetOf.get(unit.entryId), models, ordinal)
+    const listed = mfmPriceOf(sheetOf.get(unit.entryId), models, ordinal)
+    // The list prices the models; an enhancement on the unit is paid on top.
+    const price = listed === undefined ? undefined : listed + (evaluation.unitEnhancementPoints?.[unit.id] ?? 0)
     const before = unitPoints[unit.id]
     if (price === undefined || before === undefined || price === before) continue
     unitPoints[unit.id] = price

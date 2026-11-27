@@ -113,3 +113,31 @@
   opacity: 0.45;
   pointer-events: none;
 }
+
+.settings__steps {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.settings__advanced {
+  margin-top: 1rem;
+}
+
+.settings__advanced summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+/* The Sync button and what it last did, side by side, wrapping on a phone. */
+.sync {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sync__status {
+  font-size: 0.875rem;
+}

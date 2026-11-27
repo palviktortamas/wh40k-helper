@@ -17,6 +17,9 @@ import { PointsLimitField } from './PointsLimitField'
 import { adoptRoster, exportRosterJson, parseRosterEnvelope, shareText } from '@/roster/transfer'
 import { lastBackupAt } from '@/data/backup'
 import { storageState } from '@/data/persist'
+import { SyncButton, SYNCED } from './SyncButton'
+import { getSetting } from '@/data/db'
+import { GITHUB_TOKEN_KEY } from '@/sync/gist'
 import './Rosters.css'
 
 /** How old a backup may get before the Rosters screen mentions it, when the browser may clear storage. */
@@ -34,6 +37,8 @@ export function Rosters() {
   const [pasted, setPasted] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
   const [backupDue, setBackupDue] = useState(false)
+  /** Whether this device can sync (a GitHub token is saved under Settings). */
+  const [canSync, setCanSync] = useState(false)
 
   const refresh = useCallback(async () => {
     setRosters(await listRosters())
@@ -44,6 +49,11 @@ export function Rosters() {
 
   useEffect(() => {
     void refresh()
+    void getSetting<string>(GITHUB_TOKEN_KEY, '').then((t) => setCanSync(Boolean(t.trim())))
+    // A sync may bring rosters from another device.
+    const onSynced = () => void refresh()
+    window.addEventListener(SYNCED, onSynced)
+    return () => window.removeEventListener(SYNCED, onSynced)
   }, [refresh])
 
   // Only worth saying when the browser has not promised to keep the data.
@@ -179,6 +189,7 @@ export function Rosters() {
           <button className="button button--quiet" onClick={() => setImporting(true)}>
             Import
           </button>
+          {canSync && <SyncButton compact />}
         </div>
       )}
 

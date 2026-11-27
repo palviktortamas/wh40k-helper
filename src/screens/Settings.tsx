@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import type { Theme } from '@/app/useTheme'
-import { getSetting } from '@/data/db'
-import {
-  SYNC_LAST_KEY,
-  getSyncConfig,
-  saveSyncConfig,
-  syncAll,
-  type SyncSummary,
-} from '@/sync/client'
+import { getSetting, setSetting } from '@/data/db'
+import { getSyncConfig, saveSyncConfig } from '@/sync/client'
+import { GITHUB_TOKEN_KEY, NEW_TOKEN_URL } from '@/sync/gist'
+import { SyncButton } from './SyncButton'
 import { backupFileName, exportBackup, lastBackupAt, restoreBackup } from '@/data/backup'
 import { requestPersistentStorage, storageState, type StorageState } from '@/data/persist'
 import './Settings.css'
@@ -207,14 +203,76 @@ function BackupSettings() {
 }
 
 /**
- * Sync with the owner's own endpoint (spec §4.4). Manual only: the app talks
- * to it when the button is tapped and at no other time.
+ * Sync between the owner's devices through a private gist on the owner's
+ * GitHub (spec §4.4). Manual only: the app talks to GitHub when Sync is tapped
+ * and at no other time.
  */
 function SyncSettings() {
+  const [token, setToken] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    void getSetting<string>(GITHUB_TOKEN_KEY, '').then((t) => {
+      setToken(t)
+      setSaved(Boolean(t))
+    })
+  }, [])
+
+  const save = async () => {
+    await setSetting(GITHUB_TOKEN_KEY, token.trim())
+    setSaved(Boolean(token.trim()))
+  }
+
+  return (
+    <fieldset className="settings__group">
+      <legend>Sync between your devices</legend>
+      <p className="settings__hint">
+        Lists, games, your collection and settings are kept in one private gist on your GitHub
+        account, so the PC and the phone see the same things. Nothing runs in the background: tap
+        Sync when you start and when you finish on a device. No game data is sent.
+      </p>
+      <ol className="settings__hint settings__steps">
+        <li>
+          <a href={NEW_TOKEN_URL} target="_blank" rel="noreferrer">
+            Make a GitHub token
+          </a>{' '}
+          — the link ticks only <b>gist</b>; choose "No expiration" and generate.
+        </li>
+        <li>Paste it below on each device (the same token or one per device).</li>
+        <li>Tap Sync.</li>
+      </ol>
+      <label className="settings__field">
+        GitHub token (gist access only)
+        <input
+          type="password"
+          value={token}
+          onChange={(e) => {
+            setToken(e.target.value)
+            setSaved(false)
+          }}
+          onBlur={() => void save()}
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          placeholder="ghp_…"
+        />
+      </label>
+      <div className="settings__actions">
+        <SyncButton disabled={!token.trim()} beforeSync={save} />
+        {!saved && token.trim() && <span className="settings__hint">Saved when you tap Sync.</span>}
+      </div>
+      <EndpointSettings />
+    </fieldset>
+  )
+}
+
+/**
+ * The owner's own endpoint, still used to fetch the mission deck and the
+ * stratagem export through it (Data screen). Sync no longer needs it.
+ */
+function EndpointSettings() {
   const [url, setUrl] = useState('')
   const [passphrase, setPassphrase] = useState('')
-  const [last, setLast] = useState<SyncSummary | null>(null)
-  const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -222,38 +280,17 @@ function SyncSettings() {
       setUrl(c.url)
       setPassphrase(c.passphrase)
     })
-    void getSetting<SyncSummary | null>(SYNC_LAST_KEY, null).then(setLast)
   }, [])
 
-  const run = async () => {
-    setBusy(true)
-    setMessage(null)
-    try {
-      await saveSyncConfig({ url, passphrase })
-      const summary = await syncAll({ url, passphrase })
-      setLast(summary)
-      setMessage(
-        `Synced: ${summary.pushed} sent, ${summary.pulled} received${
-          summary.removed ? `, ${summary.removed} removed` : ''
-        }.`,
-      )
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
   return (
-    <fieldset className="settings__group">
-      <legend>Sync between your devices</legend>
+    <details className="settings__advanced">
+      <summary>Your own endpoint (optional, for fetching Wahapedia files)</summary>
       <p className="settings__hint">
-        Build lists at the PC, play from the phone. Rosters and games are exchanged with a tiny
-        endpoint you host yourself; nothing runs in the background and no game data is sent.{' '}
+        Only for refreshing the mission deck and stratagems on the Data screen.{' '}
         <a href={WORKER_README} target="_blank" rel="noreferrer">
           How to set one up
         </a>
-        . Without an endpoint, use "Share" on a roster and "Import" on the other device.
+        .
       </p>
       <label className="settings__field">
         Endpoint URL
@@ -267,36 +304,22 @@ function SyncSettings() {
         />
       </label>
       <label className="settings__field">
-        Passphrase (the same on every device)
-        <input
-          type="password"
-          value={passphrase}
-          onChange={(e) => setPassphrase(e.target.value)}
-          autoComplete="off"
-        />
+        Passphrase
+        <input type="password" value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoComplete="off" />
       </label>
       <div className="settings__actions">
-        <button className="button" disabled={busy || !url || !passphrase} onClick={() => void run()}>
-          {busy ? 'Syncing…' : 'Sync now'}
-        </button>
         <button
           className="button button--quiet"
-          disabled={busy}
           onClick={() => void saveSyncConfig({ url, passphrase }).then(() => setMessage('Saved.'))}
         >
           Save
         </button>
+        {message && (
+          <span className="settings__hint" role="status">
+            {message}
+          </span>
+        )}
       </div>
-      {message && (
-        <p className="settings__hint" role="status">
-          {message}
-        </p>
-      )}
-      {last && !message && (
-        <p className="settings__hint">
-          Last sync {new Date(last.at).toLocaleString()}: {last.pushed} sent, {last.pulled} received.
-        </p>
-      )}
-    </fieldset>
+    </details>
   )
 }

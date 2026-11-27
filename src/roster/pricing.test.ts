@@ -60,6 +60,26 @@ describe('the price list wins where it disagrees with the catalogue', () => {
     expect(out.points).toBe(160)
   })
 
+  // The price list prices the models; an enhancement on the unit (an Upgrade)
+  // is paid on top. Restating the unit from the list must not drop it.
+  it('keeps what an enhancement on the unit costs', () => {
+    const r = roster([unit('a', 'e-gun', 1)])
+    const out = withMfmPoints(
+      r,
+      { ...evaluation({ a: 50 + 10 }), unitEnhancementPoints: { a: 10 } },
+      [{ ...sheet, pricing: [{ from: 1, costs: [{ models: 1, points: 60 }] }] } as unknown as Datasheet],
+    )
+    expect(out.unitPoints['a']).toBe(70)
+    expect(out.points).toBe(70)
+  })
+
+  it('does not count an enhancement as a disagreement with the list', () => {
+    const r = roster([unit('a', 'e-gun', 1)])
+    const out = withMfmPoints(r, { ...evaluation({ a: 50 + 10 }), unitEnhancementPoints: { a: 10 } }, [sheet])
+    expect(out.unitPoints['a']).toBe(60)
+    expect(out.adjusted).toBe(false)
+  })
+
   it('leaves a unit with no price list alone, and reports nothing adjusted', () => {
     const r = roster([unit('a', 'e-other', 3)])
     const out = withMfmPoints(r, evaluation({ a: 77 }), [sheet])

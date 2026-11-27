@@ -2019,6 +2019,49 @@ Assembled / Painted, plus the hobby backlog **To assemble** (bought > assembled)
 The stat tiles keep counting the whole faction. Checked in headless Chrome on Wazdakka (planned),
 Warboss (all painted) and Boyz (30/20/10): each chip showed exactly the rows it should.
 
+## Done 2026-11-27 - enhancement points under the price list, and sync through a gist
+
+**Points bug** (found while reviewing the owner's 1000-pt list). `withMfmPoints` replaced a unit's
+*whole* catalogue cost with the price-list price. An Upgrade enhancement on a squad (10 pts on the
+Squigbuggies) was inside that cost and vanished, so the list read 990 instead of 1000. The evaluator now
+reports `unitEnhancementPoints` per unit (nodes carrying an Enhancements cost), and the list price
+gets them added on top. Two synthetic tests. Checked on the owner's list: the Squigbuggies show 95 and
+the total is 1000. Characters were never hit: a single-model datasheet has no model children, so
+`modelCount` is 0 and the price list is skipped for it.
+
+**Sync: "can you make saving work across devices? only I use this."** The Cloudflare Worker was never
+deployed (it needs an account and a CLI deploy), so sync now goes through a **private gist in the
+owner's own GitHub account**: nothing to host, one token per device.
+- `sync/merge.ts` `mergeForSync(here, there)` is pure. Each record keeps its newest copy by its own
+  stamp (`updatedAt`, `decidedAt`, `editedAt ?? importedAt`). A tombstone newer than a record deletes it
+  everywhere (rosters, games and, new, collection rows, recorded in `saveEntry`). Settings are kept as
+  the device has them, and missing ones arrive. `syncableContents` never lets `sync.*` keys (the token!)
+  or `backup.last` leave the device.
+- `sync/gist.ts` `syncWithGist`:
+  - The gist is the remembered id; failing that, the one holding `wh40k-helper-sync.json`; failing
+    that, a new one, created `public: false` with `{}`, which `readSyncText` reads as empty.
+  - It applies the local changes in one Dexie transaction, then PATCHes the merged file.
+  - A truncated (>1 MB) file is read from its `raw_url`.
+  - GitHub's CORS allows all of this from the Pages origin (checked with curl: preflight allows
+    `Authorization`, `PATCH`; raw gist sends `access-control-allow-origin: *`).
+- UI:
+  - Settings → "Sync between your devices": a token link prefilled with only the `gist` scope, the
+    token field, and **Sync** (`screens/SyncButton.tsx`).
+  - The Rosters screen shows Sync once a token is saved and reloads on the `wh40k:synced` event.
+  - The old endpoint URL and passphrase moved under "Your own endpoint (optional, for fetching
+    Wahapedia files)", because the Data screen's proxy fetches still use them.
+  - The Worker sync client (`syncAll`) is removed.
+- Walked through in headless Chrome with **two browser profiles and an in-memory fake of GitHub's gist
+  API** (Playwright `route`):
+  - Device A installs Orks, imports the owner's list and owns Warboss + Boyz, then syncs. The gist is
+    created private and 11 kB, and the token is not in it.
+  - Device B, fresh, syncs: 3 received, and the roster and both rows are there.
+  - B removes the Warboss and syncs. A syncs: 1 removed, and A's shelf is just Boyz.
+  - No console errors.
+  - The walk found two bugs, both fixed with tests: the new gist's `{}` was refused, and a deletion sent
+    from here read as "Already the same everywhere".
+- **Not yet run against real GitHub**: the owner pastes a token and taps Sync on both devices.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

@@ -136,7 +136,8 @@ export function planRestore(backup: BackupContents, local: BackupContents): Rest
   }
 }
 
-async function readLocal(): Promise<BackupContents> {
+/** Everything the owner made on this device, as the backup (and sync) carries it. */
+export async function readLocalContents(): Promise<BackupContents> {
   return {
     rosters: await db.rosters.toArray(),
     games: await db.games.toArray(),
@@ -152,7 +153,7 @@ export const backupFileName = (at: number) => `wh40k-helper-backup-${new Date(at
 
 /** The backup file's text, and a note that one was made. */
 export async function exportBackup(): Promise<{ text: string; at: number; rosters: number }> {
-  const local = await readLocal()
+  const local = await readLocalContents()
   const contents: BackupContents = {
     ...local,
     // An unedited deck is re-imported from the build; only edits are worth keeping.
@@ -168,7 +169,7 @@ export const lastBackupAt = (): Promise<number | null> => getSetting<number | nu
 
 export async function restoreBackup(text: string): Promise<RestorePlan['counts']> {
   const envelope = parseBackupEnvelope(text)
-  const plan = planRestore(envelope.contents, await readLocal())
+  const plan = planRestore(envelope.contents, await readLocalContents())
   const { write } = plan
   await db.transaction(
     'rw',

@@ -91,6 +91,8 @@ export type EvaluationResult = {
   points: number
   /** Points per root selection id, after modifiers — what the export prints. */
   unitPoints: Record<string, number>
+  /** Of those, the points of enhancements inside each unit (an Upgrade on a squad). */
+  unitEnhancementPoints: Record<string, number>
   /** Detachment Points spent, the detachment's own cost included. */
   detachmentPoints: number
   /** Enhancements taken. */
@@ -216,14 +218,19 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
   let detachmentPoints = 0
   let enhancements = 0
   const unitPoints: Record<string, number> = {}
+  const unitEnhancementPoints: Record<string, number> = {}
   for (const root of roots) {
     let unit = 0
+    let enhancementPoints = 0
     for (const node of subtree(root)) {
-      unit += (node.costs[COST_TYPE.points] ?? 0) * node.absolute
+      const cost = (node.costs[COST_TYPE.points] ?? 0) * node.absolute
+      unit += cost
+      if ((node.costs[COST_TYPE.enhancements] ?? 0) > 0) enhancementPoints += cost
       detachmentPoints += (node.costs[COST_TYPE.detachmentPoints] ?? 0) * node.absolute
       enhancements += (node.costs[COST_TYPE.enhancements] ?? 0) * node.absolute
     }
     unitPoints[root.selection.id] = unit
+    unitEnhancementPoints[root.selection.id] = enhancementPoints
     points += unit
   }
 
@@ -249,6 +256,7 @@ export function analyseRoster(roster: Roster, graph: CatalogueGraph): Analysis {
     issues,
     points,
     unitPoints,
+    unitEnhancementPoints,
     detachmentPoints,
     enhancements,
     pointsLimitChecked,
