@@ -2062,6 +2062,24 @@ owner's own GitHub account**: nothing to host, one token per device.
     from here read as "Already the same everywhere".
 - **Not yet run against real GitHub**: the owner pastes a token and taps Sync on both devices.
 
+**Then: "set up the Cloudflare relay too."** The owner made a Cloudflare account.
+- `worker/` is now **relay-only**: `/proxy` for wahapedia.ru behind the passphrase. The sync routes and
+  the KV binding are gone, because the gist does sync. The Worker is renamed `wh40k-helper-relay`.
+- `wrangler login` needed three tries:
+  - the first link timed out waiting for approval;
+  - the second was approved from the first, expired tab (CSRF mismatch);
+  - the third worked. WSL's `localhost:8976` callback does reach the Windows browser.
+- The account had no workers.dev subdomain and wrangler could not pick one, so `wh40k-relay-5058a9`
+  was registered through the API (`PUT /accounts/:id/workers/subdomain`, with the wrangler OAuth token).
+- Deployed at `https://wh40k-helper-relay.wh40k-relay-5058a9.workers.dev`, with the passphrase secret
+  set. The passphrase is in `~/.wh40k-relay-passphrase` (mode 600) on the PC.
+- The new hostname took about 2 minutes to resolve.
+- Checked with curl: no or a wrong passphrase gives 401; example.com gives 403; `Stratagems.csv`
+  comes back 200 with `access-control-allow-origin: *` and 1,039,164 bytes (the same as the archive);
+  the mission deck page carries the card markers; the CORS preflight gives 204.
+- Not yet clicked in the app: the owner enters the URL and passphrase under Settings → Sync → "Your own
+  endpoint", then uses the Data screen's "through my endpoint" refreshes.
+
 ## Next
 
 ### Step 1 - a session on the owner's phone

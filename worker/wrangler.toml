@@ -1,9 +1,6 @@
-name = "wh40k-helper-sync"
+name = "wh40k-helper-relay"
 main = "sync.js"
 compatibility_date = "2026-09-01"
 
-# Create the namespace once with `npx wrangler kv namespace create SYNC` and
-# paste the id it prints here.
-[[kv_namespaces]]
-binding = "SYNC"
-id = "REPLACE_WITH_YOUR_NAMESPACE_ID"
+# No storage: the Worker only relays Wahapedia files (sync uses a private gist).
+# The passphrase is a secret: `npx wrangler secret put SYNC_PASSPHRASE`.

@@ -1,32 +1,25 @@
-# Sync endpoint
+# Wahapedia relay
 
-The app is offline-first and has no backend. To move rosters and games between a PC and a
-phone without pasting JSON, the owner can host this tiny Cloudflare Worker (free tier). It stores
-only the owner's rosters and games, keyed by id, and merges by `updatedAt`.
+The app is offline-first and has no backend. Wahapedia sends no CORS headers, so the browser cannot
+fetch its files directly. This tiny Cloudflare Worker (free tier) fetches one page or export file
+from `wahapedia.ru` and hands it to the app with those headers, so the Data screen can refresh the
+mission deck and the stratagems. It stores nothing.
 
-## Deploy (once, ~5 minutes)
+Sync between devices does **not** use this Worker any more: it goes through a private gist on the
+owner's GitHub (`src/sync/gist.ts`).
 
-1. Create a free Cloudflare account and install the CLI: `npm i -g wrangler` (or use `npx`).
-2. In this directory: `npx wrangler login`.
-3. Create the storage namespace: `npx wrangler kv namespace create SYNC` and paste the printed
-   `id` into `wrangler.toml`.
-4. Choose a long random passphrase (30+ characters) and store it as the secret:
-   `npx wrangler secret put SYNC_PASSPHRASE`.
-5. `npx wrangler deploy`. Note the `https://wh40k-helper-sync.<you>.workers.dev` URL it prints.
-6. In the app, Settings → Sync: enter that URL and the same passphrase on **each** device, then
-   tap **Sync now**.
+## Deploy (done 2026-11-27; repeat only to change it)
+
+1. `npx wrangler login` (approve in the browser).
+2. In this directory: `npx wrangler deploy`. The account needs a workers.dev subdomain; wrangler
+   asks for one, or register it under Workers in the Cloudflare dashboard.
+3. Set the passphrase as a secret: `npx wrangler secret put SYNC_PASSPHRASE` (30+ random characters).
+4. In the app, Settings → Sync → "Your own endpoint": the Worker URL and the same passphrase, on
+   each device.
 
 ## Behaviour
 
-- `POST /sync/rosters` and `POST /sync/games` with `Authorization: Bearer <passphrase>` and a
-  body `{ items: [{ id, updatedAt, data } | { id, updatedAt, deleted: true }] }`.
-- The Worker keeps the newer copy of each id and replies with the whole merged collection. The app
-  then applies anything newer than its own copy and deletes what the other device deleted.
-- Nothing runs in the background; the app only talks to the endpoint when you tap Sync.
-
-- `GET /proxy?url=<https://wahapedia.ru/…>` with the same `Authorization` header fetches that one
-  host's page and returns it with CORS headers, so the app can import the mission deck (Data
-  screen → Mission deck → "Fetch through my endpoint"). Other hosts are refused.
-
-No game data is stored on the Worker — a roster references catalogue entries by id, and each
-device downloads the data itself.
+- `GET /proxy?url=<https://wahapedia.ru/…>` with `Authorization: Bearer <passphrase>` returns that
+  page or file with CORS headers. Other hosts are refused (403), a missing or wrong passphrase gets
+  401. Nothing runs in the background; the app calls it only when you tap a refresh on the Data
+  screen.
