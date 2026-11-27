@@ -2152,8 +2152,9 @@ endpoint settings, the `wh40k-helper-relay` Worker, `~/.wh40k-relay-passphrase`)
 - Live server, checked without creating any account (the first one must be the owner's):
   `firstAccount: true`; sync, relay and invites without a login give 401; CORS allows only the
   Pages origin.
-- **Not yet done by a person:** the owner creates the first account on the live server, then logs in
-  on the phone.
+- **The owner created the first (admin) account on the live server the same day.** The server now
+  reports `firstAccount: false`, so sign-up needs an invitation code. Still to do: logging in on the
+  phone.
 
 ## Next
 
